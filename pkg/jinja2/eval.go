@@ -1,100 +1,115 @@
 package jinja2
 
 import (
-    "fmt"
-    "reflect"
-    "strconv"
-    "strings"
-    "unicode/utf8"
+	"fmt"
+	"reflect"
+	"strconv"
+	"strings"
 )
 
-type Context map[string]any
-
 // Filters is a registry of filter functions.
-type Filters map[string]func(val any, args []any) (any, error)
+type Filters map[string]func(val Value, args []Value) (Value, error)
 
 // DefaultFilters provides a small set of common filters.
 func DefaultFilters() Filters {
-    return Filters{
-        "upper": func(val any, _ []any) (any, error) { return strings.ToUpper(toStringNilEmpty(val)), nil },
-        "lower": func(val any, _ []any) (any, error) { return strings.ToLower(toStringNilEmpty(val)), nil },
-        "trim": func(val any, _ []any) (any, error) { return strings.TrimSpace(toStringNilEmpty(val)), nil },
-        "default": func(val any, args []any) (any, error) {
-            if len(args) < 1 {
-                return val, nil
-            }
-            if isTruthy(val) {
-                return val, nil
-            }
-            return args[0], nil
-        },
-        "join": func(val any, args []any) (any, error) {
-            sep := ","
-            if len(args) > 0 {
-                sep = toString(args[0])
-            }
-            switch v := val.(type) {
-            case []string:
-                return strings.Join(v, sep), nil
-            default:
-                rv := reflect.ValueOf(val)
-                if rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array {
-                    var parts []string
-                    for i := 0; i < rv.Len(); i++ {
-                        parts = append(parts, toString(rv.Index(i).Interface()))
-                    }
-                    return strings.Join(parts, sep), nil
-                }
-            }
-            return toString(val), nil
-        },
-        "length": func(val any, _ []any) (any, error) {
-            rv := reflect.ValueOf(val)
-            switch rv.Kind() {
-            case reflect.Slice, reflect.Array, reflect.Map, reflect.String:
-                return rv.Len(), nil
-            }
-            return 0, nil
-        },
-    }
+	return Filters{
+		"upper": func(val Value, _ []Value) (Value, error) { return StringValue(strings.ToUpper(val.String())), nil },
+		"lower": func(val Value, _ []Value) (Value, error) { return StringValue(strings.ToLower(val.String())), nil },
+		"trim":  func(val Value, _ []Value) (Value, error) { return StringValue(strings.TrimSpace(val.String())), nil },
+		"default": func(val Value, args []Value) (Value, error) {
+			if len(args) < 1 {
+				return val, nil
+			}
+			if val.Truth() {
+				return val, nil
+			}
+			return args[0], nil
+		},
+		"join": func(val Value, args []Value) (Value, error) {
+			sep := ","
+			if len(args) > 0 {
+				sep = args[0].String()
+			}
+			switch v := val.(type) {
+			case ListValue:
+				parts := make([]string, 0, len(v))
+				for _, it := range v {
+					parts = append(parts, it.String())
+				}
+				return StringValue(strings.Join(parts, sep)), nil
+			default:
+				return StringValue(val.String()), nil
+			}
+		},
+		"length": func(val Value, _ []Value) (Value, error) {
+			switch v := val.(type) {
+			case StringValue:
+				return IntValue(int64(len(string(v)))), nil
+			case ListValue:
+				return IntValue(int64(len(v))), nil
+			case DictValue:
+				return IntValue(int64(len(v))), nil
+			default:
+				rv := reflect.ValueOf(val)
+				switch rv.Kind() {
+				case reflect.Slice, reflect.Array, reflect.Map, reflect.String:
+					return IntValue(int64(rv.Len())), nil
+				}
+			}
+			return IntValue(0), nil
+		},
+	}
 }
 
 type Evaluator struct {
     Filters Filters
+    Funcs   map[string]func(args []Value) (Value, error)
 }
 
-func NewEvaluator() *Evaluator { return &Evaluator{Filters: DefaultFilters()} }
+func NewEvaluator() *Evaluator {
+    return &Evaluator{
+        Filters: DefaultFilters(),
+        Funcs: map[string]func(args []Value) (Value, error){
+            "raise": func(args []Value) (Value, error) {
+                if len(args) == 0 {
+                    return nil, fmt.Errorf("raise requires a message")
+                }
+                return nil, fmt.Errorf(args[0].String())
+            },
+        },
+    }
+}
 
 // Eval evaluates a minimal expression language for variable lookup, string and
 // numeric literals, and a simple filter pipeline (e.g., name|upper|default("x")).
-func (e *Evaluator) Eval(expr string, ctx Context) (any, error) {
-    expr = strings.TrimSpace(expr)
-    if expr == "" {
-        return "", nil
-    }
-    parts, err := splitPipes(expr)
-    if err != nil {
-        return nil, err
-    }
-    val, err := evalAtom(parts[0], ctx)
-    if err != nil {
-        return nil, err
-    }
-    for _, f := range parts[1:] {
-        name, args, err := parseFilterCall(f, ctx)
-        if err != nil {
-            return nil, err
-        }
-        fn := e.Filters[name]
-        if fn == nil {
-            return nil, fmt.Errorf("unknown filter: %s", name)
-        }
-        val, err = fn(val, args)
-        if err != nil {
-            return nil, err
-        }
-    }
-    return val, nil
+func (e *Evaluator) Eval(expr string, ctx Context) (Value, error) {
+	expr = strings.TrimSpace(expr)
+	if expr == "" {
+		return StringValue(""), nil
+	}
+	parts, err := splitPipes(expr)
+	if err != nil {
+		return nil, err
+	}
+	val, err := e.evalAtom(parts[0], ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, f := range parts[1:] {
+		name, args, err := e.parseFilterCall(f, ctx)
+		if err != nil {
+			return nil, err
+		}
+		fn := e.Filters[name]
+		if fn == nil {
+			return nil, fmt.Errorf("unknown filter: %s", name)
+		}
+		val, err = fn(val, args)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return val, nil
 }
 
 // Truthy evaluates an expression and returns its truthiness.
@@ -110,271 +125,547 @@ func (e *Evaluator) Truthy(expr string, ctx Context) (bool, error) {
         }
         return !b, nil
     }
-    if i := strings.Index(s, "=="); i >= 0 {
-        a1 := strings.TrimSpace(s[:i])
-        a2 := strings.TrimSpace(s[i+2:])
-        v1, err := e.Eval(a1, ctx)
-        if err != nil { return false, err }
-        v2, err := e.Eval(a2, ctx)
-        if err != nil { return false, err }
-        return equal(v1, v2), nil
+    // handle 'not in' and 'in' operators
+    if op, lhs, rhs, ok := findInOperator(s); ok {
+        lv, err := e.Eval(lhs, ctx)
+        if err != nil {
+            return false, err
+        }
+        list, err := parseListLiteral(rhs)
+        if err != nil {
+            return false, err
+        }
+        contains := false
+        for _, it := range list {
+            if it.String() == lv.String() {
+                contains = true
+                break
+            }
+        }
+        if op == "in" {
+            return contains, nil
+        }
+        if op == "not in" {
+            return !contains, nil
+        }
     }
-    if i := strings.Index(s, "!="); i >= 0 {
-        a1 := strings.TrimSpace(s[:i])
-        a2 := strings.TrimSpace(s[i+2:])
-        v1, err := e.Eval(a1, ctx)
-        if err != nil { return false, err }
-        v2, err := e.Eval(a2, ctx)
-        if err != nil { return false, err }
-        return !equal(v1, v2), nil
-    }
-    v, err := e.Eval(s, ctx)
-    if err != nil {
-        return false, err
-    }
-    return isTruthy(v), nil
+	if i := strings.Index(s, "=="); i >= 0 {
+		a1 := strings.TrimSpace(s[:i])
+		a2 := strings.TrimSpace(s[i+2:])
+		v1, err := e.Eval(a1, ctx)
+		if err != nil {
+			return false, err
+		}
+		v2, err := e.Eval(a2, ctx)
+		if err != nil {
+			return false, err
+		}
+		return v1.String() == v2.String(), nil
+	}
+	if i := strings.Index(s, "!="); i >= 0 {
+		a1 := strings.TrimSpace(s[:i])
+		a2 := strings.TrimSpace(s[i+2:])
+		v1, err := e.Eval(a1, ctx)
+		if err != nil {
+			return false, err
+		}
+		v2, err := e.Eval(a2, ctx)
+		if err != nil {
+			return false, err
+		}
+		return v1.String() != v2.String(), nil
+	}
+	v, err := e.Eval(s, ctx)
+	if err != nil {
+		return false, err
+	}
+	return v.Truth(), nil
 }
 
-func equal(a, b any) bool {
-    return fmt.Sprintf("%v", a) == fmt.Sprintf("%v", b)
+// findInOperator finds top-level 'in' or 'not in' in s, ignoring brackets/quotes.
+func findInOperator(s string) (string, string, string, bool) {
+    depth := 0
+    inStr := byte(0)
+    for _, pat := range []string{" not in ", " in "} {
+        depth = 0
+        inStr = 0
+        for i := 0; i+len(pat) <= len(s); i++ {
+            c := s[i]
+            if inStr != 0 {
+                if c == inStr { inStr = 0 }
+                continue
+            }
+            switch c {
+            case '\'', '"':
+                inStr = c
+            case '[', '(':
+                depth++
+            case ']', ')':
+                if depth > 0 { depth-- }
+            }
+            if depth == 0 && strings.HasPrefix(s[i:], pat) {
+                lhs := strings.TrimSpace(s[:i])
+                rhs := strings.TrimSpace(s[i+len(pat):])
+                return strings.TrimSpace(pat), lhs, rhs, true
+            }
+        }
+    }
+    return "", "", "", false
+}
+
+// parseListLiteral parses a list like ["a", "b"].
+func parseListLiteral(s string) (ListValue, error) {
+    s = strings.TrimSpace(s)
+    if !strings.HasPrefix(s, "[") || !strings.HasSuffix(s, "]") {
+        return nil, fmt.Errorf("invalid list literal: %s", s)
+    }
+    inner := strings.TrimSpace(s[1:len(s)-1])
+    if inner == "" {
+        return ListValue{}, nil
+    }
+    parts, err := splitArgs(inner)
+    if err != nil {
+        return nil, err
+    }
+    out := make(ListValue, 0, len(parts))
+    for _, p := range parts {
+        p = strings.TrimSpace(p)
+        if (strings.HasPrefix(p, "\"") && strings.HasSuffix(p, "\"")) || (strings.HasPrefix(p, "'") && strings.HasSuffix(p, "'")) {
+            out = append(out, StringValue(p[1:len(p)-1]))
+        } else {
+            out = append(out, StringValue(p))
+        }
+    }
+    return out, nil
 }
 
 func splitPipes(s string) ([]string, error) {
-    var parts []string
-    var b strings.Builder
-    depth := 0
-    inStr := byte(0)
-    for i := 0; i < len(s); i++ {
-        c := s[i]
-        if inStr != 0 {
-            b.WriteByte(c)
-            if c == inStr {
-                inStr = 0
-            }
-            continue
-        }
-        switch c {
-        case '\'', '"':
-            inStr = c
-            b.WriteByte(c)
-        case '(':
-            depth++
-            b.WriteByte(c)
-        case ')':
-            if depth > 0 { depth-- }
-            b.WriteByte(c)
-        case '|':
-            if depth == 0 {
-                parts = append(parts, strings.TrimSpace(b.String()))
-                b.Reset()
-            } else {
-                b.WriteByte(c)
-            }
-        default:
-            b.WriteByte(c)
-        }
-    }
-    if b.Len() > 0 {
-        parts = append(parts, strings.TrimSpace(b.String()))
-    }
-    if len(parts) == 0 {
-        return []string{s}, nil
-    }
-    return parts, nil
+	var parts []string
+	var b strings.Builder
+	depth := 0
+	inStr := byte(0)
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if inStr != 0 {
+			b.WriteByte(c)
+			if c == inStr {
+				inStr = 0
+			}
+			continue
+		}
+		switch c {
+		case '\'', '"':
+			inStr = c
+			b.WriteByte(c)
+		case '(':
+			depth++
+			b.WriteByte(c)
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+			b.WriteByte(c)
+		case '|':
+			if depth == 0 {
+				parts = append(parts, strings.TrimSpace(b.String()))
+				b.Reset()
+			} else {
+				b.WriteByte(c)
+			}
+		default:
+			b.WriteByte(c)
+		}
+	}
+	if b.Len() > 0 {
+		parts = append(parts, strings.TrimSpace(b.String()))
+	}
+	if len(parts) == 0 {
+		return []string{s}, nil
+	}
+	return parts, nil
 }
 
-func parseFilterCall(s string, ctx Context) (string, []any, error) {
-    s = strings.TrimSpace(s)
-    if s == "" { return "", nil, fmt.Errorf("empty filter") }
-    name := s
-    args := []any{}
-    if i := strings.IndexByte(s, '('); i >= 0 && strings.HasSuffix(s, ")") {
-        name = strings.TrimSpace(s[:i])
-        argStr := strings.TrimSpace(s[i+1:len(s)-1])
-        if argStr != "" {
-            split, err := splitArgs(argStr)
-            if err != nil { return "", nil, err }
-            for _, a := range split {
-                v, err := evalAtom(a, ctx)
-                if err != nil { return "", nil, err }
-                args = append(args, v)
-            }
-        }
-    }
-    return name, args, nil
+func (e *Evaluator) parseFilterCall(s string, ctx Context) (string, []Value, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", nil, fmt.Errorf("empty filter")
+	}
+	name := s
+	args := []Value{}
+	if i := strings.IndexByte(s, '('); i >= 0 && strings.HasSuffix(s, ")") {
+		name = strings.TrimSpace(s[:i])
+		argStr := strings.TrimSpace(s[i+1 : len(s)-1])
+		if argStr != "" {
+			split, err := splitArgs(argStr)
+			if err != nil {
+				return "", nil, err
+			}
+			for _, a := range split {
+				v, err := e.evalAtom(a, ctx)
+				if err != nil {
+					return "", nil, err
+				}
+				args = append(args, v)
+			}
+		}
+	}
+	return name, args, nil
 }
 
 func splitArgs(s string) ([]string, error) {
-    var parts []string
-    var b strings.Builder
-    depth := 0
-    inStr := byte(0)
-    for i := 0; i < len(s); i++ {
-        c := s[i]
-        if inStr != 0 {
-            b.WriteByte(c)
-            if c == inStr { inStr = 0 }
-            continue
-        }
-        switch c {
-        case '\'', '"':
-            inStr = c
-            b.WriteByte(c)
-        case '(':
-            depth++
-            b.WriteByte(c)
-        case ')':
-            if depth > 0 { depth-- }
-            b.WriteByte(c)
-        case ',':
-            if depth == 0 {
-                parts = append(parts, strings.TrimSpace(b.String()))
-                b.Reset()
-            } else {
-                b.WriteByte(c)
-            }
-        default:
-            b.WriteByte(c)
-        }
-    }
-    if b.Len() > 0 { parts = append(parts, strings.TrimSpace(b.String())) }
-    return parts, nil
+	var parts []string
+	var b strings.Builder
+	depth := 0
+	inStr := byte(0)
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if inStr != 0 {
+			b.WriteByte(c)
+			if c == inStr {
+				inStr = 0
+			}
+			continue
+		}
+		switch c {
+		case '\'', '"':
+			inStr = c
+			b.WriteByte(c)
+		case '(':
+			depth++
+			b.WriteByte(c)
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+			b.WriteByte(c)
+		case ',':
+			if depth == 0 {
+				parts = append(parts, strings.TrimSpace(b.String()))
+				b.Reset()
+			} else {
+				b.WriteByte(c)
+			}
+		default:
+			b.WriteByte(c)
+		}
+	}
+	if b.Len() > 0 {
+		parts = append(parts, strings.TrimSpace(b.String()))
+	}
+	return parts, nil
 }
 
-func evalAtom(s string, ctx Context) (any, error) {
-    s = strings.TrimSpace(s)
-    if s == "" {
-        return "", nil
+func (e *Evaluator) evalAtom(s string, ctx Context) (Value, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return StringValue(""), nil
+	}
+	if (s[0] == '\'' && s[len(s)-1] == '\'') || (s[0] == '"' && s[len(s)-1] == '"') {
+		return StringValue(s[1 : len(s)-1]), nil
+	}
+	if n, err := strconv.ParseInt(s, 10, 64); err == nil {
+		return IntValue(n), nil
+	}
+	if s == "true" {
+		return BoolValue(true), nil
+	}
+	if s == "false" {
+		return BoolValue(false), nil
+	}
+	if s == "none" || s == "nil" || s == "null" {
+		return NoneValue{}, nil
+	}
+    // Complex reference evaluation: supports dotted lookup, calls, and indexing.
+    if strings.ContainsAny(s, ".([") {
+        return e.evalRef(s, ctx)
     }
-    if (s[0] == '\'' && s[len(s)-1] == '\'') || (s[0] == '"' && s[len(s)-1] == '"') {
-        return s[1 : len(s)-1], nil
+    // Simple name lookup
+    if lh, ok := any(ContextRef{Ctx: ctx}).(LookupHook); ok {
+        lh.OnLookup(s)
     }
-    if n, err := strconv.ParseInt(s, 10, 64); err == nil {
-        return n, nil
+    if v, ok := ctx[s]; ok {
+        return v, nil
     }
-    if s == "true" { return true, nil }
-    if s == "false" { return false, nil }
-    if s == "none" || s == "nil" || s == "null" { return nil, nil }
-    // dotted identifier lookup
-    parts := strings.Split(s, ".")
-    var cur any = ctx
-    for _, p := range parts {
-        v, ok := lookup(cur, p)
-        if !ok {
-            return nil, nil
+    return nil, fmt.Errorf("undefined variable: %s", s)
+}
+
+// evalRef parses and evaluates a reference expression like:
+//   name
+//   name(arg1, "x")
+//   obj.attr
+//   obj.method(arg)
+//   obj[key]
+//   obj[expr]
+func (e *Evaluator) evalRef(s string, ctx Context) (Value, error) {
+    i := 0
+    readIdent := func() (string, error) {
+        start := i
+        for i < len(s) {
+            c := s[i]
+            if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' {
+                i++
+                continue
+            }
+            break
         }
-        cur = v
+        if i == start {
+            return "", fmt.Errorf("expected identifier in %q at %d", s, i)
+        }
+        return s[start:i], nil
+    }
+    skipSpaces := func() { for i < len(s) && (s[i] == ' ' || s[i] == '\t') { i++ } }
+    parseArgs := func() ([]string, error) {
+        if i >= len(s) || s[i] != '(' { return nil, fmt.Errorf("expected '('") }
+        // find matching ) considering nested parentheses and quotes
+        depth := 0
+        inStr := byte(0)
+        start := i + 1
+        i++
+        for i < len(s) {
+            c := s[i]
+            if inStr != 0 {
+                if c == inStr { inStr = 0 }
+                i++
+                continue
+            }
+            switch c {
+            case '\'', '"':
+                inStr = c
+            case '(':
+                depth++
+            case ')':
+                if depth == 0 {
+                    argsStr := s[start:i]
+                    i++
+                    // reuse splitArgs on substring
+                    return splitArgs(argsStr)
+                }
+                depth--
+            }
+            i++
+        }
+        return nil, fmt.Errorf("unterminated call in %q", s)
+    }
+    parseIndex := func() (string, error) {
+        if i >= len(s) || s[i] != '[' { return "", fmt.Errorf("expected '['") }
+        depth := 0
+        inStr := byte(0)
+        start := i + 1
+        i++
+        for i < len(s) {
+            c := s[i]
+            if inStr != 0 {
+                if c == inStr { inStr = 0 }
+                i++
+                continue
+            }
+            switch c {
+            case '\'', '"':
+                inStr = c
+            case '[':
+                depth++
+            case ']':
+                if depth == 0 {
+                    idxExpr := strings.TrimSpace(s[start:i])
+                    i++
+                    return idxExpr, nil
+                }
+                depth--
+            }
+            i++
+        }
+        return "", fmt.Errorf("unterminated index in %q", s)
+    }
+
+    skipSpaces()
+    // first identifier
+    name, err := readIdent()
+    if err != nil { return nil, err }
+    skipSpaces()
+    var cur Value
+    // possible global function call
+    if i < len(s) && s[i] == '(' {
+        argStrs, err := parseArgs()
+        if err != nil { return nil, err }
+        var args []Value
+        for _, as := range argStrs {
+            v, err := e.evalAtom(as, ctx)
+            if err != nil { return nil, err }
+            args = append(args, v)
+        }
+        if fn, ok := e.Funcs[name]; ok {
+            v, err := fn(args)
+            if err != nil { return nil, err }
+            cur = v
+        } else if v0, ok := ctx[name]; ok {
+            // a callable value in context
+            switch cv := v0.(type) {
+            case CallableValue:
+                v, err := cv.Fn(args)
+                if err != nil { return nil, err }
+                cur = v
+            default:
+                return nil, fmt.Errorf("%s is not callable", name)
+            }
+        } else {
+            return nil, fmt.Errorf("undefined function: %s", name)
+        }
+    } else {
+        // simple variable
+        if lh, ok := any(ContextRef{Ctx: ctx}).(LookupHook); ok {
+            lh.OnLookup(name)
+        }
+        v0, ok := ctx[name]
+        if !ok {
+            return nil, fmt.Errorf("undefined variable: %s", name)
+        }
+        cur = v0
+    }
+
+    // trailers: .name [index] (call)
+    for i < len(s) {
+        skipSpaces()
+        if i >= len(s) { break }
+        if s[i] == '.' {
+            i++
+            skipSpaces()
+            attr, err := readIdent()
+            if err != nil { return nil, err }
+            // attribute lookup or method binding
+            if nv, ok := e.lookupOrMethod(cur, attr); ok {
+                cur = nv
+            } else {
+                return nil, fmt.Errorf("undefined attribute: %s on %T", attr, cur)
+            }
+            skipSpaces()
+            // optional call immediately after attribute
+            if i < len(s) && s[i] == '(' {
+                argStrs, err := parseArgs()
+                if err != nil { return nil, err }
+                var args []Value
+                for _, as := range argStrs {
+                    v, err := e.evalAtom(as, ctx)
+                    if err != nil { return nil, err }
+                    args = append(args, v)
+                }
+                cv, ok := cur.(CallableValue)
+                if !ok {
+                    return nil, fmt.Errorf("%s is not callable", attr)
+                }
+                v, err := cv.Fn(args)
+                if err != nil { return nil, err }
+                cur = v
+            }
+            continue
+        }
+        if s[i] == '[' {
+            idxExpr, err := parseIndex()
+            if err != nil { return nil, err }
+            kv, err := e.Eval(idxExpr, ctx)
+            if err != nil { return nil, err }
+            // perform indexing
+            switch base := cur.(type) {
+            case DictValue:
+                key := kv.String()
+                if vv, ok := base[key]; ok {
+                    cur = vv
+                } else {
+                    return nil, fmt.Errorf("key not found: %s", key)
+                }
+            default:
+                rv := reflect.ValueOf(cur)
+                switch rv.Kind() {
+                case reflect.Map:
+                    mk := reflect.ValueOf(kv.String())
+                    mv := rv.MapIndex(mk)
+                    if mv.IsValid() {
+                        cur = FromGo(mv.Interface())
+                    } else {
+                        return nil, fmt.Errorf("key not found: %s", kv.String())
+                    }
+                default:
+                    return nil, fmt.Errorf("type %T not indexable", cur)
+                }
+            }
+            continue
+        }
+        // unexpected char
+        return nil, fmt.Errorf("unexpected token at %q (pos %d)", s[i:], i)
     }
     return cur, nil
 }
 
-func lookup(v any, key string) (any, bool) {
-    if v == nil { return nil, false }
-    rv := reflect.ValueOf(v)
-    switch rv.Kind() {
-    case reflect.Map:
-        mv := rv.MapIndex(reflect.ValueOf(key))
-        if mv.IsValid() { return mv.Interface(), true }
-        // string key fallback
-        if rv.Type().Key().Kind() == reflect.String {
-            mv := rv.MapIndex(reflect.ValueOf(key))
-            if mv.IsValid() { return mv.Interface(), true }
+// lookupOrMethod attempts attribute lookup, then falls back to method binding.
+func (e *Evaluator) lookupOrMethod(v Value, key string) (Value, bool) {
+    if vv, ok := e.lookupValue(v, key); ok {
+        return vv, true
+    }
+    // string methods
+    switch s := v.(type) {
+    case StringValue:
+        switch key {
+        case "lower":
+            return CallableValue{Fn: func(args []Value) (Value, error) {
+                return StringValue(strings.ToLower(string(s))), nil
+            }}, true
+        case "split":
+            return CallableValue{Fn: func(args []Value) (Value, error) {
+                // default: split on whitespace
+                str := string(s)
+                fields := strings.Fields(str)
+                out := make(ListValue, 0, len(fields))
+                for _, f := range fields {
+                    out = append(out, StringValue(f))
+                }
+                return out, nil
+            }}, true
+        }
+    }
+    return nil, false
+}
+
+// setVar stores a value in the current context.
+func setVar(ctx Context, name string, val Value) error {
+	ctx[name] = val
+	return nil
+}
+
+// lookupValue retrieves a nested value by key from a Value.
+func (e *Evaluator) lookupValue(v Value, key string) (Value, bool) {
+    // Give containers a chance to intercept/handle the lookup first.
+    if lh, ok := v.(LookupHook); ok {
+        if vv, handled := lh.OnLookup(key); handled {
+            return vv, true
+        }
+    }
+    switch t := v.(type) {
+    case DictValue:
+        if vv, ok := t[key]; ok {
+            return vv, true
         }
         return nil, false
-    case reflect.Struct:
-        f := rv.FieldByNameFunc(func(n string) bool { return strings.EqualFold(n, key) })
-        if f.IsValid() { return f.Interface(), true }
-        return nil, false
-    case reflect.Pointer, reflect.Interface:
-        if rv.IsNil() { return nil, false }
-        return lookup(rv.Elem().Interface(), key)
-    default:
-        return nil, false
-    }
-}
-
-func setVar(ctx Context, name string, val any) {
-    ctx[name] = val
-}
-
-func isTruthy(v any) bool {
-    if v == nil { return false }
-    switch t := v.(type) {
-    case bool:
-        return t
-    case int, int64, int32:
-        return toInt(v) != 0
-    case float32, float64:
-        return toFloat(v) != 0
-    case string:
-        return strings.TrimSpace(t) != ""
     default:
         rv := reflect.ValueOf(v)
         switch rv.Kind() {
-        case reflect.Slice, reflect.Array, reflect.Map, reflect.String:
-            return rv.Len() > 0
+        case reflect.Map:
+            mv := rv.MapIndex(reflect.ValueOf(key))
+            if mv.IsValid() {
+                return FromGo(mv.Interface()), true
+            }
+            return nil, false
+        case reflect.Struct:
+            f := rv.FieldByNameFunc(func(n string) bool { return strings.EqualFold(n, key) })
+            if f.IsValid() {
+                return FromGo(f.Interface()), true
+            }
+            return nil, false
         case reflect.Pointer, reflect.Interface:
-            return !rv.IsNil()
+            if rv.IsNil() {
+                return nil, false
+            }
+            // Recurse on the underlying value (after giving the original value a chance above).
+            return e.lookupValue(FromGo(rv.Elem().Interface()), key)
         }
-        return true
     }
-}
-
-func toString(v any) string { return fmt.Sprintf("%v", v) }
-func toStringNilEmpty(v any) string {
-    if v == nil { return "" }
-    return fmt.Sprintf("%v", v)
-}
-func toInt(v any) int64 {
-    switch t := v.(type) {
-    case int: return int64(t)
-    case int64: return t
-    case int32: return int64(t)
-    case float32: return int64(t)
-    case float64: return int64(t)
-    default:
-        i, _ := strconv.ParseInt(fmt.Sprintf("%v", v), 10, 64)
-        return i
-    }
-}
-func toFloat(v any) float64 {
-    switch t := v.(type) {
-    case float64: return t
-    case float32: return float64(t)
-    case int: return float64(t)
-    case int64: return float64(t)
-    case int32: return float64(t)
-    default:
-        f, _ := strconv.ParseFloat(fmt.Sprintf("%v", v), 64)
-        return f
-    }
-}
-
-func iterate(v any) ([]any, error) {
-    if v == nil { return nil, nil }
-    switch t := v.(type) {
-    case string:
-        var out []any
-        for len(t) > 0 {
-            r, size := utf8.DecodeRuneInString(t)
-            t = t[size:]
-            out = append(out, string(r))
-        }
-        return out, nil
-    }
-    rv := reflect.ValueOf(v)
-    switch rv.Kind() {
-    case reflect.Slice, reflect.Array:
-        var out []any
-        for i := 0; i < rv.Len(); i++ {
-            out = append(out, rv.Index(i).Interface())
-        }
-        return out, nil
-    case reflect.Map:
-        it := rv.MapRange()
-        var out []any
-        for it.Next() { out = append(out, it.Key().Interface()) }
-        return out, nil
-    }
-    return nil, fmt.Errorf("not iterable: %T", v)
+    return nil, false
 }

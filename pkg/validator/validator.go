@@ -37,9 +37,29 @@ func Map[T any](items []T, f func(T, string) error, description string) error {
 	return nil
 }
 
+func MapDict[T any](items map[string]T, f func(string, T) error, description string) error {
+	for key, item := range items {
+		if err := f(key, item); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func NotEmpty(field, description string) error {
 	if field == "" {
 		return fmt.Errorf("%s must not be empty", description)
+	}
+	return nil
+}
+
+func NoDuplicates[T comparable](slice []T, description string) error {
+	seen := make(map[T]struct{})
+	for _, v := range slice {
+		if _, ok := seen[v]; ok {
+			return fmt.Errorf("%s contains duplicate value: %v", description, v)
+		}
+		seen[v] = struct{}{}
 	}
 	return nil
 }

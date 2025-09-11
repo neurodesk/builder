@@ -4,19 +4,9 @@ import (
 	"fmt"
 
 	"github.com/neurodesk/builder/pkg/jinja2"
+	"github.com/neurodesk/builder/pkg/templates"
 	v "github.com/neurodesk/builder/pkg/validator"
 )
-
-type TemplateString string
-
-func (t TemplateString) Validate() error {
-	doc, err := jinja2.Parse(string(t))
-	if err != nil {
-		return fmt.Errorf("invalid jinja template: %w", err)
-	}
-	_ = doc
-	return nil
-}
 
 type CPUArchitecture string
 
@@ -44,8 +34,8 @@ type Copyright struct {
 type Category string
 
 type DeployInfo struct {
-	Bins []TemplateString `yaml:"bins,omitempty"`
-	Path []TemplateString `yaml:"path,omitempty"`
+	Bins []jinja2.TemplateString `yaml:"bins,omitempty"`
+	Path []jinja2.TemplateString `yaml:"path,omitempty"`
 }
 
 type FileInfo struct {
@@ -101,10 +91,10 @@ func (g GroupDirective) Validate() error {
 	return v.Each(g)
 }
 
-type RunDirective []TemplateString
+type RunDirective []jinja2.TemplateString
 
 func (r RunDirective) Validate() error {
-	return v.Map(r, func(cmd TemplateString, description string) error {
+	return v.Map(r, func(cmd jinja2.TemplateString, description string) error {
 		return cmd.Validate()
 	}, "run")
 }
@@ -138,38 +128,38 @@ func (f FileDirective) Validate() error {
 
 type InstallDirective any // string or []string
 
-type UserDirective TemplateString
+type UserDirective jinja2.TemplateString
 
 func (u UserDirective) Validate() error {
-	return TemplateString(u).Validate()
+	return jinja2.TemplateString(u).Validate()
 }
 
-type WorkDirDirective TemplateString
+type WorkDirDirective jinja2.TemplateString
 
 func (w WorkDirDirective) Validate() error {
-	return TemplateString(w).Validate()
+	return jinja2.TemplateString(w).Validate()
 }
 
-type EntryPointDirective TemplateString
+type EntryPointDirective jinja2.TemplateString
 
 func (e EntryPointDirective) Validate() error {
-	return TemplateString(e).Validate()
+	return jinja2.TemplateString(e).Validate()
 }
 
 type DeployDirective DeployInfo
 
 func (d DeployDirective) Validate() error {
 	return v.All(
-		v.Map(d.Bins, func(cmd TemplateString, description string) error {
+		v.Map(d.Bins, func(cmd jinja2.TemplateString, description string) error {
 			return cmd.Validate()
 		}, "deploy.bins"),
-		v.Map(d.Path, func(cmd TemplateString, description string) error {
+		v.Map(d.Path, func(cmd jinja2.TemplateString, description string) error {
 			return cmd.Validate()
 		}, "deploy.path"),
 	)
 }
 
-type EnvironmentDirective map[string]TemplateString
+type EnvironmentDirective map[string]jinja2.TemplateString
 
 func (e EnvironmentDirective) Validate() error {
 	for k, val := range e {
@@ -208,12 +198,27 @@ func (t TestDirective) Validate() error {
 }
 
 type TemplateDirective struct {
-	Name   string         `yaml:"name"`
-	Params map[string]any `yaml:",inline,omitempty"`
+	Name   string           `yaml:"name"`
+	Params templates.Params `yaml:",inline,omitempty"`
 }
 
 func (t TemplateDirective) Validate() error {
-	return v.NotEmpty(t.Name, "template.name")
+	if err := v.NotEmpty(t.Name, "template.name"); err != nil {
+		return err
+	}
+
+	tpl, err := templates.Get(t.Name)
+	if err != nil {
+		return fmt.Errorf("template %q not found", t.Name)
+	}
+
+	result, err := tpl.Execute(t.Params)
+	if err != nil {
+		return fmt.Errorf("failed to render template %q: %w", t.Name, err)
+	}
+	_ = result
+
+	return nil
 }
 
 type IncludeDirective string
@@ -310,14 +315,14 @@ func (d Directive) Validate() error {
 		val := any(*d.Install)
 		switch val := val.(type) {
 		case string:
-			return TemplateString(val).Validate()
+			return jinja2.TemplateString(val).Validate()
 		case []any:
 			return v.Map(val, func(item any, description string) error {
 				s, ok := item.(string)
 				if !ok {
 					return fmt.Errorf("%s must be a string, got %T", description, item)
 				}
-				return TemplateString(s).Validate()
+				return jinja2.TemplateString(s).Validate()
 			}, "install")
 		default:
 			return fmt.Errorf("install must be a string or list of strings, got %T", val)
@@ -342,14 +347,14 @@ func (d Directive) Validate() error {
 		val := any(*d.Copy)
 		switch val := val.(type) {
 		case string:
-			return TemplateString(val).Validate()
+			return jinja2.TemplateString(val).Validate()
 		case []any:
 			return v.Map(val, func(item any, description string) error {
 				s, ok := item.(string)
 				if !ok {
 					return fmt.Errorf("%s must be a string, got %T", description, item)
 				}
-				return TemplateString(s).Validate()
+				return jinja2.TemplateString(s).Validate()
 			}, "copy")
 		default:
 			return fmt.Errorf("copy must be a string or list of strings")
@@ -393,10 +398,10 @@ type BuildFile struct {
 
 	Build BuildRecipe `yaml:"build"`
 
-	Copyright        []Copyright      `yaml:"copyright,omitempty"`
-	StructuredReadme StructuredReadme `yaml:"structured_readme,omitempty"`
-	Readme           TemplateString   `yaml:"readme,omitempty"`
-	ReadmeUrl        string           `yaml:"readme_url,omitempty"`
+	Copyright        []Copyright           `yaml:"copyright,omitempty"`
+	StructuredReadme StructuredReadme      `yaml:"structured_readme,omitempty"`
+	Readme           jinja2.TemplateString `yaml:"readme,omitempty"`
+	ReadmeUrl        string                `yaml:"readme_url,omitempty"`
 	// List of categories.
 	Categories []Category `yaml:"categories,omitempty"`
 	// Application Icon in base64-encoded PNG format.

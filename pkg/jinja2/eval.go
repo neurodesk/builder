@@ -1,10 +1,11 @@
 package jinja2
 
 import (
-	"fmt"
-	"reflect"
-	"strconv"
-	"strings"
+    "errors"
+    "fmt"
+    "reflect"
+    "strconv"
+    "strings"
 )
 
 // Filters is a registry of filter functions.
@@ -12,19 +13,63 @@ type Filters map[string]func(val Value, args []Value) (Value, error)
 
 // DefaultFilters provides a small set of common filters.
 func DefaultFilters() Filters {
-	return Filters{
-		"upper": func(val Value, _ []Value) (Value, error) { return StringValue(strings.ToUpper(val.String())), nil },
-		"lower": func(val Value, _ []Value) (Value, error) { return StringValue(strings.ToLower(val.String())), nil },
-		"trim":  func(val Value, _ []Value) (Value, error) { return StringValue(strings.TrimSpace(val.String())), nil },
-		"default": func(val Value, args []Value) (Value, error) {
-			if len(args) < 1 {
-				return val, nil
-			}
-			if val.Truth() {
-				return val, nil
-			}
-			return args[0], nil
-		},
+    return Filters{
+        "upper": func(val Value, _ []Value) (Value, error) { return StringValue(strings.ToUpper(val.String())), nil },
+        "lower": func(val Value, _ []Value) (Value, error) { return StringValue(strings.ToLower(val.String())), nil },
+        "trim":  func(val Value, _ []Value) (Value, error) { return StringValue(strings.TrimSpace(val.String())), nil },
+        "list": func(val Value, _ []Value) (Value, error) {
+            items, err := iterateValue(val)
+            if err != nil {
+                // Treat as single-item list if not iterable
+                return ListValue{StringValue(val.String())}, nil
+            }
+            out := make(ListValue, 0, len(items))
+            out = append(out, items...)
+            return out, nil
+        },
+        "map": func(val Value, args []Value) (Value, error) {
+            if len(args) < 1 {
+                return val, nil
+            }
+            name := args[0].String()
+            items, err := iterateValue(val)
+            if err != nil {
+                return nil, fmt.Errorf("map expects an iterable")
+            }
+            out := make(ListValue, 0, len(items))
+            switch name {
+            case "int":
+                for _, it := range items {
+                    s := strings.TrimSpace(it.String())
+                    if s == "" {
+                        out = append(out, IntValue(0))
+                        continue
+                    }
+                    n, err := strconv.ParseInt(s, 10, 64)
+                    if err != nil {
+                        return nil, fmt.Errorf("map('int'): cannot parse %q as int", s)
+                    }
+                    out = append(out, IntValue(n))
+                }
+            case "string", "str":
+                for _, it := range items {
+                    out = append(out, StringValue(it.String()))
+                }
+            default:
+                // Unknown mapping; pass through unchanged
+                out = append(out, items...)
+            }
+            return out, nil
+        },
+        "default": func(val Value, args []Value) (Value, error) {
+            if len(args) < 1 {
+                return val, nil
+            }
+            if val.Truth() {
+                return val, nil
+            }
+            return args[0], nil
+        },
 		"join": func(val Value, args []Value) (Value, error) {
 			sep := ","
 			if len(args) > 0 {
@@ -74,7 +119,7 @@ func NewEvaluator() *Evaluator {
                 if len(args) == 0 {
                     return nil, fmt.Errorf("raise requires a message")
                 }
-                return nil, fmt.Errorf(args[0].String())
+                return nil, errors.New(args[0].String())
             },
         },
     }
@@ -149,6 +194,24 @@ func (e *Evaluator) Truthy(expr string, ctx Context) (bool, error) {
             return !contains, nil
         }
     }
+    // handle ordering comparisons >, >=, <, <=
+    if op, a1, a2, ok := splitComparison(s); ok {
+        v1, err := e.Eval(a1, ctx)
+        if err != nil { return false, err }
+        v2, err := e.Eval(a2, ctx)
+        if err != nil { return false, err }
+        c := compareValues(v1, v2)
+        switch op {
+        case ">":
+            return c > 0, nil
+        case ">=":
+            return c >= 0, nil
+        case "<":
+            return c < 0, nil
+        case "<=":
+            return c <= 0, nil
+        }
+    }
 	if i := strings.Index(s, "=="); i >= 0 {
 		a1 := strings.TrimSpace(s[:i])
 		a2 := strings.TrimSpace(s[i+2:])
@@ -216,7 +279,7 @@ func findInOperator(s string) (string, string, string, bool) {
 // parseListLiteral parses a list like ["a", "b"].
 func parseListLiteral(s string) (ListValue, error) {
     s = strings.TrimSpace(s)
-    if !strings.HasPrefix(s, "[") || !strings.HasSuffix(s, "]") {
+    if !(strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]")) && !(strings.HasPrefix(s, "(") && strings.HasSuffix(s, ")")) {
         return nil, fmt.Errorf("invalid list literal: %s", s)
     }
     inner := strings.TrimSpace(s[1:len(s)-1])
@@ -237,6 +300,93 @@ func parseListLiteral(s string) (ListValue, error) {
         }
     }
     return out, nil
+}
+
+// splitComparison splits an expression by a top-level comparison operator
+// among >=, <=, >, < while ignoring brackets and quoted strings.
+func splitComparison(s string) (op, a1, a2 string, ok bool) {
+    ops := []string{">=", "<=", ">", "<"}
+    depth := 0
+    inStr := byte(0)
+    for _, o := range ops {
+        depth = 0
+        inStr = 0
+        for i := 0; i+len(o) <= len(s); i++ {
+            c := s[i]
+            if inStr != 0 {
+                if c == inStr { inStr = 0 }
+                continue
+            }
+            switch c {
+            case '\'', '"':
+                inStr = c
+            case '(', '[', '{':
+                depth++
+            case ')', ']', '}':
+                if depth > 0 { depth-- }
+            }
+            if depth == 0 && strings.HasPrefix(s[i:], o) {
+                return o, strings.TrimSpace(s[:i]), strings.TrimSpace(s[i+len(o):]), true
+            }
+        }
+    }
+    return "", "", "", false
+}
+
+// compareValues compares values across basic types: ints, floats, strings,
+// and lists (lexicographically). Falls back to string comparison.
+func compareValues(a, b Value) int {
+    switch av := a.(type) {
+    case IntValue:
+        switch bv := b.(type) {
+        case IntValue:
+            if av < bv { return -1 }
+            if av > bv { return 1 }
+            return 0
+        case FloatValue:
+            af := float64(av); bf := float64(bv)
+            if af < bf { return -1 }
+            if af > bf { return 1 }
+            return 0
+        }
+    case FloatValue:
+        af := float64(av)
+        switch bv := b.(type) {
+        case FloatValue:
+            bf := float64(bv)
+            if af < bf { return -1 }
+            if af > bf { return 1 }
+            return 0
+        case IntValue:
+            bf := float64(bv)
+            if af < bf { return -1 }
+            if af > bf { return 1 }
+            return 0
+        }
+    case StringValue:
+        as := string(av)
+        if bs, ok := b.(StringValue); ok {
+            if as < string(bs) { return -1 }
+            if as > string(bs) { return 1 }
+            return 0
+        }
+    case ListValue:
+        if bl, ok := b.(ListValue); ok {
+            n := len(av)
+            if len(bl) < n { n = len(bl) }
+            for i := 0; i < n; i++ {
+                c := compareValues(av[i], bl[i])
+                if c != 0 { return c }
+            }
+            if len(av) < len(bl) { return -1 }
+            if len(av) > len(bl) { return 1 }
+            return 0
+        }
+    }
+    as := a.String(); bs := b.String()
+    if as < bs { return -1 }
+    if as > bs { return 1 }
+    return 0
 }
 
 func splitPipes(s string) ([]string, error) {
@@ -372,9 +522,17 @@ func (e *Evaluator) evalAtom(s string, ctx Context) (Value, error) {
 	if s == "false" {
 		return BoolValue(false), nil
 	}
-	if s == "none" || s == "nil" || s == "null" {
-		return NoneValue{}, nil
-	}
+    if s == "none" || s == "nil" || s == "null" {
+        return NoneValue{}, nil
+    }
+    // list or tuple literal
+    if (strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]")) || (strings.HasPrefix(s, "(") && strings.HasSuffix(s, ")")) {
+        lv, err := parseListLiteral(s)
+        if err != nil {
+            return nil, err
+        }
+        return lv, nil
+    }
     // Complex reference evaluation: supports dotted lookup, calls, and indexing.
     if strings.ContainsAny(s, ".([") {
         return e.evalRef(s, ctx)
@@ -610,14 +768,31 @@ func (e *Evaluator) lookupOrMethod(v Value, key string) (Value, bool) {
             }}, true
         case "split":
             return CallableValue{Fn: func(args []Value) (Value, error) {
-                // default: split on whitespace
                 str := string(s)
-                fields := strings.Fields(str)
-                out := make(ListValue, 0, len(fields))
-                for _, f := range fields {
-                    out = append(out, StringValue(f))
+                if len(args) == 0 {
+                    fields := strings.Fields(str)
+                    out := make(ListValue, 0, len(fields))
+                    for _, f := range fields {
+                        out = append(out, StringValue(f))
+                    }
+                    return out, nil
+                }
+                sep := args[0].String()
+                parts := strings.Split(str, sep)
+                out := make(ListValue, 0, len(parts))
+                for _, p := range parts {
+                    out = append(out, StringValue(p))
                 }
                 return out, nil
+            }}, true
+        }
+    case ListValue:
+        // Allow .split() on lists to be a no-op identity, so templates
+        // can accept either strings or lists for inputs like package lists.
+        if key == "split" {
+            return CallableValue{Fn: func(args []Value) (Value, error) {
+                // ignore args; just return the list itself
+                return s, nil
             }}, true
         }
     }

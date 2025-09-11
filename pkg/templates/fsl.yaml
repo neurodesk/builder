@@ -14,11 +14,12 @@ alert: FSL is non-free. If you are considering commercial use of FSL, please con
 binaries:
   arguments:
     required:
-    - version
+      - version
     optional:
       install_path: /opt/fsl-{{ self.version }}
       exclude_paths: ""
   urls:
+    "6.0.7.16": https://fsl.fmrib.ox.ac.uk/fsldownloads/fslconda/releases/fslinstaller.py
     "6.0.7.4": https://fsl.fmrib.ox.ac.uk/fsldownloads/fslconda/releases/fslinstaller.py
     "6.0.7.1": https://fsl.fmrib.ox.ac.uk/fsldownloads/fslconda/releases/fslinstaller.py
     "6.0.6.4": https://fsl.fmrib.ox.ac.uk/fsldownloads/fslconda/releases/fslinstaller.py
@@ -40,53 +41,53 @@ binaries:
     "5.0.8": https://fsl.fmrib.ox.ac.uk/fsldownloads/oldversions/fsl-5.0.8-centos6_64.tar.gz
   dependencies:
     apt:
-    - bc
-    - ca-certificates
-    - curl
-    - dc
-    - file
-    - libfontconfig1
-    - libfreetype6
-    - libgl1-mesa-dev
-    - libgl1-mesa-dri
-    - libglu1-mesa-dev
-    - libgomp1
-    - libice6
-    - libopenblas-base
-    - libxcursor1
-    - libxft2
-    - libxinerama1
-    - libxrandr2
-    - libxrender1
-    - libxt6
-    - nano
-    - python3
-    - sudo
-    - wget
+      - bc
+      - ca-certificates
+      - curl
+      - dc
+      - file
+      - libfontconfig1
+      - libfreetype6
+      - libgl1-mesa-dev
+      - libgl1-mesa-dri
+      - libglu1-mesa-dev
+      - libgomp1
+      - libice6
+      - libopenblas-base
+      - libxcursor1
+      - libxft2
+      - libxinerama1
+      - libxrandr2
+      - libxrender1
+      - libxt6
+      - nano
+      - python3
+      - sudo
+      - wget
     yum:
-    - bc
-    - curl
-    - file
-    - libGL
-    - libGLU
-    - libICE
-    - libSM
-    - libX11
-    - libXcursor
-    - libXext
-    - libXft
-    - libXinerama
-    - libXrandr
-    - libXt
-    - libgomp
-    - libjpeg
-    - libmng
-    - libpng12
-    - nano
-    - openblas-serial
-    - python3
-    - sudo
-    - wget
+      - bc
+      - curl
+      - file
+      - libGL
+      - libGLU
+      - libICE
+      - libSM
+      - libX11
+      - libXcursor
+      - libXext
+      - libXft
+      - libXinerama
+      - libXrandr
+      - libXt
+      - libgomp
+      - libjpeg
+      - libmng
+      - libpng12
+      - nano
+      - openblas-serial
+      - python3
+      - sudo
+      - wget
   env:
     FSLDIR: "{{ self.install_path }}"
     PATH: "{{ self.install_path }}/bin:$PATH"

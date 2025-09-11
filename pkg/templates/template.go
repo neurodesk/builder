@@ -6,31 +6,159 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/neurodesk/builder/pkg/common"
 	"github.com/neurodesk/builder/pkg/jinja2"
 	v "github.com/neurodesk/builder/pkg/validator"
 
 	"go.yaml.in/yaml/v4"
 )
 
-type Params map[string]any
+type Context struct {
+	PackageManager common.PackageManager
+}
+
+type Params func(k string) (any, bool, error)
 
 func (p Params) GetString(key string, defValue string) (string, error) {
-	if val, ok := p[key]; ok {
+	if val, ok, err := p(key); ok {
 		if strVal, ok := val.(string); ok {
 			return strVal, nil
 		}
 		return "", fmt.Errorf("parameter %q is not a string", key)
+	} else if err != nil {
+		return "", fmt.Errorf("getting parameter %q: %w", key, err)
 	}
 	return defValue, nil
 }
 
 type templateSelf struct {
+	context  Context
+	params   Params
+	template *RecipeTemplate
+}
+
+func (t *templateSelf) install(mgr common.PackageManager, args []string) (string, error) {
+	switch mgr {
+	case common.PkgManagerApt:
+		if len(args) == 0 {
+			return "", fmt.Errorf("no packages specified for apt")
+		}
+		return fmt.Sprintf("apt-get update && apt-get install -y %s", strings.Join(args, " ")), nil
+	case common.PkgManagerYum:
+		if len(args) == 0 {
+			return "", fmt.Errorf("no packages specified for yum")
+		}
+		return fmt.Sprintf("yum install -y %s", strings.Join(args, " ")), nil
+	default:
+		return "", fmt.Errorf("unknown package manager: %s", mgr)
+	}
+}
+
+func (t *templateSelf) getArgument(key string) (jinja2.Value, bool, error) {
+	// if the argument exists in params, return it
+	if val, ok, err := t.params(key); ok {
+		return jinja2.FromGo(val), true, nil
+	} else if err != nil {
+		return nil, false, fmt.Errorf("getting parameter %q: %w", key, err)
+	}
+
+	// if the argument has a default value, return it
+	defVal, ok := t.template.Arguments.Optional[key]
+	if ok {
+		// otherwise, render the default value template
+		val, err := defVal.Render(jinja2.Context{
+			"self": t,
+		})
+		if err != nil {
+			return nil, false, fmt.Errorf("rendering optional argument %q: %w", key, err)
+		}
+		return jinja2.StringValue(val), true, nil
+	}
+
+	// argument not found
+	return nil, false, nil
 }
 
 // OnLookup implements jinja2.LookupHook.
 func (t *templateSelf) OnLookup(key string) (jinja2.Value, bool) {
 	switch key {
+	case "install_dependencies":
+		return jinja2.CallableValue{
+			Fn: func(args []jinja2.Value) (jinja2.Value, error) {
+				if len(args) != 0 {
+					return nil, fmt.Errorf("install_dependencies takes no arguments")
+				}
+
+				var installs []string
+
+				if len(t.template.Dependencies.Apt) > 0 && t.context.PackageManager == common.PkgManagerApt {
+					cmd, err := t.install(common.PkgManagerApt, t.template.Dependencies.Apt)
+					if err != nil {
+						return nil, err
+					}
+					installs = append(installs, cmd)
+				}
+
+				if len(t.template.Dependencies.Yum) > 0 && t.context.PackageManager == common.PkgManagerYum {
+					cmd, err := t.install(common.PkgManagerYum, t.template.Dependencies.Yum)
+					if err != nil {
+						return nil, err
+					}
+					installs = append(installs, cmd)
+				}
+
+				if len(t.template.Dependencies.Debs) > 0 && t.context.PackageManager == common.PkgManagerApt {
+					// For debs, we only support apt for now
+					for _, deb := range t.template.Dependencies.Debs {
+						installs = append(installs, fmt.Sprintf("dpkg -i %s || apt-get -f install -y", deb))
+					}
+				}
+
+				return jinja2.StringValue(strings.Join(installs, " && ")), nil
+			},
+		}, true
+	case "urls":
+		ret := jinja2.DictValue{}
+		for key, tpl := range t.template.Urls {
+			val, err := tpl.Render(jinja2.Context{
+				"self": t,
+			})
+			if err != nil {
+				slog.Error("error rendering url template", "key", key, "error", err)
+				continue
+			}
+			ret[key] = jinja2.StringValue(val)
+		}
+		return ret, true
+	case "pkg_manager":
+		return jinja2.StringValue(string(t.context.PackageManager)), true
+	case "install":
+		return jinja2.CallableValue{
+			Fn: func(args []jinja2.Value) (jinja2.Value, error) {
+				if len(args) < 1 {
+					return nil, fmt.Errorf("install requires at least one argument")
+				}
+				var pkgs []string
+				for _, arg := range args {
+					pkgs = append(pkgs, arg.String())
+				}
+				cmd, err := t.install(t.context.PackageManager, pkgs)
+				if err != nil {
+					return nil, err
+				}
+				return jinja2.StringValue(cmd), nil
+			},
+		}, true
 	default:
+		arg, ok, err := t.getArgument(key)
+		if err != nil {
+			slog.Error("error getting self attribute", "key", key, "error", err)
+			return nil, false
+		}
+		if ok {
+			return arg, true
+		}
+
 		slog.Warn("unknown self attribute", "key", key)
 		return nil, false
 	}
@@ -133,17 +261,19 @@ func (t *RecipeTemplate) Validate() error {
 	)
 }
 
-func (t *RecipeTemplate) Execute(params Params) (*TemplateResult, error) {
+func (t *RecipeTemplate) Execute(context Context, params Params) (*TemplateResult, error) {
 	ctx := jinja2.Context{
-		"self": &templateSelf{},
+		"self": &templateSelf{
+			context:  context,
+			params:   params,
+			template: t,
+		},
 	}
 
 	result, err := t.Instructions.Render(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("rendering instructions: %w", err)
 	}
-
-	fmt.Printf("Rendered instructions:\n%s\n", result)
 
 	return &TemplateResult{
 		Instructions: result,
@@ -186,7 +316,7 @@ func (t Template) Validate() error {
 	)
 }
 
-func (t Template) Execute(params Params) (*TemplateResult, error) {
+func (t Template) Execute(ctx Context, params Params) (*TemplateResult, error) {
 	method, err := params.GetString("method", "binaries")
 	if err != nil {
 		return nil, fmt.Errorf("getting method parameter: %w", err)
@@ -197,7 +327,7 @@ func (t Template) Execute(params Params) (*TemplateResult, error) {
 		return nil, fmt.Errorf("getting method template: %w", err)
 	}
 
-	return tpl.Execute(params)
+	return tpl.Execute(ctx, params)
 }
 
 //go:embed *.yaml

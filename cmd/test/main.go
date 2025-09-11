@@ -72,7 +72,12 @@ func appMain() error {
 			return fmt.Errorf("failed to parse %s: %w", buildYaml, err)
 		}
 
-		if err := build.Validate(); err != nil {
+		ctx := recipe.Context{
+			Version:        build.Version,
+			PackageManager: build.Build.PackageManager,
+		}
+
+		if err := build.Validate(ctx); err != nil {
 			slog.Error("validation error", "file", " "+buildYaml, "error", err)
 			continue
 		}

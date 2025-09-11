@@ -3,9 +3,40 @@ package recipe
 import (
 	"fmt"
 
+	"github.com/neurodesk/builder/pkg/common"
 	"github.com/neurodesk/builder/pkg/jinja2"
 	"github.com/neurodesk/builder/pkg/templates"
 	v "github.com/neurodesk/builder/pkg/validator"
+)
+
+type Context struct {
+	PackageManager common.PackageManager
+	Version        string
+}
+
+// OnLookup implements jinja2.LookupHook.
+func (c Context) OnLookup(key string) (jinja2.Value, bool) {
+	switch key {
+	case "version":
+		return jinja2.FromGo(c.Version), true
+	default:
+		return nil, false
+	}
+}
+
+// String implements jinja2.Value.
+func (c Context) String() string {
+	return "<context>"
+}
+
+// Truth implements jinja2.Value.
+func (c Context) Truth() bool {
+	return true
+}
+
+var (
+	_ jinja2.Value      = Context{}
+	_ jinja2.LookupHook = Context{}
 )
 
 type CPUArchitecture string
@@ -78,17 +109,12 @@ const (
 	BuildKindNeuroDocker BuildKind = "neurodocker"
 )
 
-type PackageManager string
-
-const (
-	PkgManagerApt PackageManager = "apt"
-	PkgManagerYum PackageManager = "yum"
-)
-
 type GroupDirective []Directive
 
-func (g GroupDirective) Validate() error {
-	return v.Each(g)
+func (g GroupDirective) Validate(ctx Context) error {
+	return v.Map(g, func(directive Directive, description string) error {
+		return directive.Validate(ctx)
+	}, "group")
 }
 
 type RunDirective []jinja2.TemplateString
@@ -198,11 +224,37 @@ func (t TestDirective) Validate() error {
 }
 
 type TemplateDirective struct {
-	Name   string           `yaml:"name"`
-	Params templates.Params `yaml:",inline,omitempty"`
+	Name   string         `yaml:"name"`
+	Params map[string]any `yaml:",inline,omitempty"`
 }
 
-func (t TemplateDirective) Validate() error {
+// result, err := tpl.Execute(templates.Context{
+// 	PackageManager: ctx.PackageManager,
+// }, func(k string) (any, bool, error) {
+// 	val, ok := t.Params[k]
+// 	// if the value is a string then assume it's a jinja2 template and render it
+// 	if ok {
+// 		if strVal, ok := val.(string); ok {
+// 			rendered, err := jinja2.TemplateString(strVal).Render(jinja2.Context{
+// 				"context": ctx,
+// 			})
+// 			if err != nil {
+// 				return nil, false, fmt.Errorf("rendering template parameter %q: %w", k, err)
+// 			}
+// 			return rendered, true, nil
+// 		} else {
+// 			return val, true, nil
+// 		}
+// 	} else {
+// 		return nil, false, nil
+// 	}
+// })
+// if err != nil {
+// 	return fmt.Errorf("failed to render template %q: %w", t.Name, err)
+// }
+// _ = result
+
+func (t TemplateDirective) Validate(ctx Context) error {
 	if err := v.NotEmpty(t.Name, "template.name"); err != nil {
 		return err
 	}
@@ -212,11 +264,7 @@ func (t TemplateDirective) Validate() error {
 		return fmt.Errorf("template %q not found", t.Name)
 	}
 
-	result, err := tpl.Execute(t.Params)
-	if err != nil {
-		return fmt.Errorf("failed to render template %q: %w", t.Name, err)
-	}
-	_ = result
+	_ = tpl
 
 	return nil
 }
@@ -304,9 +352,9 @@ type Directive struct {
 	CustomParams map[string]any `yaml:"customParams,omitempty"`
 }
 
-func (d Directive) Validate() error {
+func (d Directive) Validate(ctx Context) error {
 	if d.Group != nil {
-		return d.Group.Validate()
+		return d.Group.Validate(ctx)
 	} else if d.Run != nil {
 		return d.Run.Validate()
 	} else if d.File != nil {
@@ -340,7 +388,7 @@ func (d Directive) Validate() error {
 	} else if d.Test != nil {
 		return d.Test.Validate()
 	} else if d.Template != nil {
-		return d.Template.Validate()
+		return d.Template.Validate(ctx)
 	} else if d.Include != nil {
 		return d.Include.Validate()
 	} else if d.Copy != nil {
@@ -370,8 +418,8 @@ func (d Directive) Validate() error {
 type BuildRecipe struct {
 	Kind BuildKind `yaml:"kind"`
 
-	BaseImage      string         `yaml:"base-image"`
-	PackageManager PackageManager `yaml:"pkg-manager,omitempty"`
+	BaseImage      string                `yaml:"base-image"`
+	PackageManager common.PackageManager `yaml:"pkg-manager,omitempty"`
 
 	Directives []Directive `yaml:"directives,omitempty"`
 
@@ -380,12 +428,17 @@ type BuildRecipe struct {
 	FixLocaleDef       *bool `yaml:"fix-locale-def,omitempty"`
 }
 
-func (b BuildRecipe) Validate() error {
+func (b BuildRecipe) Validate(ctx Context) error {
 	return v.All(
 		v.MatchesAllowed(b.Kind, []BuildKind{BuildKindNeuroDocker}, "build.kind"),
 		v.NotEmpty(b.BaseImage, "build.base-image"),
-		v.MatchesAllowed(b.PackageManager, []PackageManager{PkgManagerApt, PkgManagerYum}, "build.pkg-manager"),
-		v.Each(b.Directives),
+		v.MatchesAllowed(b.PackageManager, []common.PackageManager{
+			common.PkgManagerApt,
+			common.PkgManagerYum,
+		}, "build.pkg-manager"),
+		v.Map(b.Directives, func(directive Directive, description string) error {
+			return directive.Validate(ctx)
+		}, "build.directives"),
 	)
 }
 
@@ -415,12 +468,12 @@ type BuildFile struct {
 	Files     []FileInfo     `yaml:"files,omitempty"`
 }
 
-func (b *BuildFile) Validate() error {
+func (b *BuildFile) Validate(ctx Context) error {
 	return v.All(
 		v.NotEmpty(b.Name, "name"),
 		v.NotEmpty(b.Version, "version"),
 		v.SliceHasElements(b.Architectures, []CPUArchitecture{CPUArchAMD64, CPUArchARM64}, "architectures"),
-		b.Build.Validate(),
+		b.Build.Validate(ctx),
 		b.Readme.Validate(),
 	)
 }

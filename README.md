@@ -42,9 +42,9 @@ build:
     - starlark:
         script: |
           # Access template variables
-          version = "{{ version }}"
-          enable_gpu = {{ enable_gpu }}
-          py_version = "{{ python_version }}"
+          version = context.version
+          enable_gpu = context.enable_gpu
+          py_version = context.python_version
           
           def setup_environment():
               # Install base packages
@@ -80,11 +80,13 @@ Starlark scripts have access to these built-in functions:
 
 ### Context Variables
 
-All Jinja2 template variables are available in Starlark scripts:
-- `version` - Package version
-- `context` - Full recipe context
-- User-defined variables from the `variables` directive
+All template variables are available as attributes of the `context` and `local` objects in Starlark scripts:
+- `context.version` - Package version
+- `context.PackageManager` - Package manager being used
+- User-defined variables from the `variables` directive (e.g., `context.my_variable`)
 - Variables set by previous directives
+
+The `context` and `local` objects provide the same variables - they are aliases for convenience.
 
 ## Getting Started
 

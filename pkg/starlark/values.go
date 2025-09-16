@@ -119,6 +119,72 @@ func (w StarlarkValueWrapper) Truth() bool {
 // Ensure StarlarkValueWrapper implements jinja2.Value
 var _ jinja2.Value = StarlarkValueWrapper{}
 
+// ContextObject implements a Starlark object that provides access to context variables
+type ContextObject struct {
+	variables map[string]starlark.Value
+}
+
+// NewContextObject creates a new context object from a Jinja2 context
+func NewContextObject(ctx jinja2.Context) *ContextObject {
+	variables := make(map[string]starlark.Value)
+	for key, value := range ctx {
+		variables[key] = ConvertToStarlark(value)
+	}
+	return &ContextObject{variables: variables}
+}
+
+// String implements starlark.Value
+func (c *ContextObject) String() string {
+	return "<context>"
+}
+
+// Type implements starlark.Value
+func (c *ContextObject) Type() string {
+	return "context"
+}
+
+// Freeze implements starlark.Value
+func (c *ContextObject) Freeze() {
+	// Context objects are immutable
+}
+
+// Truth implements starlark.Value
+func (c *ContextObject) Truth() starlark.Bool {
+	return starlark.True
+}
+
+// Hash implements starlark.Value
+func (c *ContextObject) Hash() (uint32, error) {
+	return 0, fmt.Errorf("context object is not hashable")
+}
+
+// Attr implements starlark.HasAttrs
+func (c *ContextObject) Attr(name string) (starlark.Value, error) {
+	if val, ok := c.variables[name]; ok {
+		return val, nil
+	}
+	return nil, nil // Return nil for missing attributes (Starlark will handle this)
+}
+
+// AttrNames implements starlark.HasAttrs
+func (c *ContextObject) AttrNames() []string {
+	names := make([]string, 0, len(c.variables))
+	for name := range c.variables {
+		names = append(names, name)
+	}
+	return names
+}
+
+// SetField implements starlark.HasSetField (making it read-only by returning error)
+func (c *ContextObject) SetField(name string, val starlark.Value) error {
+	return fmt.Errorf("context object is read-only")
+}
+
+// Ensure ContextObject implements required interfaces
+var _ starlark.Value = (*ContextObject)(nil)
+var _ starlark.HasAttrs = (*ContextObject)(nil)
+var _ starlark.HasSetField = (*ContextObject)(nil)
+
 // CreateBuiltins creates Starlark built-in functions that provide access to
 // the directive system and parameter access
 func CreateBuiltins(ctx interface{}) starlark.StringDict {

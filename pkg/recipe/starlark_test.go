@@ -108,12 +108,12 @@ func TestStarlarkDirectiveWithTemplating(t *testing.T) {
 	)
 	ctx.SetVariable("base_name", "myapp")
 
-	// Test script with Jinja2 templating
+	// Test script with context object access
 	directive := StarlarkDirective{
 		Script: jinja2.TemplateString(`
-# Use context variables
-app_name = "{{ base_name }}"
-version = "{{ version }}"
+# Use context variables via context object
+app_name = context.base_name
+version = context.version
 
 # Create computed values
 full_name = app_name + "-v" + version
@@ -158,15 +158,15 @@ func TestStarlarkDirectiveComplexScript(t *testing.T) {
 	directive := StarlarkDirective{
 		Script: jinja2.TemplateString(`
 def install_all_packages():
-    if enable_dev_tools:
+    if context.enable_dev_tools:
         install_packages("build-essential", "cmake")
     
-    if target_arch == "amd64":
+    if context.target_arch == "amd64":
         install_packages("libc6-dev")
     
     # Set computed configuration
-    config_name = "build-config-" + target_arch
-    if enable_dev_tools:
+    config_name = "build-config-" + context.target_arch
+    if context.enable_dev_tools:
         config_name = config_name + "-dev"
     
     set_variable("build_config", config_name)
@@ -196,6 +196,99 @@ install_all_packages()
 	}
 }
 
+func TestStarlarkContextObjectAccess(t *testing.T) {
+	ctx := newContext(
+		common.PkgManagerApt,
+		"1.2.3",
+		[]string{},
+		ir.New(),
+		nil,
+	)
+	ctx.SetVariable("test_var", "test_value")
+	ctx.SetVariable("boolean_var", true)
+
+	directive := StarlarkDirective{
+		Script: jinja2.TemplateString(`
+# Test accessing variables via context object
+version_from_context = context.version
+test_from_context = context.test_var
+bool_from_context = context.boolean_var
+
+# Test accessing the same via local object
+version_from_local = local.version
+test_from_local = local.test_var
+
+# Set variables based on context access
+set_variable("accessed_version", version_from_context)
+set_variable("accessed_test", test_from_context)
+set_variable("accessed_bool", bool_from_context)
+
+# Verify local and context are the same
+def check_objects_match():
+    if version_from_context == version_from_local and test_from_context == test_from_local:
+        set_variable("objects_match", True)
+    else:
+        set_variable("objects_match", False)
+
+check_objects_match()
+`),
+	}
+
+	err := directive.Apply(ctx)
+	if err != nil {
+		t.Fatalf("StarlarkDirective.Apply() error = %v", err)
+	}
+
+	// Check that variables were accessed correctly
+	if val, ok := ctx.variables["accessed_version"]; ok {
+		if str, ok := val.(jinja2.StringValue); ok {
+			if string(str) != "1.2.3" {
+				t.Errorf("Expected accessed_version='1.2.3', got %q", string(str))
+			}
+		} else {
+			t.Errorf("Expected accessed_version to be StringValue, got %T", val)
+		}
+	} else {
+		t.Error("Expected accessed_version variable to be set")
+	}
+
+	if val, ok := ctx.variables["accessed_test"]; ok {
+		if str, ok := val.(jinja2.StringValue); ok {
+			if string(str) != "test_value" {
+				t.Errorf("Expected accessed_test='test_value', got %q", string(str))
+			}
+		} else {
+			t.Errorf("Expected accessed_test to be StringValue, got %T", val)
+		}
+	} else {
+		t.Error("Expected accessed_test variable to be set")
+	}
+
+	if val, ok := ctx.variables["accessed_bool"]; ok {
+		if boolVal, ok := val.(jinja2.BoolValue); ok {
+			if !bool(boolVal) {
+				t.Errorf("Expected accessed_bool=true, got %v", bool(boolVal))
+			}
+		} else {
+			t.Errorf("Expected accessed_bool to be BoolValue, got %T", val)
+		}
+	} else {
+		t.Error("Expected accessed_bool variable to be set")
+	}
+
+	if val, ok := ctx.variables["objects_match"]; ok {
+		if boolVal, ok := val.(jinja2.BoolValue); ok {
+			if !bool(boolVal) {
+				t.Error("Expected context and local objects to provide the same values")
+			}
+		} else {
+			t.Errorf("Expected objects_match to be BoolValue, got %T", val)
+		}
+	} else {
+		t.Error("Expected objects_match variable to be set")
+	}
+}
+
 func TestStarlarkDirectiveFullFunctionality(t *testing.T) {
 	ctx := newContext(
 		common.PkgManagerApt,
@@ -210,8 +303,8 @@ func TestStarlarkDirectiveFullFunctionality(t *testing.T) {
 	directive := StarlarkDirective{
 		Script: jinja2.TemplateString(`
 # Test comprehensive Starlark functionality
-app = "{{ app_name }}"
-version = "{{ version }}"
+app = context.app_name
+version = context.version
 
 # Install base packages
 install_packages("curl", "wget")
@@ -224,7 +317,7 @@ set_environment("APP_NAME", app)
 set_environment("APP_VERSION", version)
 
 def setup_ssl():
-    if enable_ssl:
+    if context.enable_ssl:
         install_packages("openssl", "ca-certificates")
         set_environment("ENABLE_SSL", "true")
         run_command("openssl version")

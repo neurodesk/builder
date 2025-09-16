@@ -22,8 +22,8 @@ build:
     - starlark:
         script: |
           # Access parameters and context
-          version = "{{ version }}"
-          pkg_manager = "{{ context.PackageManager }}"
+          version = context.version
+          pkg_manager = context.PackageManager
           
           # Dynamic package selection based on version
           def install_fsl():
@@ -115,8 +115,8 @@ directives:
       
   - starlark:
       script: |
-        matlab_version = "{{ matlab_version }}"
-        install_toolboxes = {{ install_toolboxes }}
+        matlab_version = context.matlab_version
+        install_toolboxes = context.install_toolboxes
         
         def setup_matlab():
             # Phase 1: Install system dependencies
@@ -186,8 +186,10 @@ directives:
 
 ## Context Variables Available
 
-All Jinja2 template variables are available in Starlark scripts:
-- `version` - Package version
-- `context` - Full recipe context
-- User-defined variables from the `variables` directive
-- Any variables set by previous directives
+All template variables are available as attributes of the `context` and `local` objects in Starlark scripts:
+- `context.version` - Package version
+- `context.PackageManager` - Package manager being used
+- User-defined variables from the `variables` directive (e.g., `context.my_variable`)
+- Variables set by previous directives
+
+The `context` and `local` objects provide the same variables - they are aliases for convenience.

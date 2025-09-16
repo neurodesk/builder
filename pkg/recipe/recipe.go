@@ -729,28 +729,30 @@ func (s StarlarkDirective) Apply(ctx *Context) error {
 	// Create Starlark evaluator with enhanced context
 	eval := starlarkpkg.NewEvaluatorWithStarlarkContext(ctx)
 
-	// Load current Jinja2 context into Starlark, including all context variables
+	// Prepare context variables for Starlark
 	jinjaCtx := jinja2.Context{
-		"context":       ctx,
-		"local":         ctx,
-		"parallel_jobs": jinja2.IntValue(ctx.parallelJobs()),
 		"version":       jinja2.StringValue(ctx.Version),
+		"parallel_jobs": jinja2.IntValue(ctx.parallelJobs()),
 	}
 	
-	// Add all context variables to the Jinja2 context for template evaluation
+	// Add all context variables
 	for key, value := range ctx.variables {
 		jinjaCtx[key] = value
 	}
 
+	// Create context objects for Starlark
+	contextObj := starlarkpkg.NewContextObject(jinjaCtx)
+	localObj := starlarkpkg.NewContextObject(jinjaCtx) // local is the same as context for now
+	
+	// Set the context and local objects in Starlark
+	eval.SetGlobalStarlark("context", contextObj)
+	eval.SetGlobalStarlark("local", localObj)
+
 	var script string
 
 	if s.Script != "" {
-		// Evaluate the script template
-		result, err := s.Script.Render(jinjaCtx)
-		if err != nil {
-			return fmt.Errorf("evaluating starlark script: %w", err)
-		}
-		script = result
+		// Use the script directly without Jinja2 template rendering
+		script = string(s.Script)
 	} else if s.File != "" {
 		// Find and read the file
 		var fullPath string
@@ -772,9 +774,6 @@ func (s StarlarkDirective) Apply(ctx *Context) error {
 		}
 		script = string(scriptBytes)
 	}
-
-	// Load the Jinja2 context into Starlark for script execution
-	eval.LoadJinja2Context(jinjaCtx)
 
 	// Execute the Starlark script
 	_, execErr := eval.ExecString(script)

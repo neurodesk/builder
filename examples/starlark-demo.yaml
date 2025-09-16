@@ -19,10 +19,10 @@ build:
     - starlark:
         script: |
           # Access template variables
-          app = "{{ app_name }}"
-          version = "{{ version }}"
-          enable_dev = {{ enable_dev_tools }}
-          py_version = "{{ python_version }}"
+          app = context.app_name
+          version = context.version
+          enable_dev = context.enable_dev_tools
+          py_version = context.python_version
           
           def install_base_system():
               # Always install these

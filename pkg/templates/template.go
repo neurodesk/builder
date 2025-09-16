@@ -4,6 +4,8 @@ import (
 	"embed"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/neurodesk/builder/pkg/common"
@@ -365,8 +367,43 @@ func (t Template) Execute(ctx Context, params Params) (*TemplateResult, error) {
 var Files embed.FS
 
 var templates = map[string]Template{}
+var templateDir string
+
+func loadTemplateFromDir(name, dir string) (Template, error) {
+	templatePath := filepath.Join(dir, name+".yaml")
+	
+	content, err := os.ReadFile(templatePath)
+	if err != nil {
+		return Template{}, err
+	}
+	
+	var tpl Template
+	dec := yaml.NewDecoder(strings.NewReader(string(content)))
+	dec.KnownFields(true)
+	if err := dec.Decode(&tpl); err != nil {
+		return Template{}, fmt.Errorf("failed to decode template %q: %w", name, err)
+	}
+	
+	if err := tpl.Validate(); err != nil {
+		return Template{}, fmt.Errorf("invalid template %q: %w", name, err)
+	}
+	
+	return tpl, nil
+}
+
+func SetTemplateDir(dir string) {
+	templateDir = dir
+}
 
 func Get(name string) (Template, error) {
+	// First check if there's an override in the template directory
+	if templateDir != "" {
+		if tpl, err := loadTemplateFromDir(name, templateDir); err == nil {
+			return tpl, nil
+		}
+	}
+	
+	// Fall back to built-in templates
 	if tpl, ok := templates[name]; ok {
 		return tpl, nil
 	}

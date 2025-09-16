@@ -8,13 +8,15 @@ import (
 
 	"github.com/neurodesk/builder/pkg/ir"
 	"github.com/neurodesk/builder/pkg/recipe"
+	"github.com/neurodesk/builder/pkg/templates"
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v4"
 )
 
 type builderConfig struct {
-	RecipeRoots []string `yaml:"recipe_roots"`
-	IncludeDirs []string `yaml:"include_dirs"`
+	RecipeRoots   []string `yaml:"recipe_roots"`
+	IncludeDirs   []string `yaml:"include_dirs"`
+	TemplateDir   string   `yaml:"template_dir,omitempty"`
 }
 
 func (b *builderConfig) getRecipeByName(name string) (*recipe.BuildFile, error) {
@@ -62,6 +64,11 @@ var generateDockerfileCmd = cobra.Command{
 			return fmt.Errorf("loading config: %w", err)
 		}
 
+		// Set the template directory if specified in config
+		if cfg.TemplateDir != "" {
+			templates.SetTemplateDir(cfg.TemplateDir)
+		}
+
 		build, err := cfg.getRecipeByName(recipeName)
 		if err != nil {
 			return err
@@ -87,6 +94,11 @@ func testRecipes(recipes []string) error {
 
 	if err := cfg.loadConfig(rootBuilderConfig); err != nil {
 		return fmt.Errorf("loading config: %w", err)
+	}
+
+	// Set the template directory if specified in config
+	if cfg.TemplateDir != "" {
+		templates.SetTemplateDir(cfg.TemplateDir)
 	}
 
 	outputDir := filepath.Join("local", "docker")
@@ -147,6 +159,11 @@ var testAllCmd = cobra.Command{
 
 		if err := cfg.loadConfig(rootBuilderConfig); err != nil {
 			return fmt.Errorf("loading config: %w", err)
+		}
+
+		// Set the template directory if specified in config
+		if cfg.TemplateDir != "" {
+			templates.SetTemplateDir(cfg.TemplateDir)
 		}
 
 		var recipes []string

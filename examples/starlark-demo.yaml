@@ -1,0 +1,94 @@
+name: starlark-demo
+version: "1.0.0"
+architectures:
+  - x86_64
+
+build:
+  kind: neurodocker
+  base-image: "ubuntu:20.04"
+  pkg-manager: apt
+  
+  directives:
+    # Set some initial variables
+    - variables:
+        app_name: "demo-app"
+        enable_dev_tools: true
+        python_version: "3.9"
+    
+    # Use Starlark for dynamic installation
+    - starlark:
+        script: |
+          # Access template variables
+          app = "{{ app_name }}"
+          version = "{{ version }}"
+          enable_dev = {{ enable_dev_tools }}
+          py_version = "{{ python_version }}"
+          
+          def install_base_system():
+              # Always install these
+              base_packages = ["curl", "wget", "git", "vim"]
+              for pkg in base_packages:
+                  install_packages(pkg)
+              
+              # Install Python
+              if py_version == "3.9":
+                  install_packages("python3.9", "python3.9-dev", "python3-pip")
+              else:
+                  install_packages("python3", "python3-dev", "python3-pip")
+              
+              # Conditional development tools
+              if enable_dev:
+                  dev_packages = ["build-essential", "cmake", "gdb"]
+                  for pkg in dev_packages:
+                      install_packages(pkg)
+                  
+                  set_environment("DEVELOPMENT_MODE", "true")
+                  run_command("pip3 install --upgrade pip setuptools wheel")
+              
+              # Set up application environment
+              app_dir = "/opt/" + app
+              set_environment("APP_NAME", app)
+              set_environment("APP_VERSION", version)
+              set_environment("APP_DIR", app_dir)
+              set_environment("PYTHON_VERSION", py_version)
+              
+              # Create app directory
+              run_command("mkdir -p " + app_dir)
+              run_command("chown -R root:root " + app_dir)
+              
+              # Set computed variables for later use
+              set_variable("app_directory", app_dir)
+              set_variable("setup_complete", True)
+          
+          install_base_system()
+    
+    # Use computed variables in subsequent directives
+    - run:
+        - "echo 'Application directory: {{ app_directory }}'"
+        - "echo 'Setup complete: {{ setup_complete }}'"
+    
+    - workdir: "{{ app_directory }}"
+    
+    - run:
+        - "echo 'Working in application directory'"
+        - "python3 --version"
+    
+    # Add a test to verify everything works
+    - test:
+        name: "verify_installation"
+        script: |
+          set -e
+          echo "Testing Starlark demo installation..."
+          
+          # Check that environment variables are set
+          [ ! -z "$APP_NAME" ] || exit 1
+          [ ! -z "$APP_VERSION" ] || exit 1
+          [ ! -z "$APP_DIR" ] || exit 1
+          
+          # Check that Python is installed
+          python3 --version
+          
+          # Check that we're in the right directory
+          [ "$PWD" = "$APP_DIR" ] || exit 1
+          
+          echo "All checks passed!"

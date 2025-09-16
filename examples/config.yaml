@@ -1,0 +1,9 @@
+# Example configuration showing how to use custom templates
+recipe_roots:
+  - ./examples/recipes
+
+include_dirs:
+  - ./examples/includes
+
+# Use custom templates from the examples directory
+template_dir: ./examples/custom-templates

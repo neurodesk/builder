@@ -9,6 +9,7 @@ import (
 	"github.com/neurodesk/builder/pkg/common"
 	"github.com/neurodesk/builder/pkg/ir"
 	"github.com/neurodesk/builder/pkg/jinja2"
+	starlarkpkg "github.com/neurodesk/builder/pkg/starlark"
 	"github.com/neurodesk/builder/pkg/templates"
 	v "github.com/neurodesk/builder/pkg/validator"
 	"go.yaml.in/yaml/v4"
@@ -55,6 +56,16 @@ func (c Context) Truth() bool {
 
 func (c *Context) SetVariable(key string, value any) {
 	c.variables[key] = jinja2.FromGo(value)
+}
+
+// EvaluateValue is a public wrapper for evaluateValue to satisfy the RecipeContext interface
+func (c *Context) EvaluateValue(value any) (any, error) {
+	return c.evaluateValue(value)
+}
+
+// InstallPackages is a public wrapper for installPackages to satisfy the RecipeContext interface
+func (c *Context) InstallPackages(pkgs ...string) error {
+	return c.installPackages(pkgs...)
 }
 
 func (c *Context) Compile() (*ir.Definition, error) {
@@ -682,6 +693,137 @@ func (b BoutiqueDirective) Apply(ctx *Context) error {
 	return fmt.Errorf("boutique directive not implemented")
 }
 
+type StarlarkDirective struct {
+	Script jinja2.TemplateString `yaml:"script,omitempty"`
+	File   string               `yaml:"file,omitempty"`
+}
+
+func (s StarlarkDirective) Validate(ctx Context) error {
+	// Exactly one of script or file must be specified
+	count := 0
+	if s.Script != "" {
+		count++
+	}
+	if s.File != "" {
+		count++
+	}
+	if count == 0 {
+		return fmt.Errorf("starlark directive must have either 'script' or 'file'")
+	}
+	if count > 1 {
+		return fmt.Errorf("starlark directive must have only one of 'script' or 'file'")
+	}
+
+	if s.Script != "" {
+		return s.Script.Validate()
+	}
+
+	if s.File != "" {
+		return v.HasNoJinja(s.File, "starlark.file")
+	}
+
+	return nil
+}
+
+func (s StarlarkDirective) Apply(ctx *Context) error {
+	// Create Starlark evaluator with enhanced context
+	eval := starlarkpkg.NewEvaluatorWithStarlarkContext(ctx)
+
+	// Load current Jinja2 context into Starlark, including all context variables
+	jinjaCtx := jinja2.Context{
+		"context":       ctx,
+		"local":         ctx,
+		"parallel_jobs": jinja2.IntValue(ctx.parallelJobs()),
+		"version":       jinja2.StringValue(ctx.Version),
+	}
+	
+	// Add all context variables to the Jinja2 context for template evaluation
+	for key, value := range ctx.variables {
+		jinjaCtx[key] = value
+	}
+
+	var script string
+
+	if s.Script != "" {
+		// Evaluate the script template
+		result, err := s.Script.Render(jinjaCtx)
+		if err != nil {
+			return fmt.Errorf("evaluating starlark script: %w", err)
+		}
+		script = result
+	} else if s.File != "" {
+		// Find and read the file
+		var fullPath string
+		for _, dir := range ctx.IncludeDirectories {
+			fullPath = filepath.Join(dir, s.File)
+			if _, err := os.Stat(fullPath); err == nil {
+				break
+			}
+			fullPath = ""
+		}
+
+		if fullPath == "" {
+			return fmt.Errorf("starlark file %q not found in include directories", s.File)
+		}
+
+		scriptBytes, readErr := os.ReadFile(fullPath)
+		if readErr != nil {
+			return fmt.Errorf("reading starlark file %q: %w", fullPath, readErr)
+		}
+		script = string(scriptBytes)
+	}
+
+	// Load the Jinja2 context into Starlark for script execution
+	eval.LoadJinja2Context(jinjaCtx)
+
+	// Execute the Starlark script
+	_, execErr := eval.ExecString(script)
+	if execErr != nil {
+		return fmt.Errorf("executing starlark script: %w", execErr)
+	}
+
+	// Process any run commands that were set
+	var runCommands []string
+	var envVars map[string]string
+	
+	for key, value := range ctx.variables {
+		if key == "_starlark_run_command" {
+			if cmdStr, ok := value.(jinja2.StringValue); ok {
+				runCommands = append(runCommands, string(cmdStr))
+			}
+		} else if strings.HasPrefix(key, "_starlark_env_") {
+			envKey := strings.TrimPrefix(key, "_starlark_env_")
+			if envVars == nil {
+				envVars = make(map[string]string)
+			}
+			if envVal, ok := value.(jinja2.StringValue); ok {
+				envVars[envKey] = string(envVal)
+			}
+		}
+	}
+	
+	// Apply run commands
+	if len(runCommands) > 0 {
+		for _, cmd := range runCommands {
+			ctx.builder = ctx.builder.AddRunCommand(cmd)
+		}
+	}
+	
+	// Apply environment variables
+	if len(envVars) > 0 {
+		ctx.builder = ctx.builder.AddEnvironment(envVars)
+	}
+	
+	// Clean up temporary variables
+	for key := range ctx.variables {
+		if key == "_starlark_run_command" || strings.HasPrefix(key, "_starlark_env_") {
+			delete(ctx.variables, key)
+		}
+	}
+
+	return nil
+}
+
 type Directive struct {
 	Group       *GroupDirective       `yaml:"group,omitempty"`
 	Run         *RunDirective         `yaml:"run,omitempty"`
@@ -698,6 +840,7 @@ type Directive struct {
 	Copy        *CopyDirective        `yaml:"copy,omitempty"`
 	Variables   *VariablesDirective   `yaml:"variables,omitempty"`
 	Boutique    *BoutiqueDirective    `yaml:"boutique,omitempty"`
+	Starlark    *StarlarkDirective    `yaml:"starlark,omitempty"`
 
 	// Optional condition for this directive to be applied.
 	Condition string `yaml:"condition,omitempty"`
@@ -768,6 +911,8 @@ func (d Directive) Validate(ctx Context) error {
 		return d.Variables.Validate()
 	} else if d.Boutique != nil {
 		return d.Boutique.Validate()
+	} else if d.Starlark != nil {
+		return d.Starlark.Validate(ctx)
 	}
 	return fmt.Errorf("directive must have exactly one action")
 }
@@ -845,6 +990,8 @@ func (d Directive) Apply(ctx *Context) error {
 		return d.Variables.Apply(ctx)
 	} else if d.Boutique != nil {
 		return d.Boutique.Apply(ctx)
+	} else if d.Starlark != nil {
+		return d.Starlark.Apply(ctx)
 	} else {
 		return fmt.Errorf("directive not implemented")
 	}

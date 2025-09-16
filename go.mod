@@ -15,5 +15,7 @@ require (
 	github.com/moby/buildkit v0.15.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
+	go.starlark.net v0.0.0-20250906160240-bf296ed553ea // indirect
+	golang.org/x/sys v0.33.0 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
 )

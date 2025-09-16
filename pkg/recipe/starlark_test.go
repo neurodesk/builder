@@ -1,0 +1,273 @@
+package recipe
+
+import (
+	"testing"
+
+	"github.com/neurodesk/builder/pkg/common"
+	"github.com/neurodesk/builder/pkg/ir"
+	"github.com/neurodesk/builder/pkg/jinja2"
+)
+
+func TestStarlarkDirectiveValidation(t *testing.T) {
+	ctx := Context{}
+
+	tests := []struct {
+		name      string
+		directive StarlarkDirective
+		wantErr   bool
+	}{
+		{
+			name:      "empty directive",
+			directive: StarlarkDirective{},
+			wantErr:   true, // Must have either script or file
+		},
+		{
+			name: "valid script",
+			directive: StarlarkDirective{
+				Script: jinja2.TemplateString("x = 1 + 1"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid file",
+			directive: StarlarkDirective{
+				File: "script.star",
+			},
+			wantErr: false,
+		},
+		{
+			name: "both script and file",
+			directive: StarlarkDirective{
+				Script: jinja2.TemplateString("x = 1"),
+				File:   "script.star",
+			},
+			wantErr: true, // Can't have both
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.directive.Validate(ctx)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("StarlarkDirective.Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestStarlarkDirectiveApply(t *testing.T) {
+	// Create a test context
+	ctx := newContext(
+		common.PkgManagerApt,
+		"1.0.0",
+		[]string{}, // no include directories for this test
+		ir.New(),
+		nil,
+	)
+
+	// Test simple script execution
+	directive := StarlarkDirective{
+		Script: jinja2.TemplateString(`
+# Set some variables
+package_name = "test-package"
+version_info = "1.0.0"
+
+# Call built-in functions
+install_packages("curl", "wget")
+set_variable("computed_name", package_name + "-" + version_info)
+`),
+	}
+
+	err := directive.Apply(ctx)
+	if err != nil {
+		t.Fatalf("StarlarkDirective.Apply() error = %v", err)
+	}
+
+	// Check that variables were set
+	if val, ok := ctx.variables["computed_name"]; ok {
+		if str, ok := val.(jinja2.StringValue); ok {
+			if string(str) != "test-package-1.0.0" {
+				t.Errorf("Expected computed_name='test-package-1.0.0', got %v", string(str))
+			}
+		} else {
+			t.Errorf("Expected computed_name to be StringValue, got %T", val)
+		}
+	} else {
+		t.Error("Expected computed_name variable to be set")
+	}
+}
+
+func TestStarlarkDirectiveWithTemplating(t *testing.T) {
+	// Create a test context with some variables
+	ctx := newContext(
+		common.PkgManagerApt,
+		"2.0.0",
+		[]string{},
+		ir.New(),
+		nil,
+	)
+	ctx.SetVariable("base_name", "myapp")
+
+	// Test script with Jinja2 templating
+	directive := StarlarkDirective{
+		Script: jinja2.TemplateString(`
+# Use context variables
+app_name = "{{ base_name }}"
+version = "{{ version }}"
+
+# Create computed values
+full_name = app_name + "-v" + version
+set_variable("full_app_name", full_name)
+
+# Install packages based on app name
+install_packages(app_name + "-dev", app_name + "-tools")
+`),
+	}
+
+	err := directive.Apply(ctx)
+	if err != nil {
+		t.Fatalf("StarlarkDirective.Apply() error = %v", err)
+	}
+
+	// Check that the computed variable was set correctly
+	if val, ok := ctx.variables["full_app_name"]; ok {
+		if str, ok := val.(jinja2.StringValue); ok {
+			expected := "myapp-v2.0.0"
+			if string(str) != expected {
+				t.Errorf("Expected full_app_name=%q, got %q", expected, string(str))
+			}
+		} else {
+			t.Errorf("Expected full_app_name to be StringValue, got %T", val)
+		}
+	} else {
+		t.Error("Expected full_app_name variable to be set")
+	}
+}
+
+func TestStarlarkDirectiveComplexScript(t *testing.T) {
+	ctx := newContext(
+		common.PkgManagerApt,
+		"1.5.0",
+		[]string{},
+		ir.New(),
+		nil,
+	)
+	ctx.SetVariable("enable_dev_tools", true)
+	ctx.SetVariable("target_arch", "amd64")
+
+	directive := StarlarkDirective{
+		Script: jinja2.TemplateString(`
+def install_all_packages():
+    if enable_dev_tools:
+        install_packages("build-essential", "cmake")
+    
+    if target_arch == "amd64":
+        install_packages("libc6-dev")
+    
+    # Set computed configuration
+    config_name = "build-config-" + target_arch
+    if enable_dev_tools:
+        config_name = config_name + "-dev"
+    
+    set_variable("build_config", config_name)
+
+# Call the function
+install_all_packages()
+`),
+	}
+
+	err := directive.Apply(ctx)
+	if err != nil {
+		t.Fatalf("StarlarkDirective.Apply() error = %v", err)
+	}
+
+	// Check the computed build config
+	if val, ok := ctx.variables["build_config"]; ok {
+		if str, ok := val.(jinja2.StringValue); ok {
+			expected := "build-config-amd64-dev"
+			if string(str) != expected {
+				t.Errorf("Expected build_config=%q, got %q", expected, string(str))
+			}
+		} else {
+			t.Errorf("Expected build_config to be StringValue, got %T", val)
+		}
+	} else {
+		t.Error("Expected build_config variable to be set")
+	}
+}
+
+func TestStarlarkDirectiveFullFunctionality(t *testing.T) {
+	ctx := newContext(
+		common.PkgManagerApt,
+		"1.0.0",
+		[]string{},
+		ir.New(),
+		nil,
+	)
+	ctx.SetVariable("app_name", "myapp")
+	ctx.SetVariable("enable_ssl", true)
+
+	directive := StarlarkDirective{
+		Script: jinja2.TemplateString(`
+# Test comprehensive Starlark functionality
+app = "{{ app_name }}"
+version = "{{ version }}"
+
+# Install base packages
+install_packages("curl", "wget")
+
+# Install app-specific packages  
+install_packages(app + "-dev", app + "-client")
+
+# Set environment variables
+set_environment("APP_NAME", app)
+set_environment("APP_VERSION", version)
+
+def setup_ssl():
+    if enable_ssl:
+        install_packages("openssl", "ca-certificates")
+        set_environment("ENABLE_SSL", "true")
+        run_command("openssl version")
+
+setup_ssl()
+
+# Set computed variables
+full_app_name = app + "-v" + version
+set_variable("full_app_name", full_app_name)
+
+# Run final setup
+run_command("echo 'Setup complete for " + full_app_name + "'")
+`),
+	}
+
+	err := directive.Apply(ctx)
+	if err != nil {
+		t.Fatalf("StarlarkDirective.Apply() error = %v", err)
+	}
+
+	// Check computed variable
+	if val, ok := ctx.variables["full_app_name"]; ok {
+		if str, ok := val.(jinja2.StringValue); ok {
+			expected := "myapp-v1.0.0"
+			if string(str) != expected {
+				t.Errorf("Expected full_app_name=%q, got %q", expected, string(str))
+			}
+		} else {
+			t.Errorf("Expected full_app_name to be StringValue, got %T", val)
+		}
+	} else {
+		t.Error("Expected full_app_name variable to be set")
+	}
+
+	// Verify the builder was modified by checking the compiled definition
+	def, err := ctx.Compile()
+	if err != nil {
+		t.Fatalf("Failed to compile context: %v", err)
+	}
+
+	// Check that commands and environment variables were added
+	// Note: This is a basic check - in a real test you'd verify the specific commands/env vars
+	if len(def.Directives) == 0 {
+		t.Error("Expected some build directives to be generated")
+	}
+}

@@ -1,0 +1,14 @@
+name: test-custom-jq
+version: 1.0.0
+architectures:
+  - x86_64
+
+build:
+  kind: neurodocker
+  base-image: ubuntu:20.04
+  pkg-manager: apt
+  directives:
+    - template:
+        name: jq
+        version: "1.6"
+        method: binaries

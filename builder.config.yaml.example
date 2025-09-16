@@ -1,0 +1,14 @@
+# Sample builder configuration file
+# Copy this file to builder.config.yaml and modify as needed
+
+# Directories to search for build recipes
+recipe_roots:
+  - ./recipes
+
+# Directories to search for shared build components
+include_dirs:
+  - ./includes
+
+# Optional: Directory containing custom templates that override built-in templates
+# Uncomment and modify the path below to use custom templates
+# template_dir: ./custom-templates

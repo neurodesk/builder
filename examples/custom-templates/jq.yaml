@@ -1,0 +1,61 @@
+# Example custom template that overrides the built-in jq template
+# This demonstrates how to customize an existing template
+
+name: jq
+url: https://jqlang.github.io/jq/
+binaries:
+  arguments:
+    required:
+    - version
+    optional:
+      install_path: /usr/local/bin
+  dependencies:
+    apt:
+    - ca-certificates
+    - curl
+    yum:
+    - curl
+  instructions: |
+    # Custom installation with additional logging
+    echo "Installing jq version {{ self.version }} using custom template"
+    {{ self.install_dependencies() }}
+    curl -fsSL --output {{ self.install_path }}/jq {{ self.urls[self.version]}}
+    chmod +x {{ self.install_path }}/jq
+    echo "jq {{ self.version }} installed successfully at {{ self.install_path }}/jq"
+    jq --version
+  urls:
+    '1.6': https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
+    '1.5': https://github.com/stedolan/jq/releases/download/jq-1.5/jq-linux64
+source:
+  arguments:
+    required:
+    - version
+  dependencies:
+    apt:
+    - ca-certificates
+    - curl
+    - automake
+    - gcc
+    - git
+    - libtool
+    - make
+    yum:
+    - ca-certificates
+    - curl
+    - automake
+    - gcc
+    - git
+    - libtool
+    - make
+  instructions: |
+    echo "Building jq {{ self.version }} from source using custom template"
+    mkdir jq
+    cd jq
+    curl -fsSL https://github.com/stedolan/jq/releases/download/jq-{{self.version}}/jq-{{self.version}}.tar.gz \
+    | tar xz --strip-components 1
+    {% if self.version == "1.6" -%} autoreconf -fi {% endif %}
+    ./configure --disable-maintainer-mode
+    make
+    make install
+    echo "jq built and installed from source successfully"
+    jq --version

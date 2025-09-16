@@ -144,34 +144,34 @@ func (r *Renderer) renderNodes(buf *bytes.Buffer, nodes []Node, ctx Context, ove
 			for i := range trg {
 				trg[i] = strings.TrimSpace(trg[i])
 			}
-    for idx, it := range arr {
-        if len(trg) == 1 {
-            if err := r.setVar(ctx, trg[0], it); err != nil {
-                return err
-            }
-        } else if len(trg) >= 2 {
-            if err := r.setVar(ctx, trg[0], it); err != nil {
-                return err
-            }
-            // no value part unless item is pair like [k v]; keep simple
-        }
-        // Provide minimal loop variables (loop.last)
-        // Save previous loop if any
-        prevLoop, hadPrevLoop := ctx["loop"]
-        loopObj := DictValue{"last": BoolValue(idx == len(arr)-1)}
-        if err := r.setVar(ctx, "loop", loopObj); err != nil {
-            return err
-        }
-        if err := r.renderNodes(buf, t.Body, ctx, overrides); err != nil {
-            return err
-        }
-        // restore previous loop
-        if hadPrevLoop {
-            ctx["loop"] = prevLoop
-        } else {
-            delete(ctx, "loop")
-        }
-    }
+			for idx, it := range arr {
+				if len(trg) == 1 {
+					if err := r.setVar(ctx, trg[0], it); err != nil {
+						return err
+					}
+				} else if len(trg) >= 2 {
+					if err := r.setVar(ctx, trg[0], it); err != nil {
+						return err
+					}
+					// no value part unless item is pair like [k v]; keep simple
+				}
+				// Provide minimal loop variables (loop.last)
+				// Save previous loop if any
+				prevLoop, hadPrevLoop := ctx["loop"]
+				loopObj := DictValue{"last": BoolValue(idx == len(arr)-1)}
+				if err := r.setVar(ctx, "loop", loopObj); err != nil {
+					return err
+				}
+				if err := r.renderNodes(buf, t.Body, ctx, overrides); err != nil {
+					return err
+				}
+				// restore previous loop
+				if hadPrevLoop {
+					ctx["loop"] = prevLoop
+				} else {
+					delete(ctx, "loop")
+				}
+			}
 		case *BlockNode:
 			if overrides != nil {
 				if ov, ok := overrides[t.Name]; ok {

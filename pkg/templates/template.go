@@ -149,6 +149,19 @@ func (t *templateSelf) OnLookup(key string) (jinja2.Value, bool) {
 				return jinja2.StringValue(cmd), nil
 			},
 		}, true
+	case "_env":
+		ret := jinja2.DictValue{}
+		for key, tpl := range t.template.Env {
+			val, err := tpl.Render(jinja2.Context{
+				"self": t,
+			})
+			if err != nil {
+				slog.Error("error rendering env template", "key", key, "error", err)
+				continue
+			}
+			ret[key] = jinja2.StringValue(val)
+		}
+		return ret, true
 	default:
 		arg, ok, err := t.getArgument(key)
 		if err != nil {
@@ -179,6 +192,7 @@ var (
 
 type TemplateResult struct {
 	Instructions string
+	Environment  map[string]string
 }
 
 type Depends struct {
@@ -261,9 +275,15 @@ func (t *RecipeTemplate) Validate() error {
 	)
 }
 
-func (t *RecipeTemplate) Execute(context Context, params Params) (*TemplateResult, error) {
+func (t *RecipeTemplate) Execute(name string, context Context, params Params) (*TemplateResult, error) {
+	key := "self"
+
+	if name == "_header" {
+		key = "_header"
+	}
+
 	ctx := jinja2.Context{
-		"self": &templateSelf{
+		key: &templateSelf{
 			context:  context,
 			params:   params,
 			template: t,
@@ -275,9 +295,20 @@ func (t *RecipeTemplate) Execute(context Context, params Params) (*TemplateResul
 		return nil, fmt.Errorf("rendering instructions: %w", err)
 	}
 
-	return &TemplateResult{
+	ret := &TemplateResult{
 		Instructions: result,
-	}, nil
+		Environment:  map[string]string{},
+	}
+
+	for key, value := range t.Env {
+		val, err := value.Render(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("rendering env %q: %w", key, err)
+		}
+		ret.Environment[key] = val
+	}
+
+	return ret, nil
 }
 
 type Template struct {
@@ -327,7 +358,7 @@ func (t Template) Execute(ctx Context, params Params) (*TemplateResult, error) {
 		return nil, fmt.Errorf("getting method template: %w", err)
 	}
 
-	return tpl.Execute(ctx, params)
+	return tpl.Execute(t.Name, ctx, params)
 }
 
 //go:embed *.yaml

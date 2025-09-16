@@ -2,16 +2,26 @@ package recipe
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/neurodesk/builder/pkg/common"
+	"github.com/neurodesk/builder/pkg/ir"
 	"github.com/neurodesk/builder/pkg/jinja2"
 	"github.com/neurodesk/builder/pkg/templates"
 	v "github.com/neurodesk/builder/pkg/validator"
+	"go.yaml.in/yaml/v4"
 )
 
 type Context struct {
-	PackageManager common.PackageManager
-	Version        string
+	PackageManager     common.PackageManager
+	Version            string
+	IncludeDirectories []string
+
+	builder   ir.Builder
+	parent    *Context
+	variables map[string]jinja2.Value
 }
 
 // OnLookup implements jinja2.LookupHook.
@@ -20,6 +30,15 @@ func (c Context) OnLookup(key string) (jinja2.Value, bool) {
 	case "version":
 		return jinja2.FromGo(c.Version), true
 	default:
+		if val, ok := c.variables[key]; ok {
+			return val, true
+		}
+
+		if c.parent != nil {
+			return c.parent.OnLookup(key)
+		}
+
+		// not found
 		return nil, false
 	}
 }
@@ -34,10 +53,97 @@ func (c Context) Truth() bool {
 	return true
 }
 
+func (c *Context) SetVariable(key string, value any) {
+	c.variables[key] = jinja2.FromGo(value)
+}
+
+func (c *Context) Compile() (*ir.Definition, error) {
+	return c.builder.Compile()
+}
+
+func (c *Context) childContext() *Context {
+	return newContext(
+		c.PackageManager,
+		c.Version,
+		c.IncludeDirectories,
+		c.builder,
+		c,
+	)
+}
+
+func (c *Context) parallelJobs() int {
+	return 1
+}
+
+func (c *Context) evaluateValue(value any) (any, error) {
+	switch val := value.(type) {
+	case jinja2.TemplateString:
+		ret, err := val.Render(jinja2.Context{
+			"context":       c,
+			"local":         c,
+			"parallel_jobs": jinja2.IntValue(c.parallelJobs()),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("rendering template: %w", err)
+		}
+
+		return ret, nil
+	case string:
+		tpl := jinja2.TemplateString(val)
+		ret, err := tpl.Render(jinja2.Context{
+			"local":         c,
+			"context":       c,
+			"parallel_jobs": jinja2.IntValue(c.parallelJobs()),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("rendering template: %w", err)
+		}
+
+		return ret, nil
+	case bool:
+		return val, nil
+	default:
+		return nil, fmt.Errorf("unsupported value type: %T", val)
+	}
+}
+
+func (c *Context) installPackages(pkgs ...string) error {
+	switch c.PackageManager {
+	case common.PkgManagerApt:
+		cmd := "apt-get update && apt-get install -y " + strings.Join(pkgs, " ")
+		c.builder = c.builder.AddRunCommand(cmd)
+		return nil
+	case common.PkgManagerYum:
+		cmd := "yum install -y " + strings.Join(pkgs, " ")
+		c.builder = c.builder.AddRunCommand(cmd)
+	default:
+		return fmt.Errorf("unsupported package manager: %s", c.PackageManager)
+	}
+	return nil
+}
+
 var (
 	_ jinja2.Value      = Context{}
 	_ jinja2.LookupHook = Context{}
 )
+
+func newContext(
+	packageManager common.PackageManager,
+	version string,
+	includeDirs []string,
+	builder ir.Builder,
+	parent *Context,
+) *Context {
+	return &Context{
+		PackageManager:     packageManager,
+		Version:            version,
+		IncludeDirectories: includeDirs,
+
+		builder:   builder,
+		parent:    parent,
+		variables: map[string]jinja2.Value{},
+	}
+}
 
 type CPUArchitecture string
 
@@ -98,9 +204,9 @@ type TestInfo struct {
 	Name   string `yaml:"name"`
 	Manual bool   `yaml:"manual,omitempty"`
 
-	Executable string      `yaml:"executable,omitempty"`
-	Script     string      `yaml:"script,omitempty"`
-	Builtin    TestBuiltin `yaml:"builtin,omitempty"`
+	Executable jinja2.TemplateString `yaml:"executable,omitempty"`
+	Script     jinja2.TemplateString `yaml:"script,omitempty"`
+	Builtin    TestBuiltin           `yaml:"builtin,omitempty"`
 }
 
 type BuildKind string
@@ -117,12 +223,52 @@ func (g GroupDirective) Validate(ctx Context) error {
 	}, "group")
 }
 
+func (g GroupDirective) Apply(ctx *Context, with map[string]any) error {
+	child := ctx.childContext()
+
+	for k, v := range with {
+		result, err := ctx.evaluateValue(v)
+		if err != nil {
+			return fmt.Errorf("evaluating 'with' variable %q: %w", k, err)
+		}
+		child.SetVariable(k, result)
+	}
+
+	for _, directive := range g {
+		if err := directive.Apply(child); err != nil {
+			return fmt.Errorf("applying group directive: %w", err)
+		}
+	}
+
+	// Propagate builder changes made in the child context back to the parent.
+	// Without this, directives executed inside a group would be lost.
+	ctx.builder = child.builder
+	return nil
+}
+
 type RunDirective []jinja2.TemplateString
 
 func (r RunDirective) Validate() error {
 	return v.Map(r, func(cmd jinja2.TemplateString, description string) error {
 		return cmd.Validate()
 	}, "run")
+}
+
+func (r RunDirective) Apply(ctx *Context) error {
+	var commands []string
+	for _, cmd := range r {
+		result, err := ctx.evaluateValue(cmd)
+		if err != nil {
+			return fmt.Errorf("evaluating run command: %w", err)
+		}
+		s, ok := result.(string)
+		if !ok {
+			return fmt.Errorf("run command must be a string, got %T", result)
+		}
+		commands = append(commands, s)
+	}
+	ctx.builder = ctx.builder.AddRunCommand(strings.Join(commands, " &&\n "))
+	return nil
 }
 
 type FileDirective FileInfo
@@ -152,6 +298,10 @@ func (f FileDirective) Validate() error {
 	)
 }
 
+func (f FileDirective) Apply(ctx *Context) error {
+	return fmt.Errorf("file directive not implemented")
+}
+
 type InstallDirective any // string or []string
 
 type UserDirective jinja2.TemplateString
@@ -160,16 +310,57 @@ func (u UserDirective) Validate() error {
 	return jinja2.TemplateString(u).Validate()
 }
 
+func (u UserDirective) Apply(ctx *Context) error {
+	result, err := ctx.evaluateValue(jinja2.TemplateString(u))
+	if err != nil {
+		return fmt.Errorf("evaluating user: %w", err)
+	}
+	s, ok := result.(string)
+	if !ok {
+		return fmt.Errorf("user must be a string, got %T", result)
+	}
+	ctx.builder = ctx.builder.SetCurrentUser(s)
+	return nil
+}
+
 type WorkDirDirective jinja2.TemplateString
 
 func (w WorkDirDirective) Validate() error {
 	return jinja2.TemplateString(w).Validate()
 }
 
+func (w WorkDirDirective) Apply(ctx *Context) error {
+	val, err := ctx.evaluateValue(jinja2.TemplateString(w))
+	if err != nil {
+		return fmt.Errorf("evaluating workdir: %w", err)
+	}
+	s, ok := val.(string)
+	if !ok {
+		return fmt.Errorf("workdir must be a string, got %T", val)
+	}
+	ctx.builder = ctx.builder.SetWorkingDirectory(s)
+	return nil
+}
+
 type EntryPointDirective jinja2.TemplateString
 
 func (e EntryPointDirective) Validate() error {
 	return jinja2.TemplateString(e).Validate()
+}
+
+func (e EntryPointDirective) Apply(ctx *Context) error {
+	val, err := ctx.evaluateValue(jinja2.TemplateString(e))
+	if err != nil {
+		return fmt.Errorf("evaluating entrypoint: %w", err)
+	}
+
+	s, ok := val.(string)
+	if !ok {
+		return fmt.Errorf("entrypoint must be a string, got %T", val)
+	}
+
+	ctx.builder = ctx.builder.SetEntryPoint(s)
+	return nil
 }
 
 type DeployDirective DeployInfo
@@ -185,6 +376,42 @@ func (d DeployDirective) Validate() error {
 	)
 }
 
+func (d DeployDirective) Apply(ctx *Context) error {
+	if len(d.Bins) > 0 {
+		var bins []string
+		for _, cmd := range d.Bins {
+			result, err := ctx.evaluateValue(cmd)
+			if err != nil {
+				return fmt.Errorf("evaluating deploy.bin command: %w", err)
+			}
+			s, ok := result.(string)
+			if !ok {
+				return fmt.Errorf("deploy.bin command must be a string, got %T", result)
+			}
+			bins = append(bins, s)
+		}
+		ctx.builder = ctx.builder.AddDeployBins(bins...)
+	}
+
+	if len(d.Path) > 0 {
+		var path []string
+		for _, cmd := range d.Path {
+			result, err := ctx.evaluateValue(cmd)
+			if err != nil {
+				return fmt.Errorf("evaluating deploy.path command: %w", err)
+			}
+			s, ok := result.(string)
+			if !ok {
+				return fmt.Errorf("deploy.path command must be a string, got %T", result)
+			}
+			path = append(path, s)
+		}
+		ctx.builder = ctx.builder.AddDeployPaths(path...)
+	}
+
+	return nil
+}
+
 type EnvironmentDirective map[string]jinja2.TemplateString
 
 func (e EnvironmentDirective) Validate() error {
@@ -196,6 +423,23 @@ func (e EnvironmentDirective) Validate() error {
 			return fmt.Errorf("environment[%q]: %w", k, err)
 		}
 	}
+	return nil
+}
+
+func (e EnvironmentDirective) Apply(ctx *Context) error {
+	env := map[string]string{}
+	for key, val := range e {
+		result, err := ctx.evaluateValue(val)
+		if err != nil {
+			return fmt.Errorf("evaluating environment[%q]: %w", key, err)
+		}
+		s, ok := result.(string)
+		if !ok {
+			return fmt.Errorf("environment[%q] must be a string, got %T", key, result)
+		}
+		env[key] = s
+	}
+	ctx.builder = ctx.builder.AddEnvironment(env)
 	return nil
 }
 
@@ -220,39 +464,54 @@ func (t TestDirective) Validate() error {
 			}
 			return nil
 		}(),
+		t.Executable.Validate(),
+		t.Script.Validate(),
 	)
+}
+
+func (t TestDirective) Apply(ctx *Context) error {
+	if t.Builtin != "" {
+		ctx.builder = ctx.builder.AddBuiltinTest(
+			t.Name,
+			t.Manual,
+			string(t.Builtin),
+		)
+		return nil
+	} else if t.Script != "" {
+		result, err := ctx.evaluateValue(t.Script)
+		if err != nil {
+			return fmt.Errorf("evaluating test script: %w", err)
+		}
+		script, ok := result.(string)
+		if !ok {
+			return fmt.Errorf("test script must be a string, got %T", result)
+		}
+
+		execResult, err := ctx.evaluateValue(t.Executable)
+		if err != nil {
+			return fmt.Errorf("evaluating test executable: %w", err)
+		}
+		executable, ok := execResult.(string)
+		if !ok {
+			return fmt.Errorf("test executable must be a string, got %T", execResult)
+		}
+
+		ctx.builder = ctx.builder.AddScriptTest(
+			t.Name,
+			t.Manual,
+			executable,
+			script,
+		)
+		return nil
+	} else {
+		return fmt.Errorf("test directive not implemented")
+	}
 }
 
 type TemplateDirective struct {
 	Name   string         `yaml:"name"`
 	Params map[string]any `yaml:",inline,omitempty"`
 }
-
-// result, err := tpl.Execute(templates.Context{
-// 	PackageManager: ctx.PackageManager,
-// }, func(k string) (any, bool, error) {
-// 	val, ok := t.Params[k]
-// 	// if the value is a string then assume it's a jinja2 template and render it
-// 	if ok {
-// 		if strVal, ok := val.(string); ok {
-// 			rendered, err := jinja2.TemplateString(strVal).Render(jinja2.Context{
-// 				"context": ctx,
-// 			})
-// 			if err != nil {
-// 				return nil, false, fmt.Errorf("rendering template parameter %q: %w", k, err)
-// 			}
-// 			return rendered, true, nil
-// 		} else {
-// 			return val, true, nil
-// 		}
-// 	} else {
-// 		return nil, false, nil
-// 	}
-// })
-// if err != nil {
-// 	return fmt.Errorf("failed to render template %q: %w", t.Name, err)
-// }
-// _ = result
 
 func (t TemplateDirective) Validate(ctx Context) error {
 	if err := v.NotEmpty(t.Name, "template.name"); err != nil {
@@ -269,10 +528,93 @@ func (t TemplateDirective) Validate(ctx Context) error {
 	return nil
 }
 
+func (t TemplateDirective) Apply(ctx *Context) error {
+	tpl, err := templates.Get(t.Name)
+	if err != nil {
+		return fmt.Errorf("template %q not found", t.Name)
+	}
+
+	result, err := tpl.Execute(templates.Context{
+		PackageManager: ctx.PackageManager,
+	}, func(k string) (any, bool, error) {
+		if val, ok := t.Params[k]; ok {
+			rss, err := ctx.evaluateValue(val)
+			if err != nil {
+				return nil, false, fmt.Errorf("evaluating template param %q: %w", k, err)
+			}
+
+			return rss, true, nil
+		}
+		return nil, false, nil
+	})
+	if err != nil {
+		return fmt.Errorf("executing template %q: %w", t.Name, err)
+	}
+
+	if len(result.Environment) > 0 {
+		env := map[string]jinja2.TemplateString{}
+		for k, v := range result.Environment {
+			env[k] = jinja2.TemplateString(v)
+		}
+
+		if err := EnvironmentDirective(env).Apply(ctx); err != nil {
+			return fmt.Errorf("applying template %q environment: %w", t.Name, err)
+		}
+	}
+
+	if err := RunDirective([]jinja2.TemplateString{
+		jinja2.TemplateString(result.Instructions),
+	}).Apply(ctx); err != nil {
+		return fmt.Errorf("applying template %q run: %w", t.Name, err)
+	}
+
+	return nil
+}
+
 type IncludeDirective string
 
 func (i IncludeDirective) Validate() error {
 	return v.HasNoJinja(string(i), "include")
+}
+
+func (i IncludeDirective) Apply(ctx *Context) error {
+	path := string(i)
+
+	var fullPath string
+
+	for _, dir := range ctx.IncludeDirectories {
+		fullPath = filepath.Join(dir, path)
+		if _, err := os.Stat(fullPath); err != nil {
+			if os.IsNotExist(err) {
+				fullPath = ""
+				continue
+			}
+			return fmt.Errorf("stating include file %q: %w", fullPath, err)
+		}
+	}
+
+	if fullPath == "" {
+		return fmt.Errorf("include file %q not found in include directories", path)
+	}
+
+	f, err := os.Open(fullPath)
+	if err != nil {
+		return err
+	}
+
+	dec := yaml.NewDecoder(f)
+	dec.KnownFields(true)
+
+	var build IncludeFile
+	if err := dec.Decode(&build); err != nil {
+		return err
+	}
+
+	var group GroupDirective
+	for _, directive := range build.Directives {
+		group = append(group, directive)
+	}
+	return group.Apply(ctx, map[string]any{})
 }
 
 type CopyDirective any // string or []string
@@ -280,6 +622,17 @@ type CopyDirective any // string or []string
 type VariablesDirective map[string]any
 
 func (v VariablesDirective) Validate() error {
+	return nil
+}
+
+func (v VariablesDirective) Apply(ctx *Context) error {
+	for k, val := range v {
+		result, err := ctx.evaluateValue(val)
+		if err != nil {
+			return fmt.Errorf("evaluating variable %q: %w", k, err)
+		}
+		ctx.SetVariable(k, result)
+	}
 	return nil
 }
 
@@ -323,6 +676,10 @@ func (b BoutiqueDirective) Validate() error {
 			)
 		}, "boutique.inputs"),
 	)
+}
+
+func (b BoutiqueDirective) Apply(ctx *Context) error {
+	return fmt.Errorf("boutique directive not implemented")
 }
 
 type Directive struct {
@@ -415,6 +772,84 @@ func (d Directive) Validate(ctx Context) error {
 	return fmt.Errorf("directive must have exactly one action")
 }
 
+func (d Directive) Apply(ctx *Context) error {
+	if d.Group != nil {
+		return d.Group.Apply(ctx, d.With)
+	} else if d.Run != nil {
+		return d.Run.Apply(ctx)
+	} else if d.File != nil {
+		return d.File.Apply(ctx)
+	} else if d.Install != nil {
+		install := any(*d.Install)
+
+		evaluateAndSplit := func(s string) ([]string, error) {
+			tpl := jinja2.TemplateString(s)
+
+			result, err := ctx.evaluateValue(tpl)
+			if err != nil {
+				return nil, fmt.Errorf("evaluating install command: %w", err)
+			}
+
+			s, ok := result.(string)
+			if !ok {
+				return nil, fmt.Errorf("install command must be a string, got %T", result)
+			}
+
+			return strings.Split(s, " "), nil
+		}
+
+		switch install := install.(type) {
+		case string:
+			pkgs, err := evaluateAndSplit(install)
+			if err != nil {
+				return fmt.Errorf("installing packages: %w", err)
+			}
+
+			return ctx.installPackages(pkgs...)
+		case []any:
+			var pkgs []string
+			for i, item := range install {
+				s, ok := item.(string)
+				if !ok {
+					return fmt.Errorf("install[%d] must be a string, got %T", i, item)
+				}
+				sp, err := evaluateAndSplit(s)
+				if err != nil {
+					return fmt.Errorf("installing packages: %w", err)
+				}
+				pkgs = append(pkgs, sp...)
+			}
+			return ctx.installPackages(pkgs...)
+		default:
+			return fmt.Errorf("install must be a string or list of strings, got %T", install)
+		}
+	} else if d.Environment != nil {
+		return d.Environment.Apply(ctx)
+	} else if d.User != nil {
+		return d.User.Apply(ctx)
+	} else if d.WorkDir != nil {
+		return d.WorkDir.Apply(ctx)
+	} else if d.Deploy != nil {
+		return d.Deploy.Apply(ctx)
+	} else if d.EntryPoint != nil {
+		return d.EntryPoint.Apply(ctx)
+	} else if d.Test != nil {
+		return d.Test.Apply(ctx)
+	} else if d.Template != nil {
+		return d.Template.Apply(ctx)
+	} else if d.Include != nil {
+		return d.Include.Apply(ctx)
+	} else if d.Copy != nil {
+		return fmt.Errorf("copy directive not implemented")
+	} else if d.Variables != nil {
+		return d.Variables.Apply(ctx)
+	} else if d.Boutique != nil {
+		return d.Boutique.Apply(ctx)
+	} else {
+		return fmt.Errorf("directive not implemented")
+	}
+}
+
 type BuildRecipe struct {
 	Kind BuildKind `yaml:"kind"`
 
@@ -440,6 +875,65 @@ func (b BuildRecipe) Validate(ctx Context) error {
 			return directive.Validate(ctx)
 		}, "build.directives"),
 	)
+}
+
+func (b *BuildRecipe) Generate(ctx *Context) error {
+	if b.Kind != BuildKindNeuroDocker {
+		return fmt.Errorf("unsupported build kind: %s", b.Kind)
+	}
+
+	baseImg, err := ctx.evaluateValue(b.BaseImage)
+	if err != nil {
+		return fmt.Errorf("evaluating base image: %w", err)
+	}
+	s, ok := baseImg.(string)
+	if !ok {
+		return fmt.Errorf("base image must be a string, got %T", baseImg)
+	}
+
+	ctx.builder = ctx.builder.AddFromImage(s)
+
+	if b.AddDefaultTemplate == nil || *b.AddDefaultTemplate {
+		tpl, err := templates.Get("_header")
+		if err != nil {
+			return fmt.Errorf("loading default header template: %w", err)
+		}
+
+		result, err := tpl.Execute(templates.Context{
+			PackageManager: ctx.PackageManager,
+		}, func(k string) (any, bool, error) {
+			if k == "method" {
+				return "source", true, nil
+			}
+			return nil, false, nil
+		})
+		if err != nil {
+			return fmt.Errorf("executing default header template: %w", err)
+		}
+
+		if len(result.Environment) > 0 {
+			ctx.builder = ctx.builder.AddEnvironment(result.Environment)
+		}
+
+		ctx.builder = ctx.builder.AddRunCommand(result.Instructions)
+	}
+
+	// TODO(joshua): handle tzdata and locale fix
+
+	// TODO(joshua): handle default alias and directories
+
+	for _, directive := range b.Directives {
+		if err := directive.Apply(ctx); err != nil {
+			return fmt.Errorf("applying directive: %w", err)
+		}
+	}
+
+	return nil
+}
+
+type IncludeFile struct {
+	Builder    BuildKind   `yaml:"builder"`
+	Directives []Directive `yaml:"directives,omitempty"`
 }
 
 type BuildFile struct {
@@ -476,4 +970,43 @@ func (b *BuildFile) Validate(ctx Context) error {
 		b.Build.Validate(ctx),
 		b.Readme.Validate(),
 	)
+}
+
+func (b *BuildFile) Generate(includeDirs []string) (*ir.Definition, error) {
+	ctx := newContext(
+		b.Build.PackageManager,
+		b.Version,
+		includeDirs,
+		ir.New(),
+		nil,
+	)
+
+	if err := b.Build.Generate(ctx); err != nil {
+		return nil, fmt.Errorf("generating build: %w", err)
+	}
+
+	return ctx.Compile()
+}
+
+func LoadBuildFile(path string) (*BuildFile, error) {
+	buildYaml := filepath.Join(path, "build.yaml")
+
+	f, err := os.Open(buildYaml)
+	if err != nil {
+		return nil, err
+	}
+
+	dec := yaml.NewDecoder(f)
+	dec.KnownFields(true)
+
+	var build BuildFile
+	if err := dec.Decode(&build); err != nil {
+		return nil, err
+	}
+
+	if err := build.Validate(Context{}); err != nil {
+		return nil, fmt.Errorf("validating build file %q: %w", path, err)
+	}
+
+	return &build, nil
 }

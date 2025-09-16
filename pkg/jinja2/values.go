@@ -9,8 +9,8 @@ import (
 // Value is an abstract value used by the Jinja evaluator, inspired by Starlark.
 // It defines string conversion and truthiness semantics.
 type Value interface {
-    String() string
-    Truth() bool
+	String() string
+	Truth() bool
 }
 
 // LookupHook can be optionally implemented by Value containers to observe
@@ -22,13 +22,13 @@ type LookupHook interface {
 // SetHook can be optionally implemented to observe when a template sets
 // a variable in the current context.
 type SetHook interface {
-    OnSet(name string, val Value) error
+	OnSet(name string, val Value) error
 }
 
 // CallableValue wraps a callable function that can be invoked from templates.
 // It is used to model function values and methods.
 type CallableValue struct {
-    Fn func(args []Value) (Value, error)
+	Fn func(args []Value) (Value, error)
 }
 
 func (c CallableValue) String() string { return "<function>" }

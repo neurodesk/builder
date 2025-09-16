@@ -1,3 +1,3 @@
-/.gocache/
-/.gomodcache/
-/.gopath/
+/local/
+
+/builder.config.yaml

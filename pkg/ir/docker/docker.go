@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 )
 
 // Directive represents a single Dockerfile directive in a tiny AST.
@@ -28,6 +29,14 @@ func (Env) isDirective() {}
 type Run struct{ Command string }
 
 func (Run) isDirective() {}
+
+// Copy emits `COPY <srcs...> <dest>`
+type Copy struct {
+	Src  []string
+	Dest string
+}
+
+func (Copy) isDirective() {}
 
 // Workdir emits `WORKDIR <dir>`
 type Workdir string
@@ -116,6 +125,21 @@ func RenderDockerfile(dirs []Directive) (string, error) {
 				jb = jb[:len(jb)-1]
 			}
 			writeLine("RUN %s", string(jb))
+
+		case Copy:
+			if len(v.Src) == 0 {
+				return "", fmt.Errorf("COPY: no source paths")
+			}
+			if v.Dest == "" {
+				return "", fmt.Errorf("COPY: empty destination path")
+			}
+			// Quote each path to handle special chars robustly.
+			srcs := make([]string, len(v.Src))
+			for i, s := range v.Src {
+				srcs[i] = fmt.Sprintf("%q", s)
+			}
+			dest := fmt.Sprintf("%q", v.Dest)
+			writeLine("COPY %s %s", strings.Join(srcs, " "), dest)
 
 		case Workdir:
 			if v == "" {

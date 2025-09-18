@@ -695,7 +695,7 @@ func (b BoutiqueDirective) Apply(ctx *Context) error {
 
 type StarlarkDirective struct {
 	Script jinja2.TemplateString `yaml:"script,omitempty"`
-	File   string               `yaml:"file,omitempty"`
+	File   string                `yaml:"file,omitempty"`
 }
 
 func (s StarlarkDirective) Validate(ctx Context) error {
@@ -734,7 +734,7 @@ func (s StarlarkDirective) Apply(ctx *Context) error {
 		"version":       jinja2.StringValue(ctx.Version),
 		"parallel_jobs": jinja2.IntValue(ctx.parallelJobs()),
 	}
-	
+
 	// Add all context variables
 	for key, value := range ctx.variables {
 		jinjaCtx[key] = value
@@ -743,7 +743,7 @@ func (s StarlarkDirective) Apply(ctx *Context) error {
 	// Create context objects for Starlark
 	contextObj := starlarkpkg.NewContextObject(jinjaCtx)
 	localObj := starlarkpkg.NewContextObject(jinjaCtx) // local is the same as context for now
-	
+
 	// Set the context and local objects in Starlark
 	eval.SetGlobalStarlark("context", contextObj)
 	eval.SetGlobalStarlark("local", localObj)
@@ -784,7 +784,7 @@ func (s StarlarkDirective) Apply(ctx *Context) error {
 	// Process any run commands that were set
 	var runCommands []string
 	var envVars map[string]string
-	
+
 	for key, value := range ctx.variables {
 		if key == "_starlark_run_command" {
 			if cmdStr, ok := value.(jinja2.StringValue); ok {
@@ -800,19 +800,19 @@ func (s StarlarkDirective) Apply(ctx *Context) error {
 			}
 		}
 	}
-	
+
 	// Apply run commands
 	if len(runCommands) > 0 {
 		for _, cmd := range runCommands {
 			ctx.builder = ctx.builder.AddRunCommand(cmd)
 		}
 	}
-	
+
 	// Apply environment variables
 	if len(envVars) > 0 {
 		ctx.builder = ctx.builder.AddEnvironment(envVars)
 	}
-	
+
 	// Clean up temporary variables
 	for key := range ctx.variables {
 		if key == "_starlark_run_command" || strings.HasPrefix(key, "_starlark_env_") {
@@ -984,7 +984,45 @@ func (d Directive) Apply(ctx *Context) error {
 	} else if d.Include != nil {
 		return d.Include.Apply(ctx)
 	} else if d.Copy != nil {
-		return fmt.Errorf("copy directive not implemented")
+		// string or []string
+		copy := any(*d.Copy)
+		switch copy := copy.(type) {
+		case string:
+			// render the template string then split it into an array of strings separated by spaces
+			tpl := jinja2.TemplateString(copy)
+			result, err := ctx.evaluateValue(tpl)
+			if err != nil {
+				return fmt.Errorf("evaluating copy command: %w", err)
+			}
+			s, ok := result.(string)
+			if !ok {
+				return fmt.Errorf("copy command must be a string, got %T", result)
+			}
+			parts := strings.Split(s, " ")
+			if len(parts) != 2 {
+				return fmt.Errorf("copy command must have exactly two parts: source and destination")
+			}
+			ctx.builder = ctx.builder.AddCopy(parts...)
+			return nil
+		case []string:
+			var parts []string
+			for i, item := range copy {
+				tpl := jinja2.TemplateString(item)
+				result, err := ctx.evaluateValue(tpl)
+				if err != nil {
+					return fmt.Errorf("evaluating copy[%d] command: %w", i, err)
+				}
+				s, ok := result.(string)
+				if !ok {
+					return fmt.Errorf("copy[%d] command must be a string, got %T", i, result)
+				}
+				parts = append(parts, s)
+			}
+			ctx.builder = ctx.builder.AddCopy(parts...)
+			return nil
+		default:
+			return fmt.Errorf("copy command must be a string or list of strings, got %T", copy)
+		}
 	} else if d.Variables != nil {
 		return d.Variables.Apply(ctx)
 	} else if d.Boutique != nil {

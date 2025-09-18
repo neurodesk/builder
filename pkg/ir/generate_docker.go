@@ -27,6 +27,13 @@ func GenerateDockerfile(ir *Definition) (string, error) {
 			out = append(out, env)
 		case RunDirective:
 			out = append(out, docker.Run{Command: string(v)})
+		case CopyDirective:
+			if len(v.Parts) < 2 {
+				return "", fmt.Errorf("COPY directive requires at least two parts")
+			}
+			srcs := v.Parts[:len(v.Parts)-1]
+			dest := v.Parts[len(v.Parts)-1]
+			out = append(out, docker.Copy{Src: srcs, Dest: dest})
 		case WorkDirDirective:
 			out = append(out, docker.Workdir(string(v)))
 		case UserDirective:

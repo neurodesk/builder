@@ -21,6 +21,13 @@ type RunDirective string
 // isDirective implements Directive.
 func (r RunDirective) isDirective() {}
 
+type CopyDirective struct {
+	Parts []string
+}
+
+// isDirective implements Directive.
+func (c CopyDirective) isDirective() {}
+
 type WorkDirDirective string
 
 // isDirective implements Directive.
@@ -91,6 +98,7 @@ type Builder interface {
 
 	AddEnvironment(env map[string]string) Builder
 	AddRunCommand(cmd string) Builder
+	AddCopy(parts ...string) Builder
 	SetWorkingDirectory(dir string) Builder
 	SetCurrentUser(user string) Builder
 	SetEntryPoint(cmd string) Builder
@@ -138,6 +146,11 @@ func (b *builderImpl) AddEnvironment(env map[string]string) Builder {
 // AddRunCommand implements Builder.
 func (b *builderImpl) AddRunCommand(cmd string) Builder {
 	return b.add(RunDirective(cmd))
+}
+
+// AddCopy implements Builder.
+func (b *builderImpl) AddCopy(parts ...string) Builder {
+	return b.add(CopyDirective{Parts: parts})
 }
 
 // SetWorkingDirectory implements Builder.

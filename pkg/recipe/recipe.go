@@ -1,6 +1,7 @@
 package recipe
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,6 +16,50 @@ import (
 	"go.yaml.in/yaml/v4"
 )
 
+type file interface {
+	isFile()
+
+	GetName() string
+}
+
+type contextFile struct {
+	Name         string
+	HostFilename string
+	Executable   bool
+}
+
+func (c contextFile) isFile() {}
+
+func (c contextFile) GetName() string { return c.Name }
+
+type httpFile struct {
+	Name       string
+	URL        string
+	Executable bool
+	Retry      *int
+	Insecure   *bool
+}
+
+func (h httpFile) isFile() {}
+
+func (h httpFile) GetName() string { return h.Name }
+
+type literalFile struct {
+	Name       string
+	Contents   string
+	Executable bool
+}
+
+func (l literalFile) isFile() {}
+
+func (l literalFile) GetName() string { return l.Name }
+
+var (
+	_ file = contextFile{}
+	_ file = httpFile{}
+	_ file = literalFile{}
+)
+
 type Context struct {
 	PackageManager     common.PackageManager
 	Version            string
@@ -23,6 +68,7 @@ type Context struct {
 	builder   ir.Builder
 	parent    *Context
 	variables map[string]jinja2.Value
+	files     map[string]file
 }
 
 // OnLookup implements jinja2.LookupHook.
@@ -133,6 +179,16 @@ func (c *Context) installPackages(pkgs ...string) error {
 	return nil
 }
 
+func (c *Context) addFile(f file) error {
+	name := f.GetName()
+	// check if a file with the same name already exists
+	if _, exists := c.files[name]; exists {
+		return fmt.Errorf("file with name %q already exists", name)
+	}
+	c.files[name] = f
+	return nil
+}
+
 var (
 	_ jinja2.Value      = Context{}
 	_ jinja2.LookupHook = Context{}
@@ -153,6 +209,7 @@ func newContext(
 		builder:   builder,
 		parent:    parent,
 		variables: map[string]jinja2.Value{},
+		files:     map[string]file{},
 	}
 }
 
@@ -310,7 +367,29 @@ func (f FileDirective) Validate() error {
 }
 
 func (f FileDirective) Apply(ctx *Context) error {
-	return fmt.Errorf("file directive not implemented")
+	if f.Filename != "" {
+		return ctx.addFile(contextFile{
+			Name:         f.Name,
+			HostFilename: f.Filename,
+			Executable:   f.Executable,
+		})
+	} else if f.Url != "" {
+		return ctx.addFile(httpFile{
+			Name:       f.Name,
+			URL:        f.Url,
+			Executable: f.Executable,
+			Retry:      f.Retry,
+			Insecure:   f.Insecure,
+		})
+	} else if f.Contents != "" {
+		return ctx.addFile(literalFile{
+			Name:       f.Name,
+			Contents:   f.Contents,
+			Executable: f.Executable,
+		})
+	} else {
+		return fmt.Errorf("file directive not implemented")
+	}
 }
 
 type InstallDirective any // string or []string
@@ -690,7 +769,17 @@ func (b BoutiqueDirective) Validate() error {
 }
 
 func (b BoutiqueDirective) Apply(ctx *Context) error {
-	return fmt.Errorf("boutique directive not implemented")
+	// serialize boutique directive to JSON
+	data, err := json.Marshal(b)
+	if err != nil {
+		return fmt.Errorf("serializing boutique directive: %w", err)
+	}
+
+	// add boutique.json file to image
+	// TODO(joshua): this is probably incorrect compared to the Python version
+	ctx.builder = ctx.builder.AddLiteralFile("/boutique.json", string(data), false)
+
+	return nil
 }
 
 type StarlarkDirective struct {

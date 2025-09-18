@@ -28,6 +28,15 @@ type CopyDirective struct {
 // isDirective implements Directive.
 func (c CopyDirective) isDirective() {}
 
+type LiteralFileDirective struct {
+	Name       string
+	Contents   string
+	Executable bool
+}
+
+// isDirective implements Directive.
+func (l LiteralFileDirective) isDirective() {}
+
 type WorkDirDirective string
 
 // isDirective implements Directive.
@@ -99,6 +108,7 @@ type Builder interface {
 	AddEnvironment(env map[string]string) Builder
 	AddRunCommand(cmd string) Builder
 	AddCopy(parts ...string) Builder
+	AddLiteralFile(name, contents string, executable bool) Builder
 	SetWorkingDirectory(dir string) Builder
 	SetCurrentUser(user string) Builder
 	SetEntryPoint(cmd string) Builder
@@ -151,6 +161,15 @@ func (b *builderImpl) AddRunCommand(cmd string) Builder {
 // AddCopy implements Builder.
 func (b *builderImpl) AddCopy(parts ...string) Builder {
 	return b.add(CopyDirective{Parts: parts})
+}
+
+// AddLiteralFile implements Builder.
+func (b *builderImpl) AddLiteralFile(name, contents string, executable bool) Builder {
+	return b.add(LiteralFileDirective{
+		Name:       name,
+		Contents:   contents,
+		Executable: executable,
+	})
 }
 
 // SetWorkingDirectory implements Builder.

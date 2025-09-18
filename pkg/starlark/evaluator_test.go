@@ -53,7 +53,7 @@ func TestConvertToStarlark(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := ConvertToStarlark(tt.input)
-			
+
 			// Compare string representations for simplicity
 			if result.String() != tt.expected.String() {
 				t.Errorf("ConvertToStarlark() = %v, want %v", result, tt.expected)
@@ -103,7 +103,7 @@ func TestConvertFromStarlark(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := ConvertFromStarlark(tt.input)
-			
+
 			if result.String() != tt.expected {
 				t.Errorf("ConvertFromStarlark() = %v, want %v", result.String(), tt.expected)
 			}

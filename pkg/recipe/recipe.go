@@ -1144,6 +1144,9 @@ type BuildFile struct {
 	Variables map[string]any `yaml:"variables,omitempty"`
 	Deploy    DeployInfo     `yaml:"deploy,omitempty"`
 	Files     []FileInfo     `yaml:"files,omitempty"`
+
+	// Forward-compat: allow apptainer_args in recipes but ignore for now.
+	ApptainerArgs any `yaml:"apptainer_args,omitempty"`
 }
 
 func (b *BuildFile) Validate(ctx Context) error {

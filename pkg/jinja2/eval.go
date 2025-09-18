@@ -163,6 +163,10 @@ func (e *Evaluator) Truthy(expr string, ctx Context) (bool, error) {
 	if s == "" {
 		return false, nil
 	}
+	// Strip redundant outer parentheses for grouping, e.g. (a == b)
+	for hasOuterParens(s) {
+		s = trimOuterParens(s)
+	}
 	if strings.HasPrefix(s, "not ") {
 		b, err := e.Truthy(strings.TrimSpace(s[4:]), ctx)
 		if err != nil {
@@ -308,6 +312,132 @@ func parseListLiteral(s string) (ListValue, error) {
 		}
 	}
 	return out, nil
+}
+
+// parseDictLiteral parses a simple dict like {"a": "b", "n": 1}.
+// Keys should be quoted strings. Values may be quoted strings, numbers,
+// or simple names (treated as strings).
+func parseDictLiteral(s string) (DictValue, error) {
+	s = strings.TrimSpace(s)
+	if !(strings.HasPrefix(s, "{") && strings.HasSuffix(s, "}")) {
+		return nil, fmt.Errorf("invalid dict literal: %s", s)
+	}
+	inner := strings.TrimSpace(s[1 : len(s)-1])
+	out := DictValue{}
+	if inner == "" {
+		return out, nil
+	}
+	// split top-level commas
+	parts, err := splitTopLevel(inner, ',')
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		// split by first ':' at top level
+		kvParts, err := splitTopLevel(p, ':')
+		if err != nil {
+			return nil, err
+		}
+		if len(kvParts) < 2 {
+			return nil, fmt.Errorf("invalid dict item: %s", p)
+		}
+		keyStr := strings.TrimSpace(kvParts[0])
+		valStr := strings.TrimSpace(strings.Join(kvParts[1:], ":"))
+		// keys must be quoted strings
+		if len(keyStr) >= 2 && ((keyStr[0] == '"' && keyStr[len(keyStr)-1] == '"') || (keyStr[0] == '\'' && keyStr[len(keyStr)-1] == '\'')) {
+			keyStr = keyStr[1 : len(keyStr)-1]
+		} else {
+			return nil, fmt.Errorf("dict key must be quoted string: %s", kvParts[0])
+		}
+		// parse value using existing atom evaluation on a temporary evaluator
+		// Note: avoid filters/pipes here; values are simple literals typically.
+		// Reuse parse of numbers/strings/tuples/lists.
+		if (len(valStr) >= 2 && ((valStr[0] == '"' && valStr[len(valStr)-1] == '"') || (valStr[0] == '\'' && valStr[len(valStr)-1] == '\''))) ||
+			(strings.HasPrefix(valStr, "[") && strings.HasSuffix(valStr, "]")) ||
+			(strings.HasPrefix(valStr, "(") && strings.HasSuffix(valStr, ")")) ||
+			(strings.HasPrefix(valStr, "{") && strings.HasSuffix(valStr, "}")) {
+			// literal forms we can parse via evalAtom without context
+			v, err := NewEvaluator().evalAtom(valStr, Context{})
+			if err != nil {
+				return nil, err
+			}
+			out[keyStr] = v
+			continue
+		}
+		// try numeric
+		if n, err := strconv.ParseInt(valStr, 10, 64); err == nil {
+			out[keyStr] = IntValue(n)
+			continue
+		}
+		if f, err := strconv.ParseFloat(valStr, 64); err == nil {
+			out[keyStr] = FloatValue(f)
+			continue
+		}
+		// fallback: treat as string literal
+		out[keyStr] = StringValue(valStr)
+	}
+	return out, nil
+}
+
+// splitTopLevel splits s by sep rune, ignoring separators inside (), [], {}, and quotes.
+func splitTopLevel(s string, sep rune) ([]string, error) {
+	var parts []string
+	var b strings.Builder
+	depthParen, depthBracket, depthBrace := 0, 0, 0
+	inStr := byte(0)
+	for _, c := range s {
+		if inStr != 0 {
+			b.WriteRune(c)
+			if byte(c) == inStr {
+				inStr = 0
+			}
+			continue
+		}
+		switch c {
+		case '\'', '"':
+			inStr = byte(c)
+			b.WriteRune(c)
+		case '(':
+			depthParen++
+			b.WriteRune(c)
+		case ')':
+			if depthParen > 0 {
+				depthParen--
+			}
+			b.WriteRune(c)
+		case '[':
+			depthBracket++
+			b.WriteRune(c)
+		case ']':
+			if depthBracket > 0 {
+				depthBracket--
+			}
+			b.WriteRune(c)
+		case '{':
+			depthBrace++
+			b.WriteRune(c)
+		case '}':
+			if depthBrace > 0 {
+				depthBrace--
+			}
+			b.WriteRune(c)
+		default:
+			if c == sep && depthParen == 0 && depthBracket == 0 && depthBrace == 0 {
+				parts = append(parts, strings.TrimSpace(b.String()))
+				b.Reset()
+			} else {
+				b.WriteRune(c)
+			}
+		}
+	}
+	if b.Len() > 0 {
+		parts = append(parts, strings.TrimSpace(b.String()))
+	}
+	return parts, nil
 }
 
 // splitComparison splits an expression by a top-level comparison operator
@@ -556,6 +686,11 @@ func (e *Evaluator) evalAtom(s string, ctx Context) (Value, error) {
 	if s == "" {
 		return StringValue(""), nil
 	}
+	// Handle grouping parentheses: (expr)
+	if hasOuterParens(s) {
+		inner := trimOuterParens(s)
+		return e.Eval(inner, ctx)
+	}
 	if (s[0] == '\'' && s[len(s)-1] == '\'') || (s[0] == '"' && s[len(s)-1] == '"') {
 		return StringValue(s[1 : len(s)-1]), nil
 	}
@@ -579,6 +714,14 @@ func (e *Evaluator) evalAtom(s string, ctx Context) (Value, error) {
 		}
 		return lv, nil
 	}
+	// dict literal: {"k": "v", ...}
+	if strings.HasPrefix(s, "{") && strings.HasSuffix(s, "}") {
+		dv, err := parseDictLiteral(s)
+		if err != nil {
+			return nil, err
+		}
+		return dv, nil
+	}
 	// Complex reference evaluation: supports dotted lookup, calls, and indexing.
 	if strings.ContainsAny(s, ".([") {
 		return e.evalRef(s, ctx)
@@ -591,6 +734,47 @@ func (e *Evaluator) evalAtom(s string, ctx Context) (Value, error) {
 		return v, nil
 	}
 	return nil, fmt.Errorf("undefined variable: %s", s)
+}
+
+// hasOuterParens reports whether s is wrapped by a single pair of matching
+// parentheses that enclose the entire expression (i.e., grouping, not tuple).
+func hasOuterParens(s string) bool {
+	if len(s) < 2 || s[0] != '(' || s[len(s)-1] != ')' {
+		return false
+	}
+	depth := 0
+	inStr := byte(0)
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if inStr != 0 {
+			if c == inStr {
+				inStr = 0
+			}
+			continue
+		}
+		switch c {
+		case '\'', '"':
+			inStr = c
+		case '(':
+			depth++
+		case ')':
+			depth--
+			// If we reached the final closing paren before the end, then
+			// outer parentheses do not wrap the whole string.
+			if depth == 0 && i != len(s)-1 {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// trimOuterParens returns s without a single outer pair of parentheses.
+func trimOuterParens(s string) string {
+	if hasOuterParens(s) {
+		return strings.TrimSpace(s[1 : len(s)-1])
+	}
+	return s
 }
 
 // evalRef parses and evaluates a reference expression like:
@@ -813,6 +997,16 @@ func (e *Evaluator) evalRef(s string, ctx Context) (Value, error) {
 				} else {
 					return nil, fmt.Errorf("key not found: %s", key)
 				}
+			case ListValue:
+				// list/tuple indexing by integer
+				idx, ok := asInt(kv)
+				if !ok {
+					return nil, fmt.Errorf("list index must be integer, got %T", kv)
+				}
+				if idx < 0 || idx >= len(base) {
+					return nil, fmt.Errorf("list index out of range: %d", idx)
+				}
+				cur = base[idx]
 			default:
 				rv := reflect.ValueOf(cur)
 				switch rv.Kind() {
@@ -824,6 +1018,15 @@ func (e *Evaluator) evalRef(s string, ctx Context) (Value, error) {
 					} else {
 						return nil, fmt.Errorf("key not found: %s", kv.String())
 					}
+				case reflect.Slice, reflect.Array:
+					idx, ok := asInt(kv)
+					if !ok {
+						return nil, fmt.Errorf("index must be integer, got %T", kv)
+					}
+					if idx < 0 || idx >= rv.Len() {
+						return nil, fmt.Errorf("index out of range: %d", idx)
+					}
+					cur = FromGo(rv.Index(idx).Interface())
 				default:
 					return nil, fmt.Errorf("type %T not indexable", cur)
 				}
@@ -880,6 +1083,30 @@ func (e *Evaluator) lookupOrMethod(v Value, key string) (Value, bool) {
 		}
 	}
 	return nil, false
+}
+
+// asInt attempts to convert a Value into an int index.
+func asInt(v Value) (int, bool) {
+	switch t := v.(type) {
+	case IntValue:
+		return int(int64(t)), true
+	case StringValue:
+		if t == "" {
+			return 0, false
+		}
+		if n, err := strconv.ParseInt(string(t), 10, 64); err == nil {
+			return int(n), true
+		}
+		return 0, false
+	default:
+		// Attempt reflection for numeric Go values wrapped via FromGo
+		rv := reflect.ValueOf(v)
+		switch rv.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			return int(rv.Int()), true
+		}
+	}
+	return 0, false
 }
 
 // setVar stores a value in the current context.

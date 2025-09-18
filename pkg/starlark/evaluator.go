@@ -7,7 +7,7 @@ import (
 	"go.starlark.net/starlark"
 )
 
-// Evaluator provides Starlark evaluation capabilities with access to the 
+// Evaluator provides Starlark evaluation capabilities with access to the
 // existing Jinja2 value system and recipe context
 type Evaluator struct {
 	thread   *starlark.Thread
@@ -19,7 +19,7 @@ type Evaluator struct {
 func NewEvaluator() *Evaluator {
 	thread := &starlark.Thread{Name: "neurodesk-builder"}
 	builtins := CreateBuiltins(nil) // No context initially
-	
+
 	return &Evaluator{
 		thread:   thread,
 		builtins: builtins,
@@ -31,7 +31,7 @@ func NewEvaluator() *Evaluator {
 func NewEvaluatorWithContext(ctx interface{}) *Evaluator {
 	thread := &starlark.Thread{Name: "neurodesk-builder"}
 	builtins := CreateBuiltins(ctx)
-	
+
 	return &Evaluator{
 		thread:   thread,
 		builtins: builtins,

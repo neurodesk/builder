@@ -371,23 +371,23 @@ var templateDir string
 
 func loadTemplateFromDir(name, dir string) (Template, error) {
 	templatePath := filepath.Join(dir, name+".yaml")
-	
+
 	content, err := os.ReadFile(templatePath)
 	if err != nil {
 		return Template{}, err
 	}
-	
+
 	var tpl Template
 	dec := yaml.NewDecoder(strings.NewReader(string(content)))
 	dec.KnownFields(true)
 	if err := dec.Decode(&tpl); err != nil {
 		return Template{}, fmt.Errorf("failed to decode template %q: %w", name, err)
 	}
-	
+
 	if err := tpl.Validate(); err != nil {
 		return Template{}, fmt.Errorf("invalid template %q: %w", name, err)
 	}
-	
+
 	return tpl, nil
 }
 
@@ -402,7 +402,7 @@ func Get(name string) (Template, error) {
 			return tpl, nil
 		}
 	}
-	
+
 	// Fall back to built-in templates
 	if tpl, ok := templates[name]; ok {
 		return tpl, nil

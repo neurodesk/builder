@@ -20,7 +20,7 @@ type RecipeContext interface {
 func NewEvaluatorWithStarlarkContext(ctx RecipeContext) *Evaluator {
 	thread := &starlark.Thread{Name: "neurodesk-builder"}
 	builtins := CreateBuiltinsWithContext(ctx)
-	
+
 	return &Evaluator{
 		thread:   thread,
 		builtins: builtins,
@@ -70,7 +70,7 @@ func CreateBuiltinsWithContext(ctx RecipeContext) starlark.StringDict {
 			} else {
 				name = args[0].String() // Fallback for other types
 			}
-			
+
 			value := ConvertFromStarlark(args[1])
 
 			// Convert Jinja2 value to Go interface for the context
@@ -115,10 +115,10 @@ func CreateBuiltinsWithContext(ctx RecipeContext) starlark.StringDict {
 			} else {
 				command = args[0].String()
 			}
-			
+
 			// Set a special variable that the recipe context can interpret
 			ctx.SetVariable("_starlark_run_command", command)
-			
+
 			return starlark.None, nil
 		}),
 
@@ -133,17 +133,17 @@ func CreateBuiltinsWithContext(ctx RecipeContext) starlark.StringDict {
 			} else {
 				key = args[0].String()
 			}
-			
+
 			if strVal, ok := args[1].(starlark.String); ok {
 				value = string(strVal)
 			} else {
 				value = args[1].String()
 			}
-			
+
 			// Store environment variable for later processing
 			envKey := "_starlark_env_" + key
 			ctx.SetVariable(envKey, value)
-			
+
 			return starlark.None, nil
 		}),
 	}

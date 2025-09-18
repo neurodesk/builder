@@ -14,9 +14,9 @@ import (
 )
 
 type builderConfig struct {
-	RecipeRoots   []string `yaml:"recipe_roots"`
-	IncludeDirs   []string `yaml:"include_dirs"`
-	TemplateDir   string   `yaml:"template_dir,omitempty"`
+	RecipeRoots []string `yaml:"recipe_roots"`
+	IncludeDirs []string `yaml:"include_dirs"`
+	TemplateDir string   `yaml:"template_dir,omitempty"`
 }
 
 func (b *builderConfig) getRecipeByName(name string) (*recipe.BuildFile, error) {

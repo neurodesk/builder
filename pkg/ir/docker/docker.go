@@ -30,6 +30,15 @@ type Run struct{ Command string }
 
 func (Run) isDirective() {}
 
+// RunWithMounts emits a RUN instruction with BuildKit mount flags.
+// Example: RUN --mount=... ["/bin/bash","-lc", <Command>]
+type RunWithMounts struct{
+    Mounts []string
+    Command string
+}
+
+func (RunWithMounts) isDirective() {}
+
 // Copy emits `COPY <srcs...> <dest>`
 type Copy struct {
 	Src  []string
@@ -55,14 +64,18 @@ func (EntryPoint) isDirective() {}
 
 // RenderDockerfile converts the directive list into a Dockerfile string.
 func RenderDockerfile(dirs []Directive) (string, error) {
-	var buf bytes.Buffer
+    var buf bytes.Buffer
 
-	writeLine := func(format string, a ...any) {
-		fmt.Fprintf(&buf, format+"\n", a...)
-	}
+    writeLine := func(format string, a ...any) {
+        fmt.Fprintf(&buf, format+"\n", a...)
+    }
 
-	for _, d := range dirs {
-		switch v := d.(type) {
+    // Hint Docker/BuildKit features required by RUN --mount, heredocs, etc.
+    writeLine("# syntax=docker/dockerfile:1.7")
+    writeLine("")
+
+    for _, d := range dirs {
+        switch v := d.(type) {
 		case From:
 			if v.Image == "" {
 				return "", fmt.Errorf("FROM: empty image")
@@ -109,7 +122,7 @@ func RenderDockerfile(dirs []Directive) (string, error) {
 				}
 			}
 
-		case Run:
+        case Run:
 			// Use exec form to ensure correct shell parsing and robust handling
 			// of quotes, newlines, and operators. JSON-encode the argv array
 			// without HTML escaping so special characters remain as-is.
@@ -124,7 +137,26 @@ func RenderDockerfile(dirs []Directive) (string, error) {
 			if len(jb) > 0 && jb[len(jb)-1] == '\n' {
 				jb = jb[:len(jb)-1]
 			}
-			writeLine("RUN %s", string(jb))
+            writeLine("RUN %s", string(jb))
+
+        case RunWithMounts:
+            // JSON exec form is supported with BuildKit options preceding the command.
+            argv := []string{"/bin/bash", "-lc", v.Command}
+            var jbuf bytes.Buffer
+            enc := json.NewEncoder(&jbuf)
+            enc.SetEscapeHTML(false)
+            if err := enc.Encode(argv); err != nil {
+                return "", fmt.Errorf("encoding RUN argv: %w", err)
+            }
+            jb := jbuf.Bytes()
+            if len(jb) > 0 && jb[len(jb)-1] == '\n' {
+                jb = jb[:len(jb)-1]
+            }
+            prefix := ""
+            if len(v.Mounts) > 0 {
+                prefix = strings.Join(v.Mounts, " ") + " "
+            }
+            writeLine("RUN %s%s", prefix, string(jb))
 
 		case Copy:
 			if len(v.Src) == 0 {

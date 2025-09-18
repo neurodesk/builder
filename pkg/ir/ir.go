@@ -21,6 +21,17 @@ type RunDirective string
 // isDirective implements Directive.
 func (r RunDirective) isDirective() {}
 
+// RunWithMountsDirective represents a RUN instruction with BuildKit mount flags.
+// Mounts are rendered before the command, e.g.:
+//   RUN --mount=type=bind,source=cache/xyz,target=/path,readonly ["/bin/bash","-lc", "..."]
+type RunWithMountsDirective struct {
+    Mounts  []string
+    Command string
+}
+
+// isDirective implements Directive.
+func (r RunWithMountsDirective) isDirective() {}
+
 type CopyDirective struct {
 	Parts []string
 }
@@ -101,12 +112,13 @@ type Definition struct {
 }
 
 type Builder interface {
-	Compile() (*Definition, error)
+    Compile() (*Definition, error)
 
 	AddFromImage(image string) Builder
 
 	AddEnvironment(env map[string]string) Builder
-	AddRunCommand(cmd string) Builder
+    AddRunCommand(cmd string) Builder
+    AddRunWithMounts(mounts []string, cmd string) Builder
 	AddCopy(parts ...string) Builder
 	AddLiteralFile(name, contents string, executable bool) Builder
 	SetWorkingDirectory(dir string) Builder
@@ -155,7 +167,12 @@ func (b *builderImpl) AddEnvironment(env map[string]string) Builder {
 
 // AddRunCommand implements Builder.
 func (b *builderImpl) AddRunCommand(cmd string) Builder {
-	return b.add(RunDirective(cmd))
+    return b.add(RunDirective(cmd))
+}
+
+// AddRunWithMounts implements Builder.
+func (b *builderImpl) AddRunWithMounts(mounts []string, cmd string) Builder {
+    return b.add(RunWithMountsDirective{Mounts: append([]string{}, mounts...), Command: cmd})
 }
 
 // AddCopy implements Builder.

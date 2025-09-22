@@ -1,0 +1,126 @@
+name: Build All Neurocontainers Recipes
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build_cli:
+    runs-on: ubuntu-latest
+    outputs:
+      artifact: builder-cli
+    steps:
+      - name: Checkout builder
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Go mod download
+        run: go mod download
+
+      - name: Build builder CLI
+        run: |
+          go build -v -o builder ./cmd/builder
+          file builder
+
+      - name: Upload builder artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: builder-cli
+          path: builder
+          if-no-files-found: error
+
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout builder
+        uses: actions/checkout@v5
+
+      - name: Checkout neurocontainers
+        uses: actions/checkout@v5
+        with:
+          repository: neuroDesk/neurocontainers
+          path: neurocontainers
+
+      - name: Discover recipes and emit matrix
+        id: set-matrix
+        run: |
+          json=$(python3 - <<'PY'
+          import os, json
+          root = os.environ['GITHUB_WORKSPACE']
+          base = os.path.join(root, 'neurocontainers', 'recipes')
+          include = []
+          if os.path.isdir(base):
+              for name in sorted(os.listdir(base)):
+                  d = os.path.join(base, name)
+                  if os.path.isdir(d) and os.path.isfile(os.path.join(d, 'build.yaml')):
+                      include.append({"recipe_dir": d, "recipe_name": name})
+          print(json.dumps({"include": include}))
+          PY
+          )
+          echo "matrix=$json" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: [discover, build_cli]
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
+    steps:
+      - name: Checkout neurocontainers
+        uses: actions/checkout@v5
+        with:
+          repository: neuroDesk/neurocontainers
+          path: neurocontainers
+
+      - name: Download builder artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: builder-cli
+          path: .
+
+      - name: Make builder executable
+        run: chmod +x ./builder
+
+      - name: Prepare caches
+        uses: actions/cache@v4
+        with:
+          path: .httpcache
+          key: httpcache-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            httpcache-${{ runner.os }}-
+
+      - name: Create builder config
+        run: |
+          cat > builder.config.yaml <<EOF
+          recipe_roots:
+            - ${GITHUB_WORKSPACE}/neurocontainers/recipes
+          include_dirs:
+            - ${GITHUB_WORKSPACE}/neurocontainers
+          EOF
+
+      - name: Build recipe
+        env:
+          BUILDER_HTTP_CACHE_DIR: ${{ github.workspace }}/.httpcache
+        run: |
+          set -euo pipefail
+          RECIPE_DIR='${{ matrix.recipe_dir }}'
+          echo "Building recipe at ${RECIPE_DIR}"
+          mkdir -p logs
+          # Capture full logs while keeping live output
+          ./builder build "${RECIPE_DIR}" --config builder.config.yaml 2>&1 | tee "logs/build.log"
+          exit ${PIPESTATUS[0]}
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-${{ matrix.recipe_name }}
+          path: logs/build.log
+          if-no-files-found: warn

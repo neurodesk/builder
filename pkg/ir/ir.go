@@ -23,10 +23,11 @@ func (r RunDirective) isDirective() {}
 
 // RunWithMountsDirective represents a RUN instruction with BuildKit mount flags.
 // Mounts are rendered before the command, e.g.:
-//   RUN --mount=type=bind,source=cache/xyz,target=/path,readonly ["/bin/bash","-lc", "..."]
+//
+//	RUN --mount=type=bind,source=cache/xyz,target=/path,readonly ["/bin/bash","-lc", "..."]
 type RunWithMountsDirective struct {
-    Mounts  []string
-    Command string
+	Mounts  []string
+	Command string
 }
 
 // isDirective implements Directive.
@@ -63,35 +64,6 @@ type EntryPointDirective string
 // isDirective implements Directive.
 func (e EntryPointDirective) isDirective() {}
 
-type DeployBinsDirective []string
-
-// isDirective implements Directive.
-func (d DeployBinsDirective) isDirective() {}
-
-type DeployPathsDirective []string
-
-// isDirective implements Directive.
-func (d DeployPathsDirective) isDirective() {}
-
-type ScriptTestDirective struct {
-	Name       string
-	Manual     bool
-	Executable string
-	Script     string
-}
-
-// isDirective implements Directive.
-func (s ScriptTestDirective) isDirective() {}
-
-type BuiltinTestDirective struct {
-	Name    string
-	Manual  bool
-	Builtin string
-}
-
-// isDirective implements Directive.
-func (b BuiltinTestDirective) isDirective() {}
-
 var (
 	_ Directive = FromImageDirective("")
 
@@ -100,11 +72,6 @@ var (
 	_ Directive = WorkDirDirective("")
 	_ Directive = UserDirective("")
 	_ Directive = EntryPointDirective("")
-
-	_ Directive = DeployBinsDirective{}
-	_ Directive = DeployPathsDirective{}
-	_ Directive = ScriptTestDirective{}
-	_ Directive = BuiltinTestDirective{}
 )
 
 type Definition struct {
@@ -112,32 +79,18 @@ type Definition struct {
 }
 
 type Builder interface {
-    Compile() (*Definition, error)
+	Compile() (*Definition, error)
 
 	AddFromImage(image string) Builder
 
 	AddEnvironment(env map[string]string) Builder
-    AddRunCommand(cmd string) Builder
-    AddRunWithMounts(mounts []string, cmd string) Builder
+	AddRunCommand(cmd string) Builder
+	AddRunWithMounts(mounts []string, cmd string) Builder
 	AddCopy(parts ...string) Builder
 	AddLiteralFile(name, contents string, executable bool) Builder
 	SetWorkingDirectory(dir string) Builder
 	SetCurrentUser(user string) Builder
 	SetEntryPoint(cmd string) Builder
-
-	AddDeployBins(bins ...string) Builder
-	AddDeployPaths(paths ...string) Builder
-	AddScriptTest(
-		name string,
-		manual bool,
-		executable string,
-		script string,
-	) Builder
-	AddBuiltinTest(
-		name string,
-		manual bool,
-		builtin string,
-	) Builder
 }
 
 type builderImpl struct {
@@ -167,12 +120,12 @@ func (b *builderImpl) AddEnvironment(env map[string]string) Builder {
 
 // AddRunCommand implements Builder.
 func (b *builderImpl) AddRunCommand(cmd string) Builder {
-    return b.add(RunDirective(cmd))
+	return b.add(RunDirective(cmd))
 }
 
 // AddRunWithMounts implements Builder.
 func (b *builderImpl) AddRunWithMounts(mounts []string, cmd string) Builder {
-    return b.add(RunWithMountsDirective{Mounts: append([]string{}, mounts...), Command: cmd})
+	return b.add(RunWithMountsDirective{Mounts: append([]string{}, mounts...), Command: cmd})
 }
 
 // AddCopy implements Builder.
@@ -202,44 +155,6 @@ func (b *builderImpl) SetCurrentUser(user string) Builder {
 // SetEntryPoint implements Builder.
 func (b *builderImpl) SetEntryPoint(cmd string) Builder {
 	return b.add(EntryPointDirective(cmd))
-}
-
-// AddDeployBins implements Builder.
-func (b *builderImpl) AddDeployBins(bins ...string) Builder {
-	return b.add(DeployBinsDirective(bins))
-}
-
-// AddDeployPaths implements Builder.
-func (b *builderImpl) AddDeployPaths(paths ...string) Builder {
-	return b.add(DeployPathsDirective(paths))
-}
-
-// AddScriptTest implements Builder.
-func (b *builderImpl) AddScriptTest(
-	name string,
-	manual bool,
-	executable string,
-	script string,
-) Builder {
-	return b.add(ScriptTestDirective{
-		Name:       name,
-		Manual:     manual,
-		Executable: executable,
-		Script:     script,
-	})
-}
-
-// AddBuiltinTest implements Builder.
-func (b *builderImpl) AddBuiltinTest(
-	name string,
-	manual bool,
-	builtin string,
-) Builder {
-	return b.add(BuiltinTestDirective{
-		Name:    name,
-		Manual:  manual,
-		Builtin: builtin,
-	})
 }
 
 func (b *builderImpl) Compile() (*Definition, error) {

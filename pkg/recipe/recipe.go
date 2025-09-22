@@ -1,13 +1,13 @@
 package recipe
 
 import (
-    "encoding/json"
-    "fmt"
-    "crypto/sha256"
-    "os"
-    "path/filepath"
-    "strings"
-    "sort"
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 
 	"github.com/neurodesk/builder/pkg/common"
 	"github.com/neurodesk/builder/pkg/ir"
@@ -17,6 +17,34 @@ import (
 	v "github.com/neurodesk/builder/pkg/validator"
 	"go.yaml.in/yaml/v4"
 )
+
+var GLOBAL_MOUNT_POINT_LIST = []string{
+	"/afm01",
+	"/afm02",
+	"/cvmfs",
+	"/90days",
+	"/30days",
+	"/QRISdata",
+	"/RDS",
+	"/data",
+	"/short",
+	"/proc_temp",
+	"/TMPDIR",
+	"/nvme",
+	"/neurodesktop-storage",
+	"/local",
+	"/gpfs1",
+	"/working",
+	"/winmounts",
+	"/state",
+	"/tmp",
+	"/autofs",
+	"/cluster",
+	"/local_mount",
+	"/scratch",
+	"/clusterdata",
+	"/nvmescratch",
+}
 
 type file interface {
 	isFile()
@@ -63,57 +91,60 @@ var (
 )
 
 type Context struct {
-    PackageManager     common.PackageManager
-    Version            string
-    OriginalVersion    string
-    IncludeDirectories []string
-    Arch               CPUArchitecture
+	PackageManager     common.PackageManager
+	Version            string
+	OriginalVersion    string
+	IncludeDirectories []string
+	Arch               CPUArchitecture
 
 	builder   ir.Builder
 	parent    *Context
 	variables map[string]jinja2.Value
 	files     map[string]file
+
+	deployBins []string
+	deployPath []string
 }
 
 // OnLookup implements jinja2.LookupHook.
 func (c Context) OnLookup(key string) (jinja2.Value, bool) {
-    switch key {
-    case "version":
-        return jinja2.FromGo(c.Version), true
-    case "original_version":
-        return jinja2.FromGo(c.OriginalVersion), true
-    case "has_local":
-        return jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
-            // Local contexts are not yet wired; default to false.
-            return jinja2.BoolValue(false), nil
-        }}, true
-    case "get_local":
-        return jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
-            if len(args) != 1 {
-                return nil, fmt.Errorf("get_local expects 1 argument")
-            }
-            key := args[0].String()
-            return jinja2.StringValue("/.neurocontainer-local/" + key), nil
-        }}, true
-    case "get_file":
-        return jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
-            if len(args) != 1 {
-                return nil, fmt.Errorf("get_file expects 1 argument")
-            }
-            name := args[0].String()
-            // If a file with this name exists in the recipe context, return a stable path
-            // inside the image where it would be placed. For now, do not materialize; this
-            // is for template rendering only.
-            if _, ok := c.files[name]; ok {
-                return jinja2.StringValue("/.neurocontainer-cache/" + name), nil
-            }
-            // Return a best-effort path regardless, to allow rendering to proceed.
-            return jinja2.StringValue("/.neurocontainer-cache/" + name), nil
-        }}, true
-    default:
-        if val, ok := c.variables[key]; ok {
-            return val, true
-        }
+	switch key {
+	case "version":
+		return jinja2.FromGo(c.Version), true
+	case "original_version":
+		return jinja2.FromGo(c.OriginalVersion), true
+	case "has_local":
+		return jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
+			// Local contexts are not yet wired; default to false.
+			return jinja2.BoolValue(false), nil
+		}}, true
+	case "get_local":
+		return jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
+			if len(args) != 1 {
+				return nil, fmt.Errorf("get_local expects 1 argument")
+			}
+			key := args[0].String()
+			return jinja2.StringValue("/.neurocontainer-local/" + key), nil
+		}}, true
+	case "get_file":
+		return jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
+			if len(args) != 1 {
+				return nil, fmt.Errorf("get_file expects 1 argument")
+			}
+			name := args[0].String()
+			// If a file with this name exists in the recipe context, return a stable path
+			// inside the image where it would be placed. For now, do not materialize; this
+			// is for template rendering only.
+			if _, ok := c.files[name]; ok {
+				return jinja2.StringValue("/.neurocontainer-cache/" + name), nil
+			}
+			// Return a best-effort path regardless, to allow rendering to proceed.
+			return jinja2.StringValue("/.neurocontainer-cache/" + name), nil
+		}}, true
+	default:
+		if val, ok := c.variables[key]; ok {
+			return val, true
+		}
 
 		if c.parent != nil {
 			return c.parent.OnLookup(key)
@@ -167,163 +198,167 @@ func (c *Context) parallelJobs() int {
 }
 
 func (c *Context) evaluateValue(value any) (any, error) {
-    switch val := value.(type) {
-    case jinja2.TemplateString:
-        ctx := jinja2.Context{
-            "context":       c,
-            "local":         c,
-            "parallel_jobs": jinja2.IntValue(c.parallelJobs()),
-            "arch":          jinja2.StringValue(string(c.Arch)),
-        }
-        // Top-level helpers to match Python builder methods
-        ctx["has_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
-            return jinja2.BoolValue(false), nil
-        }}
-        ctx["get_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
-            if len(args) != 1 {
-                return nil, fmt.Errorf("get_local expects 1 argument")
-            }
-            return jinja2.StringValue("/.neurocontainer-local/" + args[0].String()), nil
-        }}
-        ctx["get_file"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
-            if len(args) != 1 {
-                return nil, fmt.Errorf("get_file expects 1 argument")
-            }
-            name := args[0].String()
-            if _, ok := c.files[name]; ok {
-                return jinja2.StringValue("/.neurocontainer-cache/" + name), nil
-            }
-            return jinja2.StringValue("/.neurocontainer-cache/" + name), nil
-        }}
+	switch val := value.(type) {
+	case jinja2.TemplateString:
+		ctx := jinja2.Context{
+			"context":       c,
+			"local":         c,
+			"parallel_jobs": jinja2.IntValue(c.parallelJobs()),
+			"arch":          jinja2.StringValue(string(c.Arch)),
+		}
+		// Top-level helpers to match Python builder methods
+		ctx["has_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
+			return jinja2.BoolValue(false), nil
+		}}
+		ctx["get_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
+			if len(args) != 1 {
+				return nil, fmt.Errorf("get_local expects 1 argument")
+			}
+			return jinja2.StringValue("/.neurocontainer-local/" + args[0].String()), nil
+		}}
+		ctx["get_file"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
+			if len(args) != 1 {
+				return nil, fmt.Errorf("get_file expects 1 argument")
+			}
+			name := args[0].String()
+			if _, ok := c.files[name]; ok {
+				return jinja2.StringValue("/.neurocontainer-cache/" + name), nil
+			}
+			return jinja2.StringValue("/.neurocontainer-cache/" + name), nil
+		}}
 
-        ret, err := val.Render(ctx)
-        if err != nil {
-            return nil, fmt.Errorf("rendering template: %w", err)
-        }
+		ret, err := val.Render(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("rendering template: %w", err)
+		}
 
-        return ret, nil
-    case string:
-        tpl := jinja2.TemplateString(val)
-        ctx := jinja2.Context{
-            "local":         c,
-            "context":       c,
-            "parallel_jobs": jinja2.IntValue(c.parallelJobs()),
-            "arch":          jinja2.StringValue(string(c.Arch)),
-        }
-        ctx["has_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
-            return jinja2.BoolValue(false), nil
-        }}
-        ctx["get_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
-            if len(args) != 1 {
-                return nil, fmt.Errorf("get_local expects 1 argument")
-            }
-            return jinja2.StringValue("/.neurocontainer-local/" + args[0].String()), nil
-        }}
-        ctx["get_file"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
-            if len(args) != 1 {
-                return nil, fmt.Errorf("get_file expects 1 argument")
-            }
-            name := args[0].String()
-            if _, ok := c.files[name]; ok {
-                return jinja2.StringValue("/.neurocontainer-cache/" + name), nil
-            }
-            return jinja2.StringValue("/.neurocontainer-cache/" + name), nil
-        }}
+		return ret, nil
+	case string:
+		tpl := jinja2.TemplateString(val)
+		ctx := jinja2.Context{
+			"local":         c,
+			"context":       c,
+			"parallel_jobs": jinja2.IntValue(c.parallelJobs()),
+			"arch":          jinja2.StringValue(string(c.Arch)),
+		}
+		ctx["has_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
+			return jinja2.BoolValue(false), nil
+		}}
+		ctx["get_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
+			if len(args) != 1 {
+				return nil, fmt.Errorf("get_local expects 1 argument")
+			}
+			return jinja2.StringValue("/.neurocontainer-local/" + args[0].String()), nil
+		}}
+		ctx["get_file"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
+			if len(args) != 1 {
+				return nil, fmt.Errorf("get_file expects 1 argument")
+			}
+			name := args[0].String()
+			if _, ok := c.files[name]; ok {
+				return jinja2.StringValue("/.neurocontainer-cache/" + name), nil
+			}
+			return jinja2.StringValue("/.neurocontainer-cache/" + name), nil
+		}}
 
-        ret, err := tpl.Render(ctx)
-        if err != nil {
-            return nil, fmt.Errorf("rendering template: %w", err)
-        }
+		ret, err := tpl.Render(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("rendering template: %w", err)
+		}
 
-        return ret, nil
-    case []any:
-        // Evaluate each element recursively
-        out := make([]any, 0, len(val))
-        for i := range val {
-            v, err := c.evaluateValue(val[i])
-            if err != nil {
-                return nil, err
-            }
-            out = append(out, v)
-        }
-        return out, nil
-    case VariablesDirective:
-        // Treat like a generic map for evaluation
-        mv := map[string]any(val)
-        return c.evaluateValue(mv)
-    case map[string]any:
-        // Support special "try" structure like the Python builder
-        if tv, ok := val["try"]; ok {
-            lst, ok := tv.([]any)
-            if !ok {
-                return nil, fmt.Errorf("'try' must be a list, got %T", tv)
-            }
-            // Prepare Jinja context for condition evaluation
-            condCtx := jinja2.Context{
-                "context":       c,
-                "local":         c,
-                "parallel_jobs": jinja2.IntValue(c.parallelJobs()),
-                "arch":          jinja2.StringValue(string(c.Arch)),
-            }
-            // Also expose helpers at top-level for conditions if needed
-            condCtx["has_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
-                return jinja2.BoolValue(false), nil
-            }}
-            condCtx["get_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
-                if len(args) != 1 { return nil, fmt.Errorf("get_local expects 1 argument") }
-                return jinja2.StringValue("/.neurocontainer-local/" + args[0].String()), nil
-            }}
-            condCtx["get_file"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
-                if len(args) != 1 { return nil, fmt.Errorf("get_file expects 1 argument") }
-                name := args[0].String()
-                if _, ok := c.files[name]; ok {
-                    return jinja2.StringValue("/.neurocontainer-cache/" + name), nil
-                }
-                return jinja2.StringValue("/.neurocontainer-cache/" + name), nil
-            }}
+		return ret, nil
+	case []any:
+		// Evaluate each element recursively
+		out := make([]any, 0, len(val))
+		for i := range val {
+			v, err := c.evaluateValue(val[i])
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, v)
+		}
+		return out, nil
+	case VariablesDirective:
+		// Treat like a generic map for evaluation
+		mv := map[string]any(val)
+		return c.evaluateValue(mv)
+	case map[string]any:
+		// Support special "try" structure like the Python builder
+		if tv, ok := val["try"]; ok {
+			lst, ok := tv.([]any)
+			if !ok {
+				return nil, fmt.Errorf("'try' must be a list, got %T", tv)
+			}
+			// Prepare Jinja context for condition evaluation
+			condCtx := jinja2.Context{
+				"context":       c,
+				"local":         c,
+				"parallel_jobs": jinja2.IntValue(c.parallelJobs()),
+				"arch":          jinja2.StringValue(string(c.Arch)),
+			}
+			// Also expose helpers at top-level for conditions if needed
+			condCtx["has_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
+				return jinja2.BoolValue(false), nil
+			}}
+			condCtx["get_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
+				if len(args) != 1 {
+					return nil, fmt.Errorf("get_local expects 1 argument")
+				}
+				return jinja2.StringValue("/.neurocontainer-local/" + args[0].String()), nil
+			}}
+			condCtx["get_file"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
+				if len(args) != 1 {
+					return nil, fmt.Errorf("get_file expects 1 argument")
+				}
+				name := args[0].String()
+				if _, ok := c.files[name]; ok {
+					return jinja2.StringValue("/.neurocontainer-cache/" + name), nil
+				}
+				return jinja2.StringValue("/.neurocontainer-cache/" + name), nil
+			}}
 
-            ev := jinja2.NewEvaluator()
-            for _, it := range lst {
-                // Accept either a plain map[string]any or a VariablesDirective (alias of map[string]any)
-                var m map[string]any
-                switch t := it.(type) {
-                case map[string]any:
-                    m = t
-                case VariablesDirective:
-                    m = map[string]any(t)
-                default:
-                    return nil, fmt.Errorf("'try' items must be maps, got %T", it)
-                }
-                cond, _ := m["condition"].(string)
-                valAny, hasVal := m["value"]
-                if cond == "" || !hasVal {
-                    continue
-                }
-                okTruth, err := ev.Truthy(cond, condCtx)
-                if err != nil {
-                    return nil, fmt.Errorf("evaluating condition %q: %w", cond, err)
-                }
-                if okTruth {
-                    return c.evaluateValue(valAny)
-                }
-            }
-            return nil, fmt.Errorf("no 'try' conditions matched")
-        }
-        // Default: evaluate each entry
-        out := map[string]any{}
-        for k, v := range val {
-            rv, err := c.evaluateValue(v)
-            if err != nil {
-                return nil, err
-            }
-            out[k] = rv
-        }
-        return out, nil
-    case bool:
-        return val, nil
-    default:
-        return nil, fmt.Errorf("unsupported value type: %T", val)
-    }
+			ev := jinja2.NewEvaluator()
+			for _, it := range lst {
+				// Accept either a plain map[string]any or a VariablesDirective (alias of map[string]any)
+				var m map[string]any
+				switch t := it.(type) {
+				case map[string]any:
+					m = t
+				case VariablesDirective:
+					m = map[string]any(t)
+				default:
+					return nil, fmt.Errorf("'try' items must be maps, got %T", it)
+				}
+				cond, _ := m["condition"].(string)
+				valAny, hasVal := m["value"]
+				if cond == "" || !hasVal {
+					continue
+				}
+				okTruth, err := ev.Truthy(cond, condCtx)
+				if err != nil {
+					return nil, fmt.Errorf("evaluating condition %q: %w", cond, err)
+				}
+				if okTruth {
+					return c.evaluateValue(valAny)
+				}
+			}
+			return nil, fmt.Errorf("no 'try' conditions matched")
+		}
+		// Default: evaluate each entry
+		out := map[string]any{}
+		for k, v := range val {
+			rv, err := c.evaluateValue(v)
+			if err != nil {
+				return nil, err
+			}
+			out[k] = rv
+		}
+		return out, nil
+	case bool:
+		return val, nil
+	default:
+		return nil, fmt.Errorf("unsupported value type: %T", val)
+	}
 }
 
 func (c *Context) installPackages(pkgs ...string) error {
@@ -351,30 +386,38 @@ func (c *Context) addFile(f file) error {
 	return nil
 }
 
+func (c *Context) addBuiltinTest(name string, manual bool, builtin string) {
+	// TODO(joshua): Handle tests
+}
+
+func (c *Context) addScriptTest(name string, manual bool, executable string, script string) {
+	// TODO(joshua): Handle tests
+}
+
 var (
 	_ jinja2.Value      = Context{}
 	_ jinja2.LookupHook = Context{}
 )
 
 func newContext(
-    packageManager common.PackageManager,
-    version string,
-    includeDirs []string,
-    builder ir.Builder,
-    parent *Context,
+	packageManager common.PackageManager,
+	version string,
+	includeDirs []string,
+	builder ir.Builder,
+	parent *Context,
 ) *Context {
-    return &Context{
-        PackageManager:     packageManager,
-        Version:            version,
-        OriginalVersion:    version,
-        IncludeDirectories: includeDirs,
-        Arch:               CPUArchAMD64,
+	return &Context{
+		PackageManager:     packageManager,
+		Version:            version,
+		OriginalVersion:    version,
+		IncludeDirectories: includeDirs,
+		Arch:               CPUArchAMD64,
 
-        builder:   builder,
-        parent:    parent,
-        variables: map[string]jinja2.Value{},
-        files:     map[string]file{},
-    }
+		builder:   builder,
+		parent:    parent,
+		variables: map[string]jinja2.Value{},
+		files:     map[string]file{},
+	}
 }
 
 type CPUArchitecture string
@@ -487,73 +530,79 @@ func (r RunDirective) Validate() error {
 }
 
 func (r RunDirective) Apply(ctx *Context) error {
-    // Build a cache-aware local context similar to the Python LocalBuildContext
-    // Compute a stable cacheID from the directive content for per-layer mounts
-    hasher := sha256.New()
-    for _, cmd := range r {
-        hasher.Write([]byte(string(cmd)))
-        hasher.Write([]byte{0})
-    }
-    cacheID := fmt.Sprintf("h%x", hasher.Sum(nil))[:9]
+	// Build a cache-aware local context similar to the Python LocalBuildContext
+	// Compute a stable cacheID from the directive content for per-layer mounts
+	hasher := sha256.New()
+	for _, cmd := range r {
+		hasher.Write([]byte(string(cmd)))
+		hasher.Write([]byte{0})
+	}
+	cacheID := fmt.Sprintf("h%x", hasher.Sum(nil))[:9]
 
-    targetBase := "/.neurocontainer-cache/" + cacheID
-    // Mount spec for cache dir relative to build context (as used by buildctl)
-    cacheMount := fmt.Sprintf("--mount=type=bind,source=%s,target=%s,readonly", filepath.ToSlash(filepath.Join("cache", cacheID)), targetBase)
+	targetBase := "/.neurocontainer-cache/" + cacheID
+	// Mount spec for cache dir relative to build context (as used by buildctl)
+	cacheMount := fmt.Sprintf("--mount=type=bind,source=%s,target=%s,readonly", filepath.ToSlash(filepath.Join("cache", cacheID)), targetBase)
 
-    // Track mounts (dedup)
-    seenMount := map[string]struct{}{}
-    mounts := []string{}
-    addMount := func(m string) {
-        if _, ok := seenMount[m]; ok { return }
-        seenMount[m] = struct{}{}
-        mounts = append(mounts, m)
-    }
+	// Track mounts (dedup)
+	seenMount := map[string]struct{}{}
+	mounts := []string{}
+	addMount := func(m string) {
+		if _, ok := seenMount[m]; ok {
+			return
+		}
+		seenMount[m] = struct{}{}
+		mounts = append(mounts, m)
+	}
 
-    // Expose helpers that register mounts while rendering
-    makeCtx := func() jinja2.Context {
-        jctx := jinja2.Context{
-            "local":         ctx,
-            "context":       ctx,
-            "parallel_jobs": jinja2.IntValue(ctx.parallelJobs()),
-            "arch":          jinja2.StringValue(string(ctx.Arch)),
-        }
-        jctx["has_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
-            return jinja2.BoolValue(false), nil
-        }}
-        jctx["get_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
-            if len(args) != 1 { return nil, fmt.Errorf("get_local expects 1 argument") }
-            key := args[0].String()
-            m := fmt.Sprintf("--mount=type=bind,from=%s,source=/,target=/.neurocontainer-local/%s,readonly", key, key)
-            addMount(m)
-            return jinja2.StringValue("/.neurocontainer-local/" + key), nil
-        }}
-        jctx["get_file"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
-            if len(args) != 1 { return nil, fmt.Errorf("get_file expects 1 argument") }
-            name := args[0].String()
-            // Register the cache bind mount when first needed
-            addMount(cacheMount)
-            return jinja2.StringValue(targetBase + "/" + name), nil
-        }}
-        return jctx
-    }
+	// Expose helpers that register mounts while rendering
+	makeCtx := func() jinja2.Context {
+		jctx := jinja2.Context{
+			"local":         ctx,
+			"context":       ctx,
+			"parallel_jobs": jinja2.IntValue(ctx.parallelJobs()),
+			"arch":          jinja2.StringValue(string(ctx.Arch)),
+		}
+		jctx["has_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
+			return jinja2.BoolValue(false), nil
+		}}
+		jctx["get_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
+			if len(args) != 1 {
+				return nil, fmt.Errorf("get_local expects 1 argument")
+			}
+			key := args[0].String()
+			m := fmt.Sprintf("--mount=type=bind,from=%s,source=/,target=/.neurocontainer-local/%s,readonly", key, key)
+			addMount(m)
+			return jinja2.StringValue("/.neurocontainer-local/" + key), nil
+		}}
+		jctx["get_file"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
+			if len(args) != 1 {
+				return nil, fmt.Errorf("get_file expects 1 argument")
+			}
+			name := args[0].String()
+			// Register the cache bind mount when first needed
+			addMount(cacheMount)
+			return jinja2.StringValue(targetBase + "/" + name), nil
+		}}
+		return jctx
+	}
 
-    var commands []string
-    for _, cmd := range r {
-        // Render with mount-collecting helpers
-        rendered, err := cmd.Render(makeCtx())
-        if err != nil {
-            return fmt.Errorf("evaluating run command: %w", err)
-        }
-        commands = append(commands, rendered)
-    }
+	var commands []string
+	for _, cmd := range r {
+		// Render with mount-collecting helpers
+		rendered, err := cmd.Render(makeCtx())
+		if err != nil {
+			return fmt.Errorf("evaluating run command: %w", err)
+		}
+		commands = append(commands, rendered)
+	}
 
-    joined := strings.Join(commands, " &&\n ")
-    if len(mounts) > 0 {
-        ctx.builder = ctx.builder.AddRunWithMounts(mounts, joined)
-    } else {
-        ctx.builder = ctx.builder.AddRunCommand(joined)
-    }
-    return nil
+	joined := strings.Join(commands, " &&\n ")
+	if len(mounts) > 0 {
+		ctx.builder = ctx.builder.AddRunWithMounts(mounts, joined)
+	} else {
+		ctx.builder = ctx.builder.AddRunCommand(joined)
+	}
+	return nil
 }
 
 type FileDirective FileInfo
@@ -697,7 +746,7 @@ func (d DeployDirective) Apply(ctx *Context) error {
 			}
 			bins = append(bins, s)
 		}
-		ctx.builder = ctx.builder.AddDeployBins(bins...)
+		ctx.deployBins = append(ctx.deployBins, bins...)
 	}
 
 	if len(d.Path) > 0 {
@@ -713,7 +762,7 @@ func (d DeployDirective) Apply(ctx *Context) error {
 			}
 			path = append(path, s)
 		}
-		ctx.builder = ctx.builder.AddDeployPaths(path...)
+		ctx.deployPath = append(ctx.deployPath, path...)
 	}
 
 	return nil
@@ -778,7 +827,7 @@ func (t TestDirective) Validate() error {
 
 func (t TestDirective) Apply(ctx *Context) error {
 	if t.Builtin != "" {
-		ctx.builder = ctx.builder.AddBuiltinTest(
+		ctx.addBuiltinTest(
 			t.Name,
 			t.Manual,
 			string(t.Builtin),
@@ -803,7 +852,7 @@ func (t TestDirective) Apply(ctx *Context) error {
 			return fmt.Errorf("test executable must be a string, got %T", execResult)
 		}
 
-		ctx.builder = ctx.builder.AddScriptTest(
+		ctx.addScriptTest(
 			t.Name,
 			t.Manual,
 			executable,
@@ -933,45 +982,45 @@ func (v VariablesDirective) Validate() error {
 }
 
 func (v VariablesDirective) Apply(ctx *Context) error {
-    // Evaluate variables with dependency resolution across passes.
-    // Some entries may reference others (e.g., context.foo used by bar).
-    // Iterate until all are set or no progress.
-    // Use stable key order for determinism.
-    keys := make([]string, 0, len(v))
-    for k := range v {
-        keys = append(keys, k)
-    }
-    sort.Strings(keys)
+	// Evaluate variables with dependency resolution across passes.
+	// Some entries may reference others (e.g., context.foo used by bar).
+	// Iterate until all are set or no progress.
+	// Use stable key order for determinism.
+	keys := make([]string, 0, len(v))
+	for k := range v {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
 
-    set := map[string]bool{}
-    remaining := len(keys)
-    var lastErr error
-    for pass := 0; pass < len(keys)*2 && remaining > 0; pass++ {
-        progressed := false
-        for _, k := range keys {
-            if set[k] {
-                continue
-            }
-            val := v[k]
-            result, err := ctx.evaluateValue(val)
-            if err != nil {
-                // Keep last error to report if we cannot resolve.
-                lastErr = fmt.Errorf("evaluating variable %q: %w", k, err)
-                continue
-            }
-            ctx.SetVariable(k, result)
-            set[k] = true
-            remaining--
-            progressed = true
-        }
-        if !progressed {
-            break
-        }
-    }
-    if remaining > 0 && lastErr != nil {
-        return lastErr
-    }
-    return nil
+	set := map[string]bool{}
+	remaining := len(keys)
+	var lastErr error
+	for pass := 0; pass < len(keys)*2 && remaining > 0; pass++ {
+		progressed := false
+		for _, k := range keys {
+			if set[k] {
+				continue
+			}
+			val := v[k]
+			result, err := ctx.evaluateValue(val)
+			if err != nil {
+				// Keep last error to report if we cannot resolve.
+				lastErr = fmt.Errorf("evaluating variable %q: %w", k, err)
+				continue
+			}
+			ctx.SetVariable(k, result)
+			set[k] = true
+			remaining--
+			progressed = true
+		}
+		if !progressed {
+			break
+		}
+	}
+	if remaining > 0 && lastErr != nil {
+		return lastErr
+	}
+	return nil
 }
 
 type BoutiqueInput struct {
@@ -1434,6 +1483,9 @@ func (b *BuildRecipe) Generate(ctx *Context) error {
 
 	ctx.builder = ctx.builder.AddFromImage(s)
 
+	// Always set the user to root initially to ensure we can install packages
+	ctx.builder = ctx.builder.SetCurrentUser("root")
+
 	if b.AddDefaultTemplate == nil || *b.AddDefaultTemplate {
 		tpl, err := templates.Get("_header")
 		if err != nil {
@@ -1459,14 +1511,55 @@ func (b *BuildRecipe) Generate(ctx *Context) error {
 		ctx.builder = ctx.builder.AddRunCommand(result.Instructions)
 	}
 
-	// TODO(joshua): handle tzdata and locale fix
+	if err := (GroupDirective{
+		Directive{Run: &RunDirective{
+			"printf '#!/bin/bash\\nls -la' > /usr/bin/ll",
+			"chmod +x /usr/bin/ll",
+			jinja2.TemplateString(fmt.Sprintf("mkdir -p %s", strings.Join(GLOBAL_MOUNT_POINT_LIST, " "))),
+		}},
+	}).Apply(ctx, nil); err != nil {
+		return fmt.Errorf("adding default environment variables: %w", err)
+	}
 
-	// TODO(joshua): handle default alias and directories
+	if (b.AddTzdata == nil || *b.AddTzdata) && ctx.PackageManager == common.PkgManagerApt {
+		install := InstallDirective("tzdata")
+		if err := (GroupDirective{
+			Directive{Environment: &EnvironmentDirective{
+				"DEBIAN_FRONTEND": "noninteractive",
+				"TZ":              "UTC",
+			}},
+			Directive{Install: &install},
+			Directive{Run: &RunDirective{"ln -snf /usr/share/zoneinfo/UTC /etc/localtime && echo UTC > /etc/timezone"}},
+		}).Apply(ctx, nil); err != nil {
+			return fmt.Errorf("adding tzdata: %w", err)
+		}
+	}
 
 	for _, directive := range b.Directives {
 		if err := directive.Apply(ctx); err != nil {
 			return fmt.Errorf("applying directive: %w", err)
 		}
+	}
+
+	if len(ctx.deployBins) > 0 {
+		path := strings.Join(ctx.deployBins, ":")
+		ctx.builder = ctx.builder.AddEnvironment(map[string]string{
+			"DEPLOY_BINS": path,
+		})
+	}
+
+	if len(ctx.deployPath) > 0 {
+		path := strings.Join(ctx.deployPath, ":")
+		ctx.builder = ctx.builder.AddEnvironment(map[string]string{
+			"DEPLOY_PATH": path,
+		})
+	}
+
+	// TODO(joshua): handle README.md file.
+
+	if b.FixLocaleDef != nil && *b.FixLocaleDef {
+		// TODO(joshua): Add fix-locale-def if needed.
+		return fmt.Errorf("fix-locale-def not implemented")
 	}
 
 	return nil
@@ -1478,11 +1571,11 @@ type IncludeFile struct {
 }
 
 type BuildFile struct {
-    Name          string                `yaml:"name"`
-    Version       string                `yaml:"version"`
-    Epoch         int                   `yaml:"epoch,omitempty"`
-    Architectures []CPUArchitecture     `yaml:"architectures"`
-    Options       map[string]OptionInfo `yaml:"options,omitempty"`
+	Name          string                `yaml:"name"`
+	Version       string                `yaml:"version"`
+	Epoch         int                   `yaml:"epoch,omitempty"`
+	Architectures []CPUArchitecture     `yaml:"architectures"`
+	Options       map[string]OptionInfo `yaml:"options,omitempty"`
 
 	Build BuildRecipe `yaml:"build"`
 
@@ -1496,62 +1589,62 @@ type BuildFile struct {
 	Icon    string   `yaml:"icon,omitempty"`
 	GuiApps []GuiApp `yaml:"gui_apps,omitempty"`
 
-    // Deprecated (still supported for backward compatibility)
-    Draft     bool           `yaml:"draft,omitempty"`
-    Variables map[string]any `yaml:"variables,omitempty"`
-    Deploy    DeployInfo     `yaml:"deploy,omitempty"`
-    Files     []FileInfo     `yaml:"files,omitempty"`
+	// Deprecated (still supported for backward compatibility)
+	Draft     bool           `yaml:"draft,omitempty"`
+	Variables map[string]any `yaml:"variables,omitempty"`
+	Deploy    DeployInfo     `yaml:"deploy,omitempty"`
+	Files     []FileInfo     `yaml:"files,omitempty"`
 
 	// Forward-compat: allow apptainer_args in recipes but ignore for now.
 	ApptainerArgs any `yaml:"apptainer_args,omitempty"`
 }
 
 func (b *BuildFile) Validate(ctx Context) error {
-    return v.All(
-        v.NotEmpty(b.Name, "name"),
-        v.NotEmpty(b.Version, "version"),
-        v.SliceHasElements(b.Architectures, []CPUArchitecture{CPUArchAMD64, CPUArchARM64}, "architectures"),
-        b.Build.Validate(ctx),
-        b.Readme.Validate(),
-        // Validate top-level files and variables if present
-        v.Map(b.Files, func(fi FileInfo, description string) error {
-            return FileDirective(fi).Validate()
-        }, "files"),
-    )
+	return v.All(
+		v.NotEmpty(b.Name, "name"),
+		v.NotEmpty(b.Version, "version"),
+		v.SliceHasElements(b.Architectures, []CPUArchitecture{CPUArchAMD64, CPUArchARM64}, "architectures"),
+		b.Build.Validate(ctx),
+		b.Readme.Validate(),
+		// Validate top-level files and variables if present
+		v.Map(b.Files, func(fi FileInfo, description string) error {
+			return FileDirective(fi).Validate()
+		}, "files"),
+	)
 }
 
 func (b *BuildFile) Generate(includeDirs []string) (*ir.Definition, error) {
-    ctx := newContext(
-        b.Build.PackageManager,
-        b.Version,
-        includeDirs,
-        ir.New(),
-        nil,
-    )
+	ctx := newContext(
+		b.Build.PackageManager,
+		b.Version,
+		includeDirs,
+		ir.New(),
+		nil,
+	)
 
-    // Default architecture: first declared, or x86_64 if unspecified
-    if len(b.Architectures) > 0 {
-        ctx.Arch = b.Architectures[0]
-    }
+	// Default architecture: first declared, or x86_64 if unspecified
+	if len(b.Architectures) > 0 {
+		ctx.Arch = b.Architectures[0]
+	}
 
-    // Apply top-level variables early so they are available to directives
-    if len(b.Variables) > 0 {
-        vars := VariablesDirective(b.Variables)
-        if err := vars.Apply(ctx); err != nil {
-            return nil, fmt.Errorf("applying top-level variables: %w", err)
-        }
-    }
+	// Apply top-level variables early so they are available to directives
+	if len(b.Variables) > 0 {
+		vars := VariablesDirective(b.Variables)
+		if err := vars.Apply(ctx); err != nil {
+			return nil, fmt.Errorf("applying top-level variables: %w", err)
+		}
+	}
 
-    // Register top-level files into the context (for get_file())
-    for _, f := range b.Files {
-        if err := FileDirective(f).Apply(ctx); err != nil {
-            return nil, fmt.Errorf("adding top-level file %q: %w", f.Name, err)
-        }
-    }
+	// Register top-level files into the context (for get_file())
+	for _, f := range b.Files {
+		if err := FileDirective(f).Apply(ctx); err != nil {
+			return nil, fmt.Errorf("adding top-level file %q: %w", f.Name, err)
+		}
+	}
 
-    if err := b.Build.Generate(ctx); err != nil {
-        return nil, fmt.Errorf("generating build: %w", err)
-    }
+	if err := b.Build.Generate(ctx); err != nil {
+		return nil, fmt.Errorf("generating build: %w", err)
+	}
 
 	return ctx.Compile()
 }

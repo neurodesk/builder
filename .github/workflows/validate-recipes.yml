@@ -32,7 +32,7 @@ jobs:
 
       - name: Create builder config for neurocontainers
         run: |
-          cat > builder.config.yaml <<'EOF'
+          cat > builder.config.yaml <<EOF
           recipe_roots:
             - ${GITHUB_WORKSPACE}/neurocontainers/recipes
           include_dirs:

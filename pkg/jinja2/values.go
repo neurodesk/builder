@@ -16,13 +16,13 @@ type Value interface {
 // LookupHook can be optionally implemented by Value containers to observe
 // attribute/key lookups performed by the evaluator.
 type LookupHook interface {
-    OnLookup(key string) (Value, bool)
+	OnLookup(key string) (Value, bool)
 }
 
 // SetHook can be optionally implemented to observe when a template sets
 // a variable in the current context.
 type SetHook interface {
-    OnSet(name string, val Value) error
+	OnSet(name string, val Value) error
 }
 
 // CallableValue wraps a callable function that can be invoked from templates.
@@ -111,16 +111,16 @@ func (ContextRef) OnLookup(key string) (Value, bool) { return nil, false }
 // External callers may choose to wrap Context or introduce custom Value
 // types that implement SetHook to observe assignments.
 func (c ContextRef) OnSet(name string, val Value) error {
-    if c.Ctx != nil {
-        c.Ctx[name] = val
-    }
-    return nil
+	if c.Ctx != nil {
+		c.Ctx[name] = val
+	}
+	return nil
 }
 
 // Compile-time assertions for interfaces to prevent signature drift.
 var (
-    _ LookupHook = (*ContextRef)(nil)
-    _ SetHook    = (*ContextRef)(nil)
+	_ LookupHook = (*ContextRef)(nil)
+	_ SetHook    = (*ContextRef)(nil)
 )
 
 // NewContextFromAny converts a map[string]any into a Value-based Context.

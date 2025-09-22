@@ -1612,10 +1612,10 @@ func (b *BuildRecipe) Generate(ctx *Context) error {
 
 	// TODO(joshua): handle README.md file.
 
-    if b.FixLocaleDef != nil && *b.FixLocaleDef {
-        // No-op for now: older recipes may set this flag. Left intentionally
-        // blank to avoid failing generation.
-    }
+	if b.FixLocaleDef != nil && *b.FixLocaleDef {
+		// No-op for now: older recipes may set this flag. Left intentionally
+		// blank to avoid failing generation.
+	}
 
 	return nil
 }

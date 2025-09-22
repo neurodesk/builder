@@ -1,0 +1,47 @@
+name: Validate Neurocontainers Recipes
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout builder
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Checkout neurocontainers recipes
+        uses: actions/checkout@v5
+        with:
+          repository: neuroDesk/neurocontainers
+          path: neurocontainers
+
+      - name: Go mod download
+        run: go mod download
+
+      - name: Build builder CLI
+        run: go build -v -o builder ./cmd/builder
+
+      - name: Create builder config for neurocontainers
+        run: |
+          cat > builder.config.yaml <<'EOF'
+          recipe_roots:
+            - ${GITHUB_WORKSPACE}/neurocontainers/recipes
+          include_dirs:
+            - ${GITHUB_WORKSPACE}/neurocontainers
+          EOF
+
+      - name: Validate all recipes
+        env:
+          BUILDER_HTTP_CACHE_DIR: ${{ github.workspace }}/.httpcache
+        run: |
+          mkdir -p .httpcache
+          ./builder test-all --config builder.config.yaml

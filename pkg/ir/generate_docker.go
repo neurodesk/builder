@@ -59,21 +59,21 @@ func GenerateDockerfile(ir *Definition) (string, error) {
 				b.WriteString(dir)
 				b.WriteString("\n")
 			}
-            // Quote the target path safely for the shell using printf %q
-            // and use eval to avoid word-splitting issues.
-            b.WriteString("TARGET=$(printf %q '")
-            b.WriteString(name)
-            b.WriteString("')\n")
-            b.WriteString("cat > \"$TARGET\" << 'EOF'\n")
+			// Quote the target path safely for the shell using printf %q
+			// and use eval to avoid word-splitting issues.
+			b.WriteString("TARGET=$(printf %q '")
+			b.WriteString(name)
+			b.WriteString("')\n")
+			b.WriteString("cat > \"$TARGET\" << 'EOF'\n")
 			b.WriteString(contents)
 			if !strings.HasSuffix(contents, "\n") {
 				b.WriteString("\n")
 			}
 			b.WriteString("EOF\n")
-            if v.Executable {
-                b.WriteString("chmod +x \"$TARGET\"\n")
-            }
-            out = append(out, docker.Run{Command: b.String()})
+			if v.Executable {
+				b.WriteString("chmod +x \"$TARGET\"\n")
+			}
+			out = append(out, docker.Run{Command: b.String()})
 		default:
 			return "", fmt.Errorf("unsupported directive: %T", d)
 		}

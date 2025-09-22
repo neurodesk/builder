@@ -96,8 +96,8 @@ type Builder interface {
 	AddLiteralFile(name, contents string, executable bool) Builder
 	SetWorkingDirectory(dir string) Builder
 	SetCurrentUser(user string) Builder
-    SetEntryPoint(cmd string) Builder
-    SetExecEntryPoint(argv []string) Builder
+	SetEntryPoint(cmd string) Builder
+	SetExecEntryPoint(argv []string) Builder
 }
 
 type builderImpl struct {
@@ -161,15 +161,15 @@ func (b *builderImpl) SetCurrentUser(user string) Builder {
 
 // SetEntryPoint implements Builder.
 func (b *builderImpl) SetEntryPoint(cmd string) Builder {
-    return b.add(EntryPointDirective(cmd))
+	return b.add(EntryPointDirective(cmd))
 }
 
 // SetExecEntryPoint implements Builder.
 func (b *builderImpl) SetExecEntryPoint(argv []string) Builder {
-    // make a copy for safety
-    out := make([]string, len(argv))
-    copy(out, argv)
-    return b.add(ExecEntryPointDirective(out))
+	// make a copy for safety
+	out := make([]string, len(argv))
+	copy(out, argv)
+	return b.add(ExecEntryPointDirective(out))
 }
 
 func (b *builderImpl) Compile() (*Definition, error) {

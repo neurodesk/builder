@@ -107,6 +107,13 @@ The `context` and `local` objects provide the same variables - they are aliases 
 
 See the [examples/](examples/) directory for more comprehensive examples.
 
+## Large Files and HTTP Caching
+
+- Files referenced by recipes (local or remote) are handled via streaming I/O to avoid loading large blobs into memory.
+- Remote downloads use a persistent cache with ETag/Last-Modified validation to avoid repeated long downloads.
+- Default cache directory: `local/httpcache`. Override with `BUILDER_HTTP_CACHE_DIR`.
+- Build staging for `get_file()` uses `local/build/<recipe>/cache` and copies files from the persistent cache when available.
+
 ## Examples
 
 - [Starlark Usage Guide](examples/starlark_usage.md) - Comprehensive examples and best practices

@@ -10,9 +10,11 @@ import (
 
 // RecipeContext provides an interface to recipe context for Starlark scripts
 type RecipeContext interface {
-	InstallPackages(pkgs ...string) error
-	SetVariable(key string, value any)
-	EvaluateValue(value any) (any, error)
+    InstallPackages(pkgs ...string) error
+    SetVariable(key string, value any)
+    EvaluateValue(value any) (any, error)
+    // AddRunCommand allows Starlark to append shell commands to the build.
+    AddRunCommand(cmd string)
 }
 
 // NewEvaluatorWithStarlarkContext creates a Starlark evaluator with enhanced context
@@ -71,56 +73,61 @@ func CreateBuiltinsWithContext(ctx RecipeContext) starlark.StringDict {
 				name = args[0].String() // Fallback for other types
 			}
 
-			value := ConvertFromStarlark(args[1])
+            value := ConvertFromStarlark(args[1])
 
-			// Convert Jinja2 value to Go interface for the context
-			var goValue any
-			switch v := value.(type) {
-			case jinja2.StringValue:
-				goValue = string(v)
-			case jinja2.IntValue:
-				goValue = int64(v)
-			case jinja2.FloatValue:
-				goValue = float64(v)
-			case jinja2.BoolValue:
-				goValue = bool(v)
-			case jinja2.ListValue:
-				items := make([]any, len(v))
-				for i, item := range v {
-					items[i] = item.String() // Simplify to strings for now
-				}
-				goValue = items
-			case jinja2.DictValue:
-				dict := make(map[string]any)
-				for k, v := range v {
-					dict[k] = v.String() // Simplify to strings for now
-				}
-				goValue = dict
-			default:
-				goValue = value.String()
-			}
+            // Convert Jinja2.Value to a Go value recursively, preserving types.
+            var toGo func(jinja2.Value) any
+            toGo = func(v jinja2.Value) any {
+                switch t := v.(type) {
+                case jinja2.StringValue:
+                    return string(t)
+                case jinja2.IntValue:
+                    return int64(t)
+                case jinja2.FloatValue:
+                    return float64(t)
+                case jinja2.BoolValue:
+                    return bool(t)
+                case jinja2.ListValue:
+                    out := make([]any, 0, len(t))
+                    for _, it := range t {
+                        out = append(out, toGo(it))
+                    }
+                    return out
+                case jinja2.DictValue:
+                    out := make(map[string]any, len(t))
+                    for k, vv := range t {
+                        out[k] = toGo(vv)
+                    }
+                    return out
+                case jinja2.NoneValue:
+                    return nil
+                default:
+                    return v.String()
+                }
+            }
+            goValue := toGo(value)
 
 			ctx.SetVariable(name, goValue)
 			return starlark.None, nil
 		}),
 
-		"run_command": starlark.NewBuiltin("run_command", func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-			if len(args) != 1 {
-				return starlark.None, fmt.Errorf("run_command requires exactly 1 argument: command")
-			}
+        "run_command": starlark.NewBuiltin("run_command", func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+            if len(args) != 1 {
+                return starlark.None, fmt.Errorf("run_command requires exactly 1 argument: command")
+            }
 
-			var command string
-			if strVal, ok := args[0].(starlark.String); ok {
-				command = string(strVal)
-			} else {
-				command = args[0].String()
-			}
+            var command string
+            if strVal, ok := args[0].(starlark.String); ok {
+                command = string(strVal)
+            } else {
+                command = args[0].String()
+            }
 
-			// Set a special variable that the recipe context can interpret
-			ctx.SetVariable("_starlark_run_command", command)
+            // Append to the build via the context hook
+            ctx.AddRunCommand(command)
 
-			return starlark.None, nil
-		}),
+            return starlark.None, nil
+        }),
 
 		"set_environment": starlark.NewBuiltin("set_environment", func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 			if len(args) != 2 {

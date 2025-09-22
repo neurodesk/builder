@@ -10,6 +10,15 @@ A container build system with support for dynamic Jinja2 templating and Starlark
 - **Recipe System**: YAML-based build recipes with parameter support
 - **Neurodocker Compatibility**: Designed to replace and extend neurodocker templates
 
+## Jinja2 Subset (Behavior Notes)
+
+The embedded Jinja2 engine intentionally implements a pragmatic subset of Jinja2 for stability:
+- Undefined variables raise errors rather than rendering empty strings.
+- Loop variables support a limited set (`loop.last`, basic indices).
+- Whitespace trim tokens are parsed but not acted upon.
+
+These differences are by design. If you rely on full Jinja2 behavior, consider simplifying templates or pre‑rendering with a full Jinja2 engine upstream.
+
 ## New: Starlark Scripting Support
 
 This builder now supports Starlark scripts for dynamic container builds. Starlark provides a Python-like programming language that integrates seamlessly with the existing Jinja2 template system.
@@ -83,7 +92,8 @@ Starlark scripts have access to these built-in functions:
 All template variables are available as attributes of the `context` and `local` objects in Starlark scripts:
 
 - `context.version` - Package version
-- `context.PackageManager` - Package manager being used
+- `context.PackageManager` - Package manager (`apt`, `yum`, ...)
+- `context.arch` - Target architecture (`x86_64`, `aarch64`)
 - User-defined variables from the `variables` directive (e.g., `context.my_variable`)
 - Variables set by previous directives
 

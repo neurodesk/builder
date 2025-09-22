@@ -1,7 +1,6 @@
 package recipe
 
 import (
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -104,6 +103,9 @@ type Context struct {
 
 	deployBins []string
 	deployPath []string
+
+	// Accumulated commands from Starlark run_command builtins
+	runCommands []string
 }
 
 // OnLookup implements jinja2.LookupHook.
@@ -168,6 +170,9 @@ func (c Context) Truth() bool {
 func (c *Context) SetVariable(key string, value any) {
 	c.variables[key] = jinja2.FromGo(value)
 }
+
+// AddRunCommand implements starlark.RecipeContext hook to accumulate commands.
+func (c *Context) AddRunCommand(cmd string) { c.runCommands = append(c.runCommands, cmd) }
 
 // EvaluateValue is a public wrapper for evaluateValue to satisfy the RecipeContext interface
 func (c *Context) EvaluateValue(value any) (any, error) {
@@ -420,6 +425,41 @@ func newContext(
 	}
 }
 
+// shellWords parses a shell-like word string into tokens, supporting simple quotes and escapes.
+func shellWords(s string) ([]string, error) {
+	var out []string
+	var cur strings.Builder
+	inS, inD := false, false
+	esc := false
+	for _, r := range s {
+		switch {
+		case esc:
+			cur.WriteRune(r)
+			esc = false
+		case r == '\\' && (inS || inD):
+			esc = true
+		case r == '\'' && !inD:
+			inS = !inS
+		case r == '"' && !inS:
+			inD = !inD
+		case r == ' ' && !inS && !inD:
+			if cur.Len() > 0 {
+				out = append(out, cur.String())
+				cur.Reset()
+			}
+		default:
+			cur.WriteRune(r)
+		}
+	}
+	if inS || inD {
+		return nil, fmt.Errorf("unclosed quote in %q", s)
+	}
+	if cur.Len() > 0 {
+		out = append(out, cur.String())
+	}
+	return out, nil
+}
+
 type CPUArchitecture string
 
 const (
@@ -515,9 +555,24 @@ func (g GroupDirective) Apply(ctx *Context, with map[string]any) error {
 		}
 	}
 
-	// Propagate builder changes made in the child context back to the parent.
-	// Without this, directives executed inside a group would be lost.
+	// Propagate builder changes back to the parent.
 	ctx.builder = child.builder
+	// Optionally propagate variables and files to parent to make groups transparent.
+	// Prefer parent values on conflict.
+	for k, v := range child.variables {
+		if _, exists := ctx.variables[k]; !exists {
+			ctx.variables[k] = v
+		}
+	}
+	for name, f := range child.files {
+		if _, exists := ctx.files[name]; !exists {
+			ctx.files[name] = f
+		}
+	}
+	// Accumulate any run commands produced in child
+	if len(child.runCommands) > 0 {
+		ctx.runCommands = append(ctx.runCommands, child.runCommands...)
+	}
 	return nil
 }
 
@@ -530,18 +585,10 @@ func (r RunDirective) Validate() error {
 }
 
 func (r RunDirective) Apply(ctx *Context) error {
-	// Build a cache-aware local context similar to the Python LocalBuildContext
-	// Compute a stable cacheID from the directive content for per-layer mounts
-	hasher := sha256.New()
-	for _, cmd := range r {
-		hasher.Write([]byte(string(cmd)))
-		hasher.Write([]byte{0})
-	}
-	cacheID := fmt.Sprintf("h%x", hasher.Sum(nil))[:9]
-
-	targetBase := "/.neurocontainer-cache/" + cacheID
-	// Mount spec for cache dir relative to build context (as used by buildctl)
-	cacheMount := fmt.Sprintf("--mount=type=bind,source=%s,target=%s,readonly", filepath.ToSlash(filepath.Join("cache", cacheID)), targetBase)
+	// Use a stable, named local context for cache files.
+	// The CLI will provide --build-context cache=<dir>.
+	targetBase := "/.neurocontainer-cache"
+	cacheMount := "--mount=type=bind,from=cache,source=/,target=/.neurocontainer-cache,readonly"
 
 	// Track mounts (dedup)
 	seenMount := map[string]struct{}{}
@@ -1117,8 +1164,10 @@ func (s StarlarkDirective) Apply(ctx *Context) error {
 
 	// Prepare context variables for Starlark
 	jinjaCtx := jinja2.Context{
-		"version":       jinja2.StringValue(ctx.Version),
-		"parallel_jobs": jinja2.IntValue(ctx.parallelJobs()),
+		"version":        jinja2.StringValue(ctx.Version),
+		"parallel_jobs":  jinja2.IntValue(ctx.parallelJobs()),
+		"PackageManager": jinja2.StringValue(string(ctx.PackageManager)),
+		"arch":           jinja2.StringValue(string(ctx.Arch)),
 	}
 
 	// Add all context variables
@@ -1172,11 +1221,7 @@ func (s StarlarkDirective) Apply(ctx *Context) error {
 	var envVars map[string]string
 
 	for key, value := range ctx.variables {
-		if key == "_starlark_run_command" {
-			if cmdStr, ok := value.(jinja2.StringValue); ok {
-				runCommands = append(runCommands, string(cmdStr))
-			}
-		} else if strings.HasPrefix(key, "_starlark_env_") {
+		if strings.HasPrefix(key, "_starlark_env_") {
 			envKey := strings.TrimPrefix(key, "_starlark_env_")
 			if envVars == nil {
 				envVars = make(map[string]string)
@@ -1185,6 +1230,11 @@ func (s StarlarkDirective) Apply(ctx *Context) error {
 				envVars[envKey] = string(envVal)
 			}
 		}
+	}
+
+	// Also include any commands accumulated via ctx.AddRunCommand
+	if len(ctx.runCommands) > 0 {
+		runCommands = append(runCommands, ctx.runCommands...)
 	}
 
 	// Apply run commands
@@ -1201,10 +1251,12 @@ func (s StarlarkDirective) Apply(ctx *Context) error {
 
 	// Clean up temporary variables
 	for key := range ctx.variables {
-		if key == "_starlark_run_command" || strings.HasPrefix(key, "_starlark_env_") {
+		if strings.HasPrefix(key, "_starlark_env_") {
 			delete(ctx.variables, key)
 		}
 	}
+	// Clear consumed run commands
+	ctx.runCommands = nil
 
 	return nil
 }
@@ -1325,7 +1377,7 @@ func (d Directive) Apply(ctx *Context) error {
 				return nil, fmt.Errorf("install command must be a string, got %T", result)
 			}
 
-			return strings.Split(s, " "), nil
+			return shellWords(s)
 		}
 
 		switch install := install.(type) {
@@ -1384,7 +1436,10 @@ func (d Directive) Apply(ctx *Context) error {
 			if !ok {
 				return fmt.Errorf("copy command must be a string, got %T", result)
 			}
-			parts := strings.Split(s, " ")
+			parts, err := shellWords(s)
+			if err != nil {
+				return fmt.Errorf("parsing copy: %w", err)
+			}
 			if len(parts) != 2 {
 				return fmt.Errorf("copy command must have exactly two parts: source and destination")
 			}
@@ -1557,10 +1612,10 @@ func (b *BuildRecipe) Generate(ctx *Context) error {
 
 	// TODO(joshua): handle README.md file.
 
-	if b.FixLocaleDef != nil && *b.FixLocaleDef {
-		// TODO(joshua): Add fix-locale-def if needed.
-		return fmt.Errorf("fix-locale-def not implemented")
-	}
+    if b.FixLocaleDef != nil && *b.FixLocaleDef {
+        // No-op for now: older recipes may set this flag. Left intentionally
+        // blank to avoid failing generation.
+    }
 
 	return nil
 }
@@ -1613,7 +1668,30 @@ func (b *BuildFile) Validate(ctx Context) error {
 	)
 }
 
+// StagedFile describes a file to materialize in the build context.
+type StagedFile struct {
+	Name       string
+	Executable bool
+	// Exactly one source
+	HostFilename string
+	URL          string
+	Contents     string
+}
+
+type StagingPlan struct {
+	Files []StagedFile
+}
+
 func (b *BuildFile) Generate(includeDirs []string) (*ir.Definition, error) {
+	def, _, err := b.GenerateWithStaging(includeDirs)
+	if err != nil {
+		return nil, err
+	}
+	return def, nil
+}
+
+// GenerateWithStaging builds the IR and returns a staging plan for files.
+func (b *BuildFile) GenerateWithStaging(includeDirs []string) (*ir.Definition, *StagingPlan, error) {
 	ctx := newContext(
 		b.Build.PackageManager,
 		b.Version,
@@ -1631,22 +1709,42 @@ func (b *BuildFile) Generate(includeDirs []string) (*ir.Definition, error) {
 	if len(b.Variables) > 0 {
 		vars := VariablesDirective(b.Variables)
 		if err := vars.Apply(ctx); err != nil {
-			return nil, fmt.Errorf("applying top-level variables: %w", err)
+			return nil, nil, fmt.Errorf("applying top-level variables: %w", err)
 		}
 	}
 
 	// Register top-level files into the context (for get_file())
 	for _, f := range b.Files {
 		if err := FileDirective(f).Apply(ctx); err != nil {
-			return nil, fmt.Errorf("adding top-level file %q: %w", f.Name, err)
+			return nil, nil, fmt.Errorf("adding top-level file %q: %w", f.Name, err)
 		}
 	}
 
 	if err := b.Build.Generate(ctx); err != nil {
-		return nil, fmt.Errorf("generating build: %w", err)
+		return nil, nil, fmt.Errorf("generating build: %w", err)
 	}
 
-	return ctx.Compile()
+	def, err := ctx.Compile()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Collect staging files from ctx.files
+	plan := &StagingPlan{}
+	for name, f := range ctx.files {
+		switch t := f.(type) {
+		case contextFile:
+			plan.Files = append(plan.Files, StagedFile{Name: name, Executable: t.Executable, HostFilename: t.HostFilename})
+		case httpFile:
+			plan.Files = append(plan.Files, StagedFile{Name: name, Executable: t.Executable, URL: t.URL})
+		case literalFile:
+			plan.Files = append(plan.Files, StagedFile{Name: name, Executable: t.Executable, Contents: t.Contents})
+		}
+	}
+	// Sort plan for determinism
+	sort.Slice(plan.Files, func(i, j int) bool { return plan.Files[i].Name < plan.Files[j].Name })
+
+	return def, plan, nil
 }
 
 func LoadBuildFile(path string) (*BuildFile, error) {

@@ -364,3 +364,37 @@ run_command("echo 'Setup complete for " + full_app_name + "'")
 		t.Error("Expected some build directives to be generated")
 	}
 }
+
+func TestStarlarkRunCommandAccumulation(t *testing.T) {
+    ctx := newContext(
+        common.PkgManagerApt,
+        "1.0.0",
+        []string{},
+        ir.New(),
+        nil,
+    )
+
+    directive := StarlarkDirective{
+        Script: jinja2.TemplateString(`
+run_command("echo one")
+run_command("echo two")
+`),
+    }
+
+    if err := directive.Apply(ctx); err != nil {
+        t.Fatalf("Apply failed: %v", err)
+    }
+
+    def, err := ctx.Compile()
+    if err != nil { t.Fatalf("compile: %v", err) }
+    var runCount int
+    for _, d := range def.Directives {
+        switch d.(type) {
+        case ir.RunDirective, ir.RunWithMountsDirective:
+            runCount++
+        }
+    }
+    if runCount < 2 {
+        t.Fatalf("expected at least 2 RUN directives, got %d", runCount)
+    }
+}

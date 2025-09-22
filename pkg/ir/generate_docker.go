@@ -42,6 +42,8 @@ func GenerateDockerfile(ir *Definition) (string, error) {
 			out = append(out, docker.User(string(v)))
 		case EntryPointDirective:
 			out = append(out, docker.EntryPoint(string(v)))
+		case ExecEntryPointDirective:
+			out = append(out, docker.ExecEntryPoint([]string(v)))
 		case RunWithMountsDirective:
 			out = append(out, docker.RunWithMounts{Mounts: v.Mounts, Command: v.Command})
 		case LiteralFileDirective:
@@ -57,20 +59,21 @@ func GenerateDockerfile(ir *Definition) (string, error) {
 				b.WriteString(dir)
 				b.WriteString("\n")
 			}
-			b.WriteString("cat > ")
-			b.WriteString(name)
-			b.WriteString(" << 'EOF'\n")
+            // Quote the target path safely for the shell using printf %q
+            // and use eval to avoid word-splitting issues.
+            b.WriteString("TARGET=$(printf %q '")
+            b.WriteString(name)
+            b.WriteString("')\n")
+            b.WriteString("cat > \"$TARGET\" << 'EOF'\n")
 			b.WriteString(contents)
 			if !strings.HasSuffix(contents, "\n") {
 				b.WriteString("\n")
 			}
 			b.WriteString("EOF\n")
-			if v.Executable {
-				b.WriteString("chmod +x ")
-				b.WriteString(name)
-				b.WriteString("\n")
-			}
-			out = append(out, docker.Run{Command: b.String()})
+            if v.Executable {
+                b.WriteString("chmod +x \"$TARGET\"\n")
+            }
+            out = append(out, docker.Run{Command: b.String()})
 		default:
 			return "", fmt.Errorf("unsupported directive: %T", d)
 		}

@@ -62,6 +62,11 @@ type EntryPoint string
 
 func (EntryPoint) isDirective() {}
 
+// ExecEntryPoint emits ENTRYPOINT in JSON exec-form with argv array.
+type ExecEntryPoint []string
+
+func (ExecEntryPoint) isDirective() {}
+
 // RenderDockerfile converts the directive list into a Dockerfile string.
 func RenderDockerfile(dirs []Directive) (string, error) {
     var buf bytes.Buffer
@@ -185,23 +190,38 @@ func RenderDockerfile(dirs []Directive) (string, error) {
 			}
 			writeLine("USER %s", string(v))
 
-		case EntryPoint:
-			if v == "" {
-				return "", fmt.Errorf("ENTRYPOINT: empty command")
-			}
-			// Use exec form with JSON encoding to handle special chars robustly.
-			argv := []string{"/bin/bash", "-lc", string(v)}
-			var jbuf bytes.Buffer
-			enc := json.NewEncoder(&jbuf)
-			enc.SetEscapeHTML(false)
-			if err := enc.Encode(argv); err != nil {
-				return "", fmt.Errorf("encoding ENTRYPOINT argv: %w", err)
-			}
-			jb := jbuf.Bytes()
-			if len(jb) > 0 && jb[len(jb)-1] == '\n' {
-				jb = jb[:len(jb)-1]
-			}
-			writeLine("ENTRYPOINT %s", string(jb))
+        case EntryPoint:
+            if v == "" {
+                return "", fmt.Errorf("ENTRYPOINT: empty command")
+            }
+            // Use exec form with JSON encoding to handle special chars robustly.
+            argv := []string{"/bin/bash", "-lc", string(v)}
+            var jbuf bytes.Buffer
+            enc := json.NewEncoder(&jbuf)
+            enc.SetEscapeHTML(false)
+            if err := enc.Encode(argv); err != nil {
+                return "", fmt.Errorf("encoding ENTRYPOINT argv: %w", err)
+            }
+            jb := jbuf.Bytes()
+            if len(jb) > 0 && jb[len(jb)-1] == '\n' {
+                jb = jb[:len(jb)-1]
+            }
+            writeLine("ENTRYPOINT %s", string(jb))
+        case ExecEntryPoint:
+            if len(v) == 0 {
+                return "", fmt.Errorf("ENTRYPOINT: empty argv")
+            }
+            var jbuf bytes.Buffer
+            enc := json.NewEncoder(&jbuf)
+            enc.SetEscapeHTML(false)
+            if err := enc.Encode([]string(v)); err != nil {
+                return "", fmt.Errorf("encoding ENTRYPOINT argv: %w", err)
+            }
+            jb := jbuf.Bytes()
+            if len(jb) > 0 && jb[len(jb)-1] == '\n' {
+                jb = jb[:len(jb)-1]
+            }
+            writeLine("ENTRYPOINT %s", string(jb))
 		default:
 			return "", fmt.Errorf("unknown directive type: %T", d)
 		}

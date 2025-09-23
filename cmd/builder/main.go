@@ -71,8 +71,10 @@ var generateDockerfileCmd = cobra.Command{
 		}
 		recipeName := args[0]
 
-        cfg, err := loadBuilderConfig()
-        if err != nil { return err }
+		cfg, err := loadBuilderConfig()
+		if err != nil {
+			return err
+		}
 
 		build, err := cfg.getRecipeByName(recipeName)
 		if err != nil {
@@ -96,370 +98,377 @@ var generateDockerfileCmd = cobra.Command{
 
 // helper: load config and apply template dir
 func loadBuilderConfig() (builderConfig, error) {
-    var cfg builderConfig
-    if err := cfg.loadConfig(rootBuilderConfig); err != nil {
-        return cfg, fmt.Errorf("loading config: %w", err)
-    }
-    if cfg.TemplateDir != "" {
-        templates.SetTemplateDir(cfg.TemplateDir)
-    }
-    return cfg, nil
+	var cfg builderConfig
+	if err := cfg.loadConfig(rootBuilderConfig); err != nil {
+		return cfg, fmt.Errorf("loading config: %w", err)
+	}
+	if cfg.TemplateDir != "" {
+		templates.SetTemplateDir(cfg.TemplateDir)
+	}
+	return cfg, nil
 }
 
 // helper: resolve a recipe spec to a directory using configured roots
 func resolveRecipePath(cfg builderConfig, spec string) (string, error) {
-    if strings.ContainsRune(spec, os.PathSeparator) || strings.HasPrefix(spec, ".") || strings.HasPrefix(spec, "/") {
-        return spec, nil
-    }
-    for _, root := range cfg.RecipeRoots {
-        cand := filepath.Join(root, spec)
-        if st, err := os.Stat(cand); err == nil && st.IsDir() {
-            return cand, nil
-        }
-    }
-    return "", fmt.Errorf("recipe not found: %s", spec)
+	if strings.ContainsRune(spec, os.PathSeparator) || strings.HasPrefix(spec, ".") || strings.HasPrefix(spec, "/") {
+		return spec, nil
+	}
+	for _, root := range cfg.RecipeRoots {
+		cand := filepath.Join(root, spec)
+		if st, err := os.Stat(cand); err == nil && st.IsDir() {
+			return cand, nil
+		}
+	}
+	return "", fmt.Errorf("recipe not found: %s", spec)
 }
 
 // helper: copy a whole directory tree
 func copyDir(src, dst string) error {
-    return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
-        if err != nil {
-            return err
-        }
-        rel, err := filepath.Rel(src, path)
-        if err != nil {
-            return err
-        }
-        target := filepath.Join(dst, rel)
-        if d.IsDir() {
-            return os.MkdirAll(target, 0o755)
-        }
-        return copyFile(path, target, false)
-    })
+	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+		if d.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		return copyFile(path, target, false)
+	})
 }
 
 // helper: write a reader to a file path with optional exec bit
 func writeFromReader(dst string, r io.Reader, exec bool) error {
-    if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-        return err
-    }
-    mode := os.FileMode(0o644)
-    if exec {
-        mode = 0o755
-    }
-    tmp := dst + ".tmp"
-    f, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode)
-    if err != nil {
-        return err
-    }
-    if _, err := io.Copy(f, r); err != nil {
-        _ = f.Close()
-        _ = os.Remove(tmp)
-        return err
-    }
-    if err := f.Close(); err != nil {
-        _ = os.Remove(tmp)
-        return err
-    }
-    return os.Rename(tmp, dst)
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+	mode := os.FileMode(0o644)
+	if exec {
+		mode = 0o755
+	}
+	tmp := dst + ".tmp"
+	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(f, r); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return os.Rename(tmp, dst)
 }
 
 // helper: copy a single file path
 func copyFile(src, dst string, exec bool) error {
-    in, err := os.Open(src)
-    if err != nil {
-        return err
-    }
-    defer in.Close()
-    return writeFromReader(dst, in, exec)
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	return writeFromReader(dst, in, exec)
 }
 
 // helper: parse local flags into keys and kv pairs
 func parseLocalFlags(lvals []string) (keys []string, kvs []string) {
-    if len(lvals) == 0 {
-        return nil, nil
-    }
-    kvs = append(kvs, lvals...)
-    for _, kv := range lvals {
-        parts := strings.SplitN(kv, "=", 2)
-        if len(parts) == 2 && parts[0] != "" {
-            keys = append(keys, parts[0])
-        }
-    }
-    return keys, kvs
+	if len(lvals) == 0 {
+		return nil, nil
+	}
+	kvs = append(kvs, lvals...)
+	for _, kv := range lvals {
+		parts := strings.SplitN(kv, "=", 2)
+		if len(parts) == 2 && parts[0] != "" {
+			keys = append(keys, parts[0])
+		}
+	}
+	return keys, kvs
 }
 
 // helper: parse COPY directives into srcs/dest (best-effort; handles flags and JSON form)
-type copySpec struct { Src []string; Dest string }
+type copySpec struct {
+	Src  []string
+	Dest string
+}
 
 func parseCopySpecs(dockerfile string) []copySpec {
-    var specs []copySpec
-    lines := strings.Split(dockerfile, "\n")
-    for _, raw := range lines {
-        line := strings.TrimSpace(raw)
-        if line == "" {
-            continue
-        }
-        upper := strings.ToUpper(line)
-        if !strings.HasPrefix(upper, "COPY ") {
-            continue
-        }
-        // JSON form
-        rest := strings.TrimSpace(line[len("COPY "):])
-        if strings.HasPrefix(rest, "[") {
-            // crude JSON array split
-            end := strings.Index(rest, "]")
-            if end <= 0 {
-                continue
-            }
-            inner := rest[1:end]
-            var parts []string
-            for _, p := range strings.Split(inner, ",") {
-                p = strings.TrimSpace(strings.Trim(p, "\""))
-                if p != "" {
-                    parts = append(parts, p)
-                }
-            }
-            if len(parts) >= 2 {
-                specs = append(specs, copySpec{Src: parts[:len(parts)-1], Dest: parts[len(parts)-1]})
-            }
-            continue
-        }
-        // Shell form: split quoted and drop flags
-        toks := splitQuoted(rest)
-        // Drop leading --flag tokens
-        i := 0
-        for i < len(toks) && strings.HasPrefix(toks[i], "--") {
-            i++
-        }
-        parts := toks[i:]
-        if len(parts) >= 2 {
-            specs = append(specs, copySpec{Src: parts[:len(parts)-1], Dest: parts[len(parts)-1]})
-        }
-    }
-    return specs
+	var specs []copySpec
+	lines := strings.Split(dockerfile, "\n")
+	for _, raw := range lines {
+		line := strings.TrimSpace(raw)
+		if line == "" {
+			continue
+		}
+		upper := strings.ToUpper(line)
+		if !strings.HasPrefix(upper, "COPY ") {
+			continue
+		}
+		// JSON form
+		rest := strings.TrimSpace(line[len("COPY "):])
+		if strings.HasPrefix(rest, "[") {
+			// crude JSON array split
+			end := strings.Index(rest, "]")
+			if end <= 0 {
+				continue
+			}
+			inner := rest[1:end]
+			var parts []string
+			for _, p := range strings.Split(inner, ",") {
+				p = strings.TrimSpace(strings.Trim(p, "\""))
+				if p != "" {
+					parts = append(parts, p)
+				}
+			}
+			if len(parts) >= 2 {
+				specs = append(specs, copySpec{Src: parts[:len(parts)-1], Dest: parts[len(parts)-1]})
+			}
+			continue
+		}
+		// Shell form: split quoted and drop flags
+		toks := splitQuoted(rest)
+		// Drop leading --flag tokens
+		i := 0
+		for i < len(toks) && strings.HasPrefix(toks[i], "--") {
+			i++
+		}
+		parts := toks[i:]
+		if len(parts) >= 2 {
+			specs = append(specs, copySpec{Src: parts[:len(parts)-1], Dest: parts[len(parts)-1]})
+		}
+	}
+	return specs
 }
 
 // helper: stage cache/top-level files and COPY sources into the build context
 func stageIntoBuildContext(cfg builderConfig, recipePath, dockerfile, buildDir string, plan *recipe.StagingPlan) error {
-    // 1) stage plan files into cache/
-    cacheDir := filepath.Join(buildDir, "cache")
-    if err := os.MkdirAll(cacheDir, 0o755); err != nil {
-        return fmt.Errorf("creating cache dir: %w", err)
-    }
-    httpCacheDir := os.Getenv("BUILDER_HTTP_CACHE_DIR")
-    if httpCacheDir == "" {
-        httpCacheDir = filepath.Join("local", "httpcache")
-    }
-    if err := os.MkdirAll(httpCacheDir, 0o755); err != nil {
-        return fmt.Errorf("creating http cache dir: %w", err)
-    }
-    hc := netcache.New(httpCacheDir)
-    for _, f := range plan.Files {
-        dst := filepath.Join(cacheDir, filepath.FromSlash(f.Name))
-        switch {
-        case f.HostFilename != "":
-            src := f.HostFilename
-            if !filepath.IsAbs(src) {
-                cand := filepath.Join(recipePath, src)
-                if _, err := os.Stat(cand); err == nil {
-                    src = cand
-                } else {
-                    for _, d := range cfg.IncludeDirs {
-                        alt := filepath.Join(d, src)
-                        if _, err := os.Stat(alt); err == nil {
-                            src = alt
-                            break
-                        }
-                    }
-                }
-            }
-            if verbose {
-                fmt.Printf("[verbose] Staging local file %s -> %s\n", src, dst)
-            }
-            if err := copyFile(src, dst, f.Executable); err != nil {
-                return fmt.Errorf("staging local file %q: %w", f.Name, err)
-            }
-        case f.URL != "":
-            if verbose {
-                fmt.Printf("[verbose] Downloading %s -> %s\n", f.URL, dst)
-            }
-            ctx := context.Background()
-            localPath, fromCache, err := hc.Get(ctx, f.URL)
-            if err != nil {
-                return fmt.Errorf("fetching %q: %w", f.URL, err)
-            }
-            if verbose {
-                if fromCache {
-                    fmt.Printf("[verbose] Using cached %s\n", localPath)
-                } else {
-                    fmt.Printf("[verbose] Downloaded to cache %s\n", localPath)
-                }
-            }
-            if err := copyFile(localPath, dst, f.Executable); err != nil {
-                return fmt.Errorf("staging downloaded file %q: %w", f.URL, err)
-            }
-        default:
-            if verbose {
-                fmt.Printf("[verbose] Staging literal file %s (%d bytes) -> %s\n", f.Name, len(f.Contents), dst)
-            }
-            if err := writeFromReader(dst, strings.NewReader(f.Contents), f.Executable); err != nil {
-                return fmt.Errorf("staging literal file %q: %w", f.Name, err)
-            }
-        }
-    }
+	// 1) stage plan files into cache/
+	cacheDir := filepath.Join(buildDir, "cache")
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+		return fmt.Errorf("creating cache dir: %w", err)
+	}
+	httpCacheDir := os.Getenv("BUILDER_HTTP_CACHE_DIR")
+	if httpCacheDir == "" {
+		httpCacheDir = filepath.Join("local", "httpcache")
+	}
+	if err := os.MkdirAll(httpCacheDir, 0o755); err != nil {
+		return fmt.Errorf("creating http cache dir: %w", err)
+	}
+	hc := netcache.New(httpCacheDir)
+	for _, f := range plan.Files {
+		dst := filepath.Join(cacheDir, filepath.FromSlash(f.Name))
+		switch {
+		case f.HostFilename != "":
+			src := f.HostFilename
+			if !filepath.IsAbs(src) {
+				cand := filepath.Join(recipePath, src)
+				if _, err := os.Stat(cand); err == nil {
+					src = cand
+				} else {
+					for _, d := range cfg.IncludeDirs {
+						alt := filepath.Join(d, src)
+						if _, err := os.Stat(alt); err == nil {
+							src = alt
+							break
+						}
+					}
+				}
+			}
+			if verbose {
+				fmt.Printf("[verbose] Staging local file %s -> %s\n", src, dst)
+			}
+			if err := copyFile(src, dst, f.Executable); err != nil {
+				return fmt.Errorf("staging local file %q: %w", f.Name, err)
+			}
+		case f.URL != "":
+			if verbose {
+				fmt.Printf("[verbose] Downloading %s -> %s\n", f.URL, dst)
+			}
+			ctx := context.Background()
+			localPath, fromCache, err := hc.Get(ctx, f.URL)
+			if err != nil {
+				return fmt.Errorf("fetching %q: %w", f.URL, err)
+			}
+			if verbose {
+				if fromCache {
+					fmt.Printf("[verbose] Using cached %s\n", localPath)
+				} else {
+					fmt.Printf("[verbose] Downloaded to cache %s\n", localPath)
+				}
+			}
+			if err := copyFile(localPath, dst, f.Executable); err != nil {
+				return fmt.Errorf("staging downloaded file %q: %w", f.URL, err)
+			}
+		default:
+			if verbose {
+				fmt.Printf("[verbose] Staging literal file %s (%d bytes) -> %s\n", f.Name, len(f.Contents), dst)
+			}
+			if err := writeFromReader(dst, strings.NewReader(f.Contents), f.Executable); err != nil {
+				return fmt.Errorf("staging literal file %q: %w", f.Name, err)
+			}
+		}
+	}
 
-    // 2) stage COPY sources into build context (relative to recipe dir)
-    baseDirAbs, _ := filepath.Abs(recipePath)
-    buildDirAbs, _ := filepath.Abs(buildDir)
-    for _, spec := range parseCopySpecs(dockerfile) {
-        for _, srcRel := range spec.Src {
-            if filepath.IsAbs(srcRel) {
-                return fmt.Errorf("absolute COPY sources are not allowed: %q", srcRel)
-            }
-            // Destination in build context is buildDir/<srcRel>
-            bcPath := filepath.Join(buildDir, filepath.FromSlash(srcRel))
-            // keep inside buildDir
-            bcAbs := bcPath
-            if abs, err := filepath.Abs(bcPath); err == nil {
-                bcAbs = abs
-            }
-            if rel, err := filepath.Rel(buildDirAbs, bcAbs); err != nil || strings.HasPrefix(rel, "..") {
-                return fmt.Errorf("COPY destination path escapes build context: %q", srcRel)
-            }
-            src := filepath.Join(baseDirAbs, filepath.FromSlash(srcRel))
-            srcEval, err := filepath.EvalSymlinks(src)
-            if err != nil {
-                return fmt.Errorf("COPY source %q not found in recipe directory", srcRel)
-            }
-            if rel, err := filepath.Rel(baseDirAbs, srcEval); err != nil || strings.HasPrefix(rel, "..") {
-                return fmt.Errorf("COPY source %q is outside the recipe directory", srcRel)
-            }
-            st, err := os.Stat(srcEval)
-            if err != nil {
-                return fmt.Errorf("COPY source %q not found in recipe directory", srcRel)
-            }
-            if st.IsDir() {
-                if verbose {
-                    fmt.Printf("[verbose] Copying directory %s -> %s\n", srcEval, bcPath)
-                }
-                if err := copyDir(srcEval, bcPath); err != nil {
-                    return fmt.Errorf("copying directory %q into build context: %w", srcRel, err)
-                }
-            } else {
-                if verbose {
-                    fmt.Printf("[verbose] Copying file %s -> %s\n", srcEval, bcPath)
-                }
-                if err := copyFile(srcEval, bcPath, false); err != nil {
-                    return fmt.Errorf("copying file %q into build context: %w", srcRel, err)
-                }
-            }
-        }
-    }
+	// 2) stage COPY sources into build context (relative to recipe dir)
+	baseDirAbs, _ := filepath.Abs(recipePath)
+	buildDirAbs, _ := filepath.Abs(buildDir)
+	for _, spec := range parseCopySpecs(dockerfile) {
+		for _, srcRel := range spec.Src {
+			if filepath.IsAbs(srcRel) {
+				return fmt.Errorf("absolute COPY sources are not allowed: %q", srcRel)
+			}
+			// Destination in build context is buildDir/<srcRel>
+			bcPath := filepath.Join(buildDir, filepath.FromSlash(srcRel))
+			// keep inside buildDir
+			bcAbs := bcPath
+			if abs, err := filepath.Abs(bcPath); err == nil {
+				bcAbs = abs
+			}
+			if rel, err := filepath.Rel(buildDirAbs, bcAbs); err != nil || strings.HasPrefix(rel, "..") {
+				return fmt.Errorf("COPY destination path escapes build context: %q", srcRel)
+			}
+			src := filepath.Join(baseDirAbs, filepath.FromSlash(srcRel))
+			srcEval, err := filepath.EvalSymlinks(src)
+			if err != nil {
+				return fmt.Errorf("COPY source %q not found in recipe directory", srcRel)
+			}
+			if rel, err := filepath.Rel(baseDirAbs, srcEval); err != nil || strings.HasPrefix(rel, "..") {
+				return fmt.Errorf("COPY source %q is outside the recipe directory", srcRel)
+			}
+			st, err := os.Stat(srcEval)
+			if err != nil {
+				return fmt.Errorf("COPY source %q not found in recipe directory", srcRel)
+			}
+			if st.IsDir() {
+				if verbose {
+					fmt.Printf("[verbose] Copying directory %s -> %s\n", srcEval, bcPath)
+				}
+				if err := copyDir(srcEval, bcPath); err != nil {
+					return fmt.Errorf("copying directory %q into build context: %w", srcRel, err)
+				}
+			} else {
+				if verbose {
+					fmt.Printf("[verbose] Copying file %s -> %s\n", srcEval, bcPath)
+				}
+				if err := copyFile(srcEval, bcPath, false); err != nil {
+					return fmt.Errorf("copying file %q into build context: %w", srcRel, err)
+				}
+			}
+		}
+	}
 
-    return nil
+	return nil
 }
 
 type stageResult struct {
-    Name           string   `json:"name"`
-    Version        string   `json:"version"`
-    Tag            string   `json:"tag"`
-    Arch           string   `json:"arch"`
-    BuildDir       string   `json:"build_dir"`
-    DockerfilePath string   `json:"dockerfile"`
-    CacheDir       string   `json:"cache_dir"`
-    LocalContext   []string `json:"local_context,omitempty"`
-    Dockerfile     string   `json:"-"`
+	Name           string   `json:"name"`
+	Version        string   `json:"version"`
+	Tag            string   `json:"tag"`
+	Arch           string   `json:"arch"`
+	BuildDir       string   `json:"build_dir"`
+	DockerfilePath string   `json:"dockerfile"`
+	CacheDir       string   `json:"cache_dir"`
+	LocalContext   []string `json:"local_context,omitempty"`
+	Dockerfile     string   `json:"-"`
 }
 
 // helper: generate, render, write dockerfile, and stage files/COPYs
 func prepareStage(cfg builderConfig, recipeSpec string, locals []string) (*stageResult, error) {
-    recipePath, err := resolveRecipePath(cfg, recipeSpec)
-    if err != nil {
-        return nil, err
-    }
-    build, err := recipe.LoadBuildFile(recipePath)
-    if err != nil {
-        return nil, fmt.Errorf("loading build file: %w", err)
-    }
-    // local keys for named contexts
-    keys, _ := parseLocalFlags(locals)
-    irDef, plan, err := build.GenerateWithStagingAndLocals(cfg.IncludeDirs, keys)
-    if err != nil {
-        return nil, fmt.Errorf("generating build IR: %w", err)
-    }
-    dockerfile, err := ir.GenerateDockerfile(irDef)
-    if err != nil {
-        return nil, fmt.Errorf("generating dockerfile: %w", err)
-    }
-    if strings.Contains(dockerfile, "\" + ") {
-        return nil, fmt.Errorf("detected unrendered string concatenation in generated Dockerfile; fix recipe/templates")
-    }
-    // Write Dockerfile
-    buildDir := filepath.Join("local", "build", build.Name)
-    if err := os.MkdirAll(buildDir, 0o755); err != nil {
-        return nil, fmt.Errorf("creating build directory: %w", err)
-    }
-    dockerfilePath := filepath.Join(buildDir, "Dockerfile")
-    if err := os.WriteFile(dockerfilePath, []byte(dockerfile), 0o644); err != nil {
-        return nil, fmt.Errorf("writing Dockerfile: %w", err)
-    }
-    // Stage files
-    if err := stageIntoBuildContext(cfg, recipePath, dockerfile, buildDir, plan); err != nil {
-        return nil, err
-    }
-    res := &stageResult{
-        Name:           build.Name,
-        Version:        build.Version,
-        Tag:            build.Name + ":" + build.Version,
-        Arch:           string(build.Architectures[0]),
-        BuildDir:       buildDir,
-        DockerfilePath: dockerfilePath,
-        CacheDir:       filepath.Join(buildDir, "cache"),
-        LocalContext:   locals,
-        Dockerfile:     dockerfile,
-    }
-    return res, nil
+	recipePath, err := resolveRecipePath(cfg, recipeSpec)
+	if err != nil {
+		return nil, err
+	}
+	build, err := recipe.LoadBuildFile(recipePath)
+	if err != nil {
+		return nil, fmt.Errorf("loading build file: %w", err)
+	}
+	// local keys for named contexts
+	keys, _ := parseLocalFlags(locals)
+	irDef, plan, err := build.GenerateWithStagingAndLocals(cfg.IncludeDirs, keys)
+	if err != nil {
+		return nil, fmt.Errorf("generating build IR: %w", err)
+	}
+	dockerfile, err := ir.GenerateDockerfile(irDef)
+	if err != nil {
+		return nil, fmt.Errorf("generating dockerfile: %w", err)
+	}
+	if strings.Contains(dockerfile, "\" + ") {
+		return nil, fmt.Errorf("detected unrendered string concatenation in generated Dockerfile; fix recipe/templates")
+	}
+	// Write Dockerfile
+	buildDir := filepath.Join("local", "build", build.Name)
+	if err := os.MkdirAll(buildDir, 0o755); err != nil {
+		return nil, fmt.Errorf("creating build directory: %w", err)
+	}
+	dockerfilePath := filepath.Join(buildDir, "Dockerfile")
+	if err := os.WriteFile(dockerfilePath, []byte(dockerfile), 0o644); err != nil {
+		return nil, fmt.Errorf("writing Dockerfile: %w", err)
+	}
+	// Stage files
+	if err := stageIntoBuildContext(cfg, recipePath, dockerfile, buildDir, plan); err != nil {
+		return nil, err
+	}
+	res := &stageResult{
+		Name:           build.Name,
+		Version:        build.Version,
+		Tag:            build.Name + ":" + build.Version,
+		Arch:           string(build.Architectures[0]),
+		BuildDir:       buildDir,
+		DockerfilePath: dockerfilePath,
+		CacheDir:       filepath.Join(buildDir, "cache"),
+		LocalContext:   locals,
+		Dockerfile:     dockerfile,
+	}
+	return res, nil
 }
 
 // stageCmd prepares the build context (Dockerfile + staged files) but does not build.
 // It emits a small JSON blob with details so wrapper scripts can invoke BuildKit.
 var stageCmd = cobra.Command{
-    Use:   "stage [recipe]",
-    Short: "Generate Dockerfile and stage build context (no build)",
-    RunE: func(cmd *cobra.Command, args []string) error {
-        if verbose {
-            os.Setenv("BUILDER_VERBOSE", "1")
-        }
-        if len(args) == 0 {
-            return fmt.Errorf("no recipe specified")
-        }
-        recipeName := args[0]
+	Use:   "stage [recipe]",
+	Short: "Generate Dockerfile and stage build context (no build)",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if verbose {
+			os.Setenv("BUILDER_VERBOSE", "1")
+		}
+		if len(args) == 0 {
+			return fmt.Errorf("no recipe specified")
+		}
+		recipeName := args[0]
 
-        // Parse optional local contexts supplied as --local KEY=DIR and pass keys to generator
-        var locals []string
-        if lvals, _ := cmd.Flags().GetStringArray("local"); len(lvals) > 0 {
-            locals = append(locals, lvals...)
-        }
-        cfg, err := loadBuilderConfig()
-        if err != nil {
-            return err
-        }
-        res, err := prepareStage(cfg, recipeName, locals)
-        if err != nil {
-            return err
-        }
-        b, err := json.Marshal(res)
-        if err != nil { return err }
-        os.Stdout.Write(b)
-        os.Stdout.Write([]byte("\n"))
-        return nil
-    },
+		// Parse optional local contexts supplied as --local KEY=DIR and pass keys to generator
+		var locals []string
+		if lvals, _ := cmd.Flags().GetStringArray("local"); len(lvals) > 0 {
+			locals = append(locals, lvals...)
+		}
+		cfg, err := loadBuilderConfig()
+		if err != nil {
+			return err
+		}
+		res, err := prepareStage(cfg, recipeName, locals)
+		if err != nil {
+			return err
+		}
+		b, err := json.Marshal(res)
+		if err != nil {
+			return err
+		}
+		os.Stdout.Write(b)
+		os.Stdout.Write([]byte("\n"))
+		return nil
+	},
 }
 
 func testRecipes(recipes []string) error {
-    cfg, err := loadBuilderConfig()
-    if err != nil { return fmt.Errorf("loading config: %w", err) }
+	cfg, err := loadBuilderConfig()
+	if err != nil {
+		return fmt.Errorf("loading config: %w", err)
+	}
 
 	outputDir := filepath.Join("local", "docker")
 	if err := os.MkdirAll(outputDir, 0o755); err != nil {
@@ -526,7 +535,9 @@ var testAllCmd = cobra.Command{
 			os.Setenv("BUILDER_VERBOSE", "1")
 		}
 		cfg, err := loadBuilderConfig()
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 
 		var recipes []string
 		for _, root := range cfg.RecipeRoots {
@@ -563,32 +574,36 @@ var buildCmd = cobra.Command{
 		}
 		recipeName := args[0]
 
-        cfg, err := loadBuilderConfig()
-        if err != nil { return err }
-        // Parse optional local contexts supplied as --local KEY=DIR
-        var locals []string
-        if lvals, _ := cmd.Flags().GetStringArray("local"); len(lvals) > 0 {
-            locals = append(locals, lvals...)
-        }
-        res, err := prepareStage(cfg, recipeName, locals)
-        if err != nil { return err }
-        buildDir := res.BuildDir
-        dockerfile := res.Dockerfile
-        dockerfilePath := res.DockerfilePath
-        cacheDir := res.CacheDir
-        // staging already done in prepareStage
-        // Staging is already done by prepareStage()
+		cfg, err := loadBuilderConfig()
+		if err != nil {
+			return err
+		}
+		// Parse optional local contexts supplied as --local KEY=DIR
+		var locals []string
+		if lvals, _ := cmd.Flags().GetStringArray("local"); len(lvals) > 0 {
+			locals = append(locals, lvals...)
+		}
+		res, err := prepareStage(cfg, recipeName, locals)
+		if err != nil {
+			return err
+		}
+		buildDir := res.BuildDir
+		dockerfile := res.Dockerfile
+		dockerfilePath := res.DockerfilePath
+		cacheDir := res.CacheDir
+		// staging already done in prepareStage
+		// Staging is already done by prepareStage()
 
-        // Parse named local contexts from RUN --mount ... from=<key>
-        // Users can provide optional mappings via --local KEY=DIR flags.
-        // Collect unique from= keys in Dockerfile (best-effort, informational)
-        re := regexp.MustCompile(`from=([^,\s]+)`)
-        want := map[string]struct{}{}
-        for _, m := range re.FindAllStringSubmatch(dockerfile, -1) {
-            if len(m) >= 2 {
-                want[m[1]] = struct{}{}
-            }
-        }
+		// Parse named local contexts from RUN --mount ... from=<key>
+		// Users can provide optional mappings via --local KEY=DIR flags.
+		// Collect unique from= keys in Dockerfile (best-effort, informational)
+		re := regexp.MustCompile(`from=([^,\s]+)`)
+		want := map[string]struct{}{}
+		for _, m := range re.FindAllStringSubmatch(dockerfile, -1) {
+			if len(m) >= 2 {
+				want[m[1]] = struct{}{}
+			}
+		}
 
 		// Build with Docker BuildKit
 		if _, err := exec.LookPath("docker"); err != nil {
@@ -598,7 +613,7 @@ var buildCmd = cobra.Command{
 
 		// Assemble docker build command
 		// docker build -t name:version -f Dockerfile [--build-context key=dir ...] buildDir
-        dockerArgs := []string{"build", "-t", res.Name + ":" + res.Version, "-f", dockerfilePath}
+		dockerArgs := []string{"build", "-t", res.Name + ":" + res.Version, "-f", dockerfilePath}
 		// Provide cache= build context automatically
 		dockerArgs = append(dockerArgs, "--build-context", "cache="+cacheDir)
 		// Append user-provided build contexts for named mounts
@@ -633,9 +648,9 @@ var buildCmd = cobra.Command{
 			return fmt.Errorf("docker build failed: %w", err)
 		}
 
-        fmt.Printf("Built image %s:%s\n", res.Name, res.Version)
-        return nil
-    },
+		fmt.Printf("Built image %s:%s\n", res.Name, res.Version)
+		return nil
+	},
 }
 
 func init() {
@@ -647,13 +662,13 @@ func init() {
 	// test-all flags
 	rootCmd.AddCommand(&testAllCmd)
 
-    // Build command flags: --local KEY=DIR can be repeated to supply named contexts
-    buildCmd.Flags().StringArray("local", []string{}, "Supply a named local context as KEY=DIR for RUN --mount from=KEY")
-    rootCmd.AddCommand(&buildCmd)
+	// Build command flags: --local KEY=DIR can be repeated to supply named contexts
+	buildCmd.Flags().StringArray("local", []string{}, "Supply a named local context as KEY=DIR for RUN --mount from=KEY")
+	rootCmd.AddCommand(&buildCmd)
 
-    // Stage command (no build), supports --local as well
-    stageCmd.Flags().StringArray("local", []string{}, "Supply a named local context as KEY=DIR for RUN --mount from=KEY")
-    rootCmd.AddCommand(&stageCmd)
+	// Stage command (no build), supports --local as well
+	stageCmd.Flags().StringArray("local", []string{}, "Supply a named local context as KEY=DIR for RUN --mount from=KEY")
+	rootCmd.AddCommand(&stageCmd)
 }
 
 func main() {

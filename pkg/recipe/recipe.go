@@ -695,35 +695,35 @@ func (r RunDirective) Apply(ctx *Context) error {
 // a trailing backslash and the subsequent newline. This preserves intended
 // line continuations in shell commands authored in templates.
 func trimSpacesAfterBackslash(s string) string {
-    // Fast path: if there's no backslash, return as-is
-    if !strings.Contains(s, "\\") {
-        return s
-    }
-    var b strings.Builder
-    b.Grow(len(s))
-    for i := 0; i < len(s); i++ {
-        c := s[i]
-        if c == '\\' {
-            b.WriteByte(c)
-            j := i + 1
-            // Skip spaces, tabs, and optional CR until potential newline
-            for j < len(s) {
-                cj := s[j]
-                if cj == ' ' || cj == '\t' || cj == '\r' {
-                    j++
-                    continue
-                }
-                break
-            }
-            if j < len(s) && s[j] == '\n' {
-                // Drop the intervening whitespace; continue loop from backslash
-                i = j - 1
-                continue
-            }
-        }
-        b.WriteByte(c)
-    }
-    return b.String()
+	// Fast path: if there's no backslash, return as-is
+	if !strings.Contains(s, "\\") {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == '\\' {
+			b.WriteByte(c)
+			j := i + 1
+			// Skip spaces, tabs, and optional CR until potential newline
+			for j < len(s) {
+				cj := s[j]
+				if cj == ' ' || cj == '\t' || cj == '\r' {
+					j++
+					continue
+				}
+				break
+			}
+			if j < len(s) && s[j] == '\n' {
+				// Drop the intervening whitespace; continue loop from backslash
+				i = j - 1
+				continue
+			}
+		}
+		b.WriteByte(c)
+	}
+	return b.String()
 }
 
 type FileDirective FileInfo

@@ -7,19 +7,19 @@ binaries:
     latest: https://repo.continuum.io/miniconda/Miniconda3-{{ self.version }}-Linux-x86_64.sh
     "*": https://repo.continuum.io/miniconda/Miniconda3-{{ self.version }}-Linux-x86_64.sh
   env:
-    CONDA_DIR: '{{ self.install_path }}'
-    PATH: '{{ self.install_path }}/bin:$PATH'
+    CONDA_DIR: "{{ self.install_path }}"
+    PATH: "{{ self.install_path }}/bin:$PATH"
   dependencies:
     apt:
-    - bzip2
-    - ca-certificates
-    - curl
+      - bzip2
+      - ca-certificates
+      - curl
     yum:
-    - bzip2
-    - curl
+      - bzip2
+      - curl
   arguments:
     required:
-    - version
+      - version
     optional:
       install_path: /opt/miniconda-{{ self.version }}
       # We do not use a boolean type here because all keywords to the templates are
@@ -53,6 +53,8 @@ binaries:
     {% endif -%}
     # Prefer packages in conda-forge
     conda config --system --prepend channels conda-forge
+    # Accept terms automatically. The command might not exist on older conda versions so don't fail.
+    conda tos accept || true
     # Packages in lower-priority channels not considered if a package with the same
     # name exists in a higher priority channel. Can dramatically speed up installations.
     # Conda recommends this as a default

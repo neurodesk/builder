@@ -105,35 +105,53 @@ func (c *Cache) Get(ctx context.Context, url string) (string, bool, error) {
 		// Else continue to full fetch below
 	}
 
-	// Full fetch
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return "", false, err
+	// Full fetch with simple retry/backoff on network errors or 5xx
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return "", false, err
+		}
+		resp, err := c.Client.Do(req)
+		if err != nil {
+			lastErr = err
+		} else {
+			func() {
+				defer resp.Body.Close()
+				if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+					dataFile := key + ".data"
+					path := filepath.Join(c.Dir, dataFile)
+					if err := streamToFile(resp.Body, path, 0o644); err != nil {
+						lastErr = err
+						return
+					}
+					nm := meta{
+						URL:          url,
+						ETag:         resp.Header.Get("ETag"),
+						LastModified: resp.Header.Get("Last-Modified"),
+						Filename:     contentFilename(url, resp),
+						DataFile:     dataFile,
+					}
+					if err := writeMeta(mpath, nm); err != nil {
+						lastErr = err
+						return
+					}
+					lastErr = nil
+					// success
+				} else {
+					lastErr = fmt.Errorf("HTTP %d", resp.StatusCode)
+				}
+			}()
+		}
+		if lastErr == nil {
+			// Success; return cached path derived from meta
+			dataFile := key + ".data"
+			return filepath.Join(c.Dir, dataFile), false, nil
+		}
+		// Backoff before retrying
+		time.Sleep(time.Duration(1<<attempt) * 2 * time.Second)
 	}
-	resp, err := c.Client.Do(req)
-	if err != nil {
-		return "", false, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", false, fmt.Errorf("HTTP %d", resp.StatusCode)
-	}
-	dataFile := key + ".data"
-	path := filepath.Join(c.Dir, dataFile)
-	if err := streamToFile(resp.Body, path, 0o644); err != nil {
-		return "", false, err
-	}
-	nm := meta{
-		URL:          url,
-		ETag:         resp.Header.Get("ETag"),
-		LastModified: resp.Header.Get("Last-Modified"),
-		Filename:     contentFilename(url, resp),
-		DataFile:     dataFile,
-	}
-	if err := writeMeta(mpath, nm); err != nil {
-		return "", false, err
-	}
-	return path, false, nil
+	return "", false, lastErr
 }
 
 func streamToFile(r io.Reader, dst string, mode os.FileMode) error {

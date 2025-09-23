@@ -243,6 +243,11 @@ var buildCmd = cobra.Command{
 			return fmt.Errorf("generating dockerfile: %w", err)
 		}
 
+		// Basic sanity check for unrendered string concatenations from templates/recipes
+		if strings.Contains(dockerfile, "\" + ") {
+			return fmt.Errorf("detected unrendered string concatenation (e.g., \" + var + \" ) in generated Dockerfile; recipes should use Jinja syntax like {{ var }}")
+		}
+
 		// Write Dockerfile to a dedicated build directory
 		buildDir := filepath.Join("local", "build", build.Name)
 		if err := os.MkdirAll(buildDir, 0o755); err != nil {
@@ -305,7 +310,33 @@ var buildCmd = cobra.Command{
 			dst := filepath.Join(cacheDir, filepath.FromSlash(f.Name))
 			switch {
 			case f.HostFilename != "":
-				if err := copyFile(f.HostFilename, dst, f.Executable); err != nil {
+				src := f.HostFilename
+				// Resolve relative host paths against the recipe directory and include dirs.
+				if !filepath.IsAbs(src) {
+					cand := filepath.Join(recipePath, src)
+					if _, err := os.Stat(cand); err == nil {
+						src = cand
+					} else {
+						// search include dirs
+						found := false
+						for _, inc := range cfg.IncludeDirs {
+							cand = filepath.Join(inc, src)
+							if _, err2 := os.Stat(cand); err2 == nil {
+								src = cand
+								found = true
+								break
+							}
+						}
+						if !found {
+							return fmt.Errorf("staging file %q: not found (looked in recipe and include_dirs)", f.HostFilename)
+						}
+					}
+				} else {
+					if _, err := os.Stat(src); err != nil {
+						return fmt.Errorf("staging file %q: %w", f.HostFilename, err)
+					}
+				}
+				if err := copyFile(src, dst, f.Executable); err != nil {
 					return fmt.Errorf("staging file %q: %w", f.HostFilename, err)
 				}
 			case f.Contents != "":
@@ -317,8 +348,7 @@ var buildCmd = cobra.Command{
 				ctx := context.Background()
 				localPath, _, err := hc.Get(ctx, f.URL)
 				if err != nil {
-					fmt.Printf("WARN: could not fetch %s: %v\n", f.URL, err)
-					continue
+					return fmt.Errorf("fetching %q: %w", f.URL, err)
 				}
 				if err := copyFile(localPath, dst, f.Executable); err != nil {
 					return fmt.Errorf("staging downloaded file %q: %w", f.URL, err)
@@ -356,6 +386,7 @@ var buildCmd = cobra.Command{
 			for _, f := range plan.Files {
 				staged[f.Name] = struct{}{}
 			}
+			missing := []string{}
 			for _, c := range copies {
 				for _, s := range c.Src {
 					s = strings.Trim(s, "\"")
@@ -366,8 +397,14 @@ var buildCmd = cobra.Command{
 						if err := copyFile(src, dst, false); err != nil {
 							// best-effort, ignore
 						}
+						if _, err := os.Stat(dst); err != nil {
+							missing = append(missing, s)
+						}
 					}
 				}
+			}
+			if len(missing) > 0 {
+				return fmt.Errorf("missing staged COPY sources: %s", strings.Join(missing, ", "))
 			}
 		}
 
@@ -407,8 +444,12 @@ var buildCmd = cobra.Command{
 			dockerArgs = append(dockerArgs, "--build-context", kv)
 			delete(want, parts[0])
 		}
-		for k := range want {
-			fmt.Printf("WARN: missing --build-context mapping for key %q required by RUN mounts\n", k)
+		if len(want) > 0 {
+			var keys []string
+			for k := range want {
+				keys = append(keys, k)
+			}
+			return fmt.Errorf("missing required --build-context mappings for keys: %s", strings.Join(keys, ", "))
 		}
 		dockerArgs = append(dockerArgs, buildDir)
 

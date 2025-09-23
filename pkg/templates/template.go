@@ -45,7 +45,10 @@ func (t *templateSelf) install(mgr common.PackageManager, args []string) (string
 		if len(args) == 0 {
 			return "", fmt.Errorf("no packages specified for apt")
 		}
-		return fmt.Sprintf("apt-get update && apt-get install -y %s", strings.Join(args, " ")), nil
+		return fmt.Sprintf(
+			"apt-get -o Acquire::Retries=3 update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends %s",
+			strings.Join(args, " "),
+		), nil
 	case common.PkgManagerYum:
 		if len(args) == 0 {
 			return "", fmt.Errorf("no packages specified for yum")

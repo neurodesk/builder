@@ -32,7 +32,8 @@ binaries:
       conda_opts: ""
       pip_opts: ""
       yaml_file: ""
-      mamba: "false"
+      # Default to libmamba solver for faster/more reliable solves
+      mamba: "true"
   instructions: |
     {% if not self.installed.lower() in ["true", "y", "1"] -%}
     {{ self.install_dependencies() }}

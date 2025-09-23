@@ -105,6 +105,10 @@ jobs:
             - ${GITHUB_WORKSPACE}/neurocontainers
           EOF
 
+      - name: Free disk space (docker prune)
+        run: |
+          docker system prune -af --volumes || true
+
       - name: Build recipe
         env:
           BUILDER_HTTP_CACHE_DIR: ${{ github.workspace }}/.httpcache
@@ -116,6 +120,11 @@ jobs:
           # Capture full logs while keeping live output
           ./builder build "${RECIPE_DIR}" --config builder.config.yaml 2>&1 | tee "logs/build.log"
           exit ${PIPESTATUS[0]}
+
+      - name: Free disk space after build
+        if: always()
+        run: |
+          docker system prune -af --volumes || true
 
       - name: Upload build logs
         if: always()

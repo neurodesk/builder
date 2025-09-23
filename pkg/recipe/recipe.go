@@ -369,7 +369,7 @@ func (c *Context) evaluateValue(value any) (any, error) {
 func (c *Context) installPackages(pkgs ...string) error {
 	switch c.PackageManager {
 	case common.PkgManagerApt:
-		cmd := "apt-get update && apt-get install -y " + strings.Join(pkgs, " ")
+		cmd := "apt-get -o Acquire::Retries=3 update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends " + strings.Join(pkgs, " ")
 		c.builder = c.builder.AddRunCommand(cmd)
 		return nil
 	case common.PkgManagerYum:

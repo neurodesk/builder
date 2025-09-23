@@ -102,6 +102,12 @@ func RenderDockerfile(dirs []Directive) (string, error) {
 			// Values are quoted to be safe for spaces/special chars.
 			for i, k := range keys {
 				val := v[k]
+				// Normalize whitespace (including newlines and tabs) to single spaces to
+				// avoid accidental new Dockerfile instructions when templates emit
+				// multi-line values (e.g., LD_LIBRARY_PATH blocks).
+				if strings.IndexByte(val, '\n') >= 0 || strings.IndexByte(val, '\r') >= 0 || strings.IndexByte(val, '\t') >= 0 {
+					val = strings.Join(strings.Fields(val), " ")
+				}
 				// Minimal escaping for double quotes and backslashes.
 				esc := make([]rune, 0, len(val))
 				for _, r := range val {

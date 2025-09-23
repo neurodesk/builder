@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"io"
 	"log/slog"
 	"os"
@@ -380,12 +381,19 @@ var buildCmd = cobra.Command{
 				continue
 			}
 			body := strings.TrimPrefix(line, "COPY ")
-			fields := splitQuoted(body)
+		fields := splitQuoted(body)
 			if len(fields) < 2 {
 				continue
 			}
 			dest := fields[len(fields)-1]
-			srcs := fields[:len(fields)-1]
+			// Filter out COPY options (e.g., --chown, --from) from sources
+			var srcs []string
+			for _, f := range fields[:len(fields)-1] {
+				if strings.HasPrefix(f, "--") {
+					continue
+				}
+				srcs = append(srcs, f)
+			}
 			copies = append(copies, copyDirective{Src: srcs, Dest: dest})
 		}
 		if len(plan.Files) > 0 {
@@ -413,6 +421,73 @@ var buildCmd = cobra.Command{
 			}
 			if len(missing) > 0 {
 				return fmt.Errorf("missing staged COPY sources: %s", strings.Join(missing, ", "))
+			}
+		}
+
+		// For each COPY, ensure the first source exists in the build context.
+		// If missing, resolve relative to the recipe directory and copy it in.
+		// Sources must be inside the recipe directory; absolute or outside paths are rejected.
+		baseDirAbs, _ := filepath.Abs(recipePath)
+		buildDirAbs, _ := filepath.Abs(buildDir)
+		copyDir := func(src, dst string) error {
+			return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
+				if err != nil {
+					return err
+				}
+				rel, err := filepath.Rel(src, path)
+				if err != nil {
+					return err
+				}
+				target := filepath.Join(dst, rel)
+				if d.IsDir() {
+					return os.MkdirAll(target, 0o755)
+				}
+				return copyFile(path, target, false)
+			})
+		}
+		for _, c := range copies {
+			if len(c.Src) == 0 {
+				continue
+			}
+			first := strings.Trim(c.Src[0], "\"")
+			bcPath := filepath.Join(buildDir, filepath.FromSlash(first))
+			if _, err := os.Stat(bcPath); err == nil {
+				continue
+			}
+			// Destination path within build context must stay inside buildDir
+			bcAbs := bcPath
+			if abs, err := filepath.Abs(bcPath); err == nil {
+				bcAbs = abs
+			}
+			if rel, err := filepath.Rel(buildDirAbs, bcAbs); err != nil || strings.HasPrefix(rel, "..") {
+				return fmt.Errorf("COPY destination path escapes build context: %q", first)
+			}
+
+			// Resolve source strictly within the recipe directory
+			if filepath.IsAbs(first) {
+				return fmt.Errorf("absolute COPY sources are not allowed: %q", first)
+			}
+			src := filepath.Join(baseDirAbs, filepath.FromSlash(first))
+			// Resolve symlinks to avoid escaping the recipe directory
+			srcEval, err := filepath.EvalSymlinks(src)
+			if err != nil {
+				return fmt.Errorf("COPY source %q not found in recipe directory", first)
+			}
+			if rel, err := filepath.Rel(baseDirAbs, srcEval); err != nil || strings.HasPrefix(rel, "..") {
+				return fmt.Errorf("COPY source %q is outside the recipe directory", first)
+			}
+			st, err := os.Stat(srcEval)
+			if err != nil {
+				return fmt.Errorf("COPY source %q not found in recipe directory", first)
+			}
+			if st.IsDir() {
+				if err := copyDir(srcEval, bcPath); err != nil {
+					return fmt.Errorf("copying directory %q into build context: %w", first, err)
+				}
+			} else {
+				if err := copyFile(srcEval, bcPath, false); err != nil {
+					return fmt.Errorf("copying file %q into build context: %w", first, err)
+				}
 			}
 		}
 

@@ -243,10 +243,21 @@ var buildCmd = cobra.Command{
 			return fmt.Errorf("loading build file: %w", err)
 		}
 
-		irDef, plan, err := build.GenerateWithStaging(cfg.IncludeDirs)
-		if err != nil {
-			return fmt.Errorf("generating build IR: %w", err)
-		}
+        // Parse optional local contexts supplied as --local KEY=DIR and pass keys to recipe generator
+        var localKeys []string
+        if lvals, _ := cmd.Flags().GetStringArray("local"); len(lvals) > 0 {
+            for _, kv := range lvals {
+                parts := strings.SplitN(kv, "=", 2)
+                if len(parts) == 2 && parts[0] != "" {
+                    localKeys = append(localKeys, parts[0])
+                }
+            }
+        }
+
+        irDef, plan, err := build.GenerateWithStagingAndLocals(cfg.IncludeDirs, localKeys)
+        if err != nil {
+            return fmt.Errorf("generating build IR: %w", err)
+        }
 		dockerfile, err := ir.GenerateDockerfile(irDef)
 		if err != nil {
 			return fmt.Errorf("generating dockerfile: %w", err)
@@ -491,13 +502,13 @@ var buildCmd = cobra.Command{
 			}
 		}
 
-		// Parse required named local contexts from RUN --mount ... from=<key>
-		// Users can provide mappings via --local KEY=DIR flags.
+		// Parse named local contexts from RUN --mount ... from=<key>
+		// Users can provide optional mappings via --local KEY=DIR flags.
 		var locals []string
 		if lvals, _ := cmd.Flags().GetStringArray("local"); len(lvals) > 0 {
 			locals = append(locals, lvals...)
 		}
-		// Collect unique from= keys in Dockerfile
+		// Collect unique from= keys in Dockerfile (best-effort, informational)
 		re := regexp.MustCompile(`from=([^,\s]+)`)
 		want := map[string]struct{}{}
 		for _, m := range re.FindAllStringSubmatch(dockerfile, -1) {
@@ -527,12 +538,14 @@ var buildCmd = cobra.Command{
 			dockerArgs = append(dockerArgs, "--build-context", kv)
 			delete(want, parts[0])
 		}
+		// Any remaining keys in 'want' are optional locals; recipes typically guard with has_local.
+		// We only emit an informational message to aid debugging.
 		if len(want) > 0 {
 			var keys []string
 			for k := range want {
 				keys = append(keys, k)
 			}
-			return fmt.Errorf("missing required --build-context mappings for keys: %s", strings.Join(keys, ", "))
+			fmt.Printf("Info: optional locals not supplied: %s (guard with has_local)\n", strings.Join(keys, ", "))
 		}
 		dockerArgs = append(dockerArgs, buildDir)
 

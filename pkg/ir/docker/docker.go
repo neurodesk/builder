@@ -137,7 +137,7 @@ func RenderDockerfile(dirs []Directive) (string, error) {
 			// Use exec form to ensure correct shell parsing and robust handling
 			// of quotes, newlines, and operators. JSON-encode the argv array
 			// without HTML escaping so special characters remain as-is.
-			argv := []string{"/bin/bash", "-lc", v.Command}
+			argv := []string{"/bin/sh", "-lc", v.Command}
 			var jbuf bytes.Buffer
 			enc := json.NewEncoder(&jbuf)
 			enc.SetEscapeHTML(false)
@@ -152,7 +152,7 @@ func RenderDockerfile(dirs []Directive) (string, error) {
 
 		case RunWithMounts:
 			// JSON exec form is supported with BuildKit options preceding the command.
-			argv := []string{"/bin/bash", "-lc", v.Command}
+			argv := []string{"/bin/sh", "-lc", v.Command}
 			var jbuf bytes.Buffer
 			enc := json.NewEncoder(&jbuf)
 			enc.SetEscapeHTML(false)
@@ -201,7 +201,7 @@ func RenderDockerfile(dirs []Directive) (string, error) {
 				return "", fmt.Errorf("ENTRYPOINT: empty command")
 			}
 			// Use exec form with JSON encoding to handle special chars robustly.
-			argv := []string{"/bin/bash", "-lc", string(v)}
+			argv := []string{"/bin/sh", "-lc", string(v)}
 			var jbuf bytes.Buffer
 			enc := json.NewEncoder(&jbuf)
 			enc.SetEscapeHTML(false)

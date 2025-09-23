@@ -101,6 +101,9 @@ type Context struct {
 	variables map[string]jinja2.Value
 	files     map[string]file
 
+	// Keys of optional named local contexts provided by the CLI (e.g., --local key=dir)
+	locals map[string]struct{}
+
 	deployBins []string
 	deployPath []string
 
@@ -117,8 +120,11 @@ func (c Context) OnLookup(key string) (jinja2.Value, bool) {
 		return jinja2.FromGo(c.OriginalVersion), true
 	case "has_local":
 		return jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
-			// Local contexts are not yet wired; default to false.
-			return jinja2.BoolValue(false), nil
+			if len(args) != 1 {
+				return nil, fmt.Errorf("has_local expects 1 argument")
+			}
+			key := args[0].String()
+			return jinja2.BoolValue(c.hasLocal(key)), nil
 		}}, true
 	case "get_local":
 		return jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
@@ -171,6 +177,22 @@ func (c *Context) SetVariable(key string, value any) {
 	c.variables[key] = jinja2.FromGo(value)
 }
 
+// hasLocal reports whether a given local key is available in this context (or ancestors).
+func (c *Context) hasLocal(k string) bool {
+	if c == nil {
+		return false
+	}
+	if c.locals != nil {
+		if _, ok := c.locals[k]; ok {
+			return true
+		}
+	}
+	if c.parent != nil {
+		return c.parent.hasLocal(k)
+	}
+	return false
+}
+
 // AddRunCommand implements starlark.RecipeContext hook to accumulate commands.
 func (c *Context) AddRunCommand(cmd string) { c.runCommands = append(c.runCommands, cmd) }
 
@@ -213,7 +235,10 @@ func (c *Context) evaluateValue(value any) (any, error) {
 		}
 		// Top-level helpers to match Python builder methods
 		ctx["has_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
-			return jinja2.BoolValue(false), nil
+			if len(args) != 1 {
+				return nil, fmt.Errorf("has_local expects 1 argument")
+			}
+			return jinja2.BoolValue(c.hasLocal(args[0].String())), nil
 		}}
 		ctx["get_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
 			if len(args) != 1 {
@@ -247,7 +272,10 @@ func (c *Context) evaluateValue(value any) (any, error) {
 			"arch":          jinja2.StringValue(string(c.Arch)),
 		}
 		ctx["has_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
-			return jinja2.BoolValue(false), nil
+			if len(args) != 1 {
+				return nil, fmt.Errorf("has_local expects 1 argument")
+			}
+			return jinja2.BoolValue(c.hasLocal(args[0].String())), nil
 		}}
 		ctx["get_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
 			if len(args) != 1 {
@@ -303,7 +331,10 @@ func (c *Context) evaluateValue(value any) (any, error) {
 			}
 			// Also expose helpers at top-level for conditions if needed
 			condCtx["has_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
-				return jinja2.BoolValue(false), nil
+				if len(args) != 1 {
+					return nil, fmt.Errorf("has_local expects 1 argument")
+				}
+				return jinja2.BoolValue(c.hasLocal(args[0].String())), nil
 			}}
 			condCtx["get_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
 				if len(args) != 1 {
@@ -610,7 +641,10 @@ func (r RunDirective) Apply(ctx *Context) error {
 			"arch":          jinja2.StringValue(string(ctx.Arch)),
 		}
 		jctx["has_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
-			return jinja2.BoolValue(false), nil
+			if len(args) != 1 {
+				return nil, fmt.Errorf("has_local expects 1 argument")
+			}
+			return jinja2.BoolValue(ctx.hasLocal(args[0].String())), nil
 		}}
 		jctx["get_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
 			if len(args) != 1 {
@@ -1355,6 +1389,51 @@ func (d Directive) Validate(ctx Context) error {
 }
 
 func (d Directive) Apply(ctx *Context) error {
+    // Evaluate condition if present
+    if d.Condition != "" {
+        // Evaluate the condition as a boolean Jinja2 expression rather than
+        // rendering it as a template string.
+        condCtx := jinja2.Context{
+            "context":       ctx,
+            "local":         ctx,
+            "parallel_jobs": jinja2.IntValue(ctx.parallelJobs()),
+            "arch":          jinja2.StringValue(string(ctx.Arch)),
+        }
+        // Provide top-level helpers for convenience in conditions
+        condCtx["has_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
+            if len(args) != 1 {
+                return nil, fmt.Errorf("has_local expects 1 argument")
+            }
+            return jinja2.BoolValue(ctx.hasLocal(args[0].String())), nil
+        }}
+        condCtx["get_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
+            if len(args) != 1 {
+                return nil, fmt.Errorf("get_local expects 1 argument")
+            }
+            return jinja2.StringValue("/.neurocontainer-local/" + args[0].String()), nil
+        }}
+        condCtx["get_file"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
+            if len(args) != 1 {
+                return nil, fmt.Errorf("get_file expects 1 argument")
+            }
+            name := args[0].String()
+            if _, ok := ctx.files[name]; ok {
+                return jinja2.StringValue("/.neurocontainer-cache/" + name), nil
+            }
+            return jinja2.StringValue("/.neurocontainer-cache/" + name), nil
+        }}
+
+        ev := jinja2.NewEvaluator()
+        condBool, err := ev.Truthy(d.Condition, condCtx)
+        if err != nil {
+            return fmt.Errorf("evaluating condition %q: %w", d.Condition, err)
+        }
+        if !condBool {
+            // Skip this directive
+            return nil
+        }
+    }
+
 	if d.Group != nil {
 		return d.Group.Apply(ctx, d.With)
 	} else if d.Run != nil {
@@ -1692,24 +1771,54 @@ func (b *BuildFile) Generate(includeDirs []string) (*ir.Definition, error) {
 
 // GenerateWithStaging builds the IR and returns a staging plan for files.
 func (b *BuildFile) GenerateWithStaging(includeDirs []string) (*ir.Definition, *StagingPlan, error) {
-	ctx := newContext(
-		b.Build.PackageManager,
-		b.Version,
-		includeDirs,
-		ir.New(),
-		nil,
-	)
+	return b.GenerateWithStagingAndLocals(includeDirs, nil)
+}
 
-	// Default architecture: first declared, or x86_64 if unspecified
-	if len(b.Architectures) > 0 {
-		ctx.Arch = b.Architectures[0]
+// GenerateWithStagingAndLocals is like GenerateWithStaging, but allows the caller
+// to specify which optional local contexts are available (by key).
+func (b *BuildFile) GenerateWithStagingAndLocals(includeDirs []string, locals []string) (*ir.Definition, *StagingPlan, error) {
+    ctx := newContext(
+        b.Build.PackageManager,
+        b.Version,
+        includeDirs,
+        ir.New(),
+        nil,
+    )
+
+	if len(locals) > 0 {
+		ctx.locals = make(map[string]struct{}, len(locals))
+		for _, k := range locals {
+			if k == "" {
+				continue
+			}
+			ctx.locals[k] = struct{}{}
+		}
 	}
 
-	// Apply top-level variables early so they are available to directives
-	if len(b.Variables) > 0 {
-		vars := VariablesDirective(b.Variables)
-		if err := vars.Apply(ctx); err != nil {
-			return nil, nil, fmt.Errorf("applying top-level variables: %w", err)
+    // Default architecture: first declared, or x86_64 if unspecified
+    if len(b.Architectures) > 0 {
+        ctx.Arch = b.Architectures[0]
+    }
+
+    // Expose declared options (with defaults) to template/evaluator as context.options
+    if len(b.Options) > 0 {
+        optVals := make(map[string]any, len(b.Options))
+        for k, info := range b.Options {
+            if info.Default != nil {
+                optVals[k] = info.Default
+            } else {
+                // If no explicit default, assume false-y
+                optVals[k] = false
+            }
+        }
+        ctx.SetVariable("options", optVals)
+    }
+
+    // Apply top-level variables early so they are available to directives
+    if len(b.Variables) > 0 {
+        vars := VariablesDirective(b.Variables)
+        if err := vars.Apply(ctx); err != nil {
+            return nil, nil, fmt.Errorf("applying top-level variables: %w", err)
 		}
 	}
 

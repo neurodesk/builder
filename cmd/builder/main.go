@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"io/fs"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -381,7 +381,7 @@ var buildCmd = cobra.Command{
 				continue
 			}
 			body := strings.TrimPrefix(line, "COPY ")
-		fields := splitQuoted(body)
+			fields := splitQuoted(body)
 			if len(fields) < 2 {
 				continue
 			}

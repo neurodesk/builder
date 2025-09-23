@@ -1,4 +1,5 @@
-/local/
+/local/*
+!/local/go.mod
 
 /builder.config.yaml
 builder

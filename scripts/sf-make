@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# sf-make: Unprivileged build using BuildKit + Apptainer
+# - Generates Dockerfile and staged context via builder CLI
+# - Builds with buildkitd/buildctl (no Docker daemon required)
+# - Emits docker-archive and optional SIF
+
+usage() {
+  cat <<EOF
+Usage: sf-make [--config FILE] [--local KEY=DIR] [--no-sif] [--arch ARCH] <recipe>
+
+Options:
+  --config FILE     Path to builder.config.yaml
+  --local KEY=DIR   Supply named local context for RUN --mount from=KEY (repeatable)
+  --no-sif          Do not build a SIF (only produce docker-archive)
+  --arch ARCH       Target platform (e.g., linux/amd64, linux/arm64)
+
+Environment:
+  XDG_RUNTIME_DIR   BuildKit runtime dir (default: /tmp/buildkit)
+  ROOTDIR           BuildKit root dir (default: /tmp/buildkit-root)
+EOF
+}
+
+CONFIG_FLAG=()
+LOCAL_FLAGS=()
+NO_SIF=0
+ARCH=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --config)
+      CONFIG_FLAG=("--config" "$2"); shift 2 ;;
+    --local)
+      LOCAL_FLAGS+=("--local" "$2"); shift 2 ;;
+    --no-sif)
+      NO_SIF=1; shift ;;
+    --arch)
+      ARCH="$2"; shift 2 ;;
+    -h|--help)
+      usage; exit 0 ;;
+    --*)
+      echo "Unknown option: $1" >&2; usage; exit 2 ;;
+    *)
+      RECIPE="$1"; shift ;;
+  esac
+done
+
+if [[ -z "${RECIPE:-}" ]]; then
+  echo "Error: recipe is required" >&2
+  usage
+  exit 2
+fi
+
+if ! command -v buildkitd >/dev/null 2>&1; then
+  echo "Error: buildkitd not found in PATH" >&2
+  exit 1
+fi
+if ! command -v buildctl >/dev/null 2>&1; then
+  echo "Error: buildctl not found in PATH" >&2
+  exit 1
+fi
+if ! command -v apptainer >/dev/null 2>&1 && [[ "$NO_SIF" -eq 0 ]]; then
+  echo "Warning: apptainer not found; will skip SIF build" >&2
+  NO_SIF=1
+fi
+
+# Stage build context using the builder
+STAGE_JSON=$(builder ${CONFIG_FLAG[@]:-} stage ${LOCAL_FLAGS[@]:-} "$RECIPE")
+
+# Minimal JSON parse using shell tools (no jq dependency)
+json_get() { # key
+  # extract simple string fields: "key":"value"
+  echo "$STAGE_JSON" | sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" | head -n1
+}
+
+NAME=$(json_get name)
+VERSION=$(json_get version)
+TAG=$(json_get tag)
+BUILD_DIR=$(json_get build_dir)
+DOCKERFILE=$(json_get dockerfile)
+
+if [[ -z "$NAME" || -z "$BUILD_DIR" || -z "$DOCKERFILE" ]]; then
+  echo "Failed to parse stage output: $STAGE_JSON" >&2
+  exit 1
+fi
+
+echo "Staged: $NAME:$VERSION"
+echo " - build dir: $BUILD_DIR"
+echo " - dockerfile: $DOCKERFILE"
+
+# Start buildkitd (rootless)
+XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp/buildkit}"
+ROOTDIR="${ROOTDIR:-/tmp/buildkit-root}"
+SOCK="$XDG_RUNTIME_DIR/buildkitd.sock"
+mkdir -p "$XDG_RUNTIME_DIR" "$ROOTDIR"
+
+echo "Starting buildkitd at $SOCK"
+buildkitd --addr "unix://$SOCK" --root "$ROOTDIR" &
+BK_PID=$!
+trap 'kill $BK_PID 2>/dev/null || true' EXIT
+
+# Wait for readiness
+for i in $(seq 1 60); do
+  if buildctl --addr "unix://$SOCK" debug workers >/dev/null 2>&1; then
+    break
+  fi
+  sleep 0.2
+done
+
+PLATFORM_FLAG=()
+if [[ -n "$ARCH" ]]; then
+  PLATFORM_FLAG=("--opt" "platform=$ARCH")
+fi
+
+IMAGE_TAR="$BUILD_DIR/${NAME}_${VERSION}.docker.tar"
+echo "Building via buildctl → $(basename "$IMAGE_TAR")"
+(
+  cd "$BUILD_DIR"
+  buildctl --addr "unix://$SOCK" build \
+    --frontend=dockerfile.v0 \
+    --local context=. \
+    --local dockerfile=. \
+    --local cache="$BUILD_DIR/cache" \
+    --opt "filename=$(basename "$DOCKERFILE")" \
+    ${PLATFORM_FLAG[@]:-} \
+    --output "type=docker,name=$TAG" \
+    "${LOCAL_FLAGS[@]/#/--local }" \
+    > "$IMAGE_TAR"
+)
+
+echo "Image archive created: $IMAGE_TAR"
+
+if [[ "$NO_SIF" -eq 0 ]]; then
+  mkdir -p sifs
+  SIF="sifs/${NAME}_${VERSION}.sif"
+  echo "Building SIF: $SIF"
+  apptainer build --force "$SIF" "docker-archive://$IMAGE_TAR"
+  echo "SIF built: $SIF"
+fi
+
+echo "Done."

@@ -107,6 +107,31 @@ The `context` and `local` objects provide the same variables - they are aliases 
 
 See the [examples/](examples/) directory for more comprehensive examples.
 
+## Unprivileged BuildKit Builder Image
+
+A Dockerfile is provided to package this builder together with BuildKit and Apptainer for unprivileged builds (no host Docker daemon required).
+
+- Base image: `moby/buildkit:latest`
+- Installs: `apptainer`, `bash`, and the `builder` CLI
+- Helper: `sf-make` script to stage, build via BuildKit, and optionally emit a SIF
+
+Quick usage:
+
+1) Build the image
+   docker build -t neurodesk/builder:latest -f Dockerfile .
+
+2) Run and build a recipe to a SIF
+   docker run --rm -it \
+     -v "$PWD":/work -w /work \
+     --privileged=false \
+     neurodesk/builder:latest \
+     sf-make --config builder.config.yaml path/to/recipe
+
+The `sf-make` command:
+- Generates the Dockerfile and build context using this repo’s CLI (`builder stage`)
+- Starts a rootless `buildkitd` inside the container and builds with `buildctl`
+- Produces a `docker-archive` tar and, by default, a SIF under `sifs/`
+
 ## Large Files and HTTP Caching
 
 - Files referenced by recipes (local or remote) are handled via streaming I/O to avoid loading large blobs into memory.

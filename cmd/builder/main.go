@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/moby/buildkit/frontend/dockerfile/parser"
 	"github.com/neurodesk/builder/pkg/ir"
 	"github.com/neurodesk/builder/pkg/netcache"
 	"github.com/neurodesk/builder/pkg/recipe"
@@ -144,6 +145,13 @@ func testRecipes(recipes []string) error {
 		outputPath := filepath.Join(outputDir, fmt.Sprintf("%s_%s.Dockerfile", build.Name, build.Version))
 		if err := os.WriteFile(outputPath, []byte(dockerfile), 0o644); err != nil {
 			return fmt.Errorf("writing dockerfile: %w", err)
+		}
+
+		// Optionally validate the Dockerfile using the official BuildKit parser
+		if _, err := parser.Parse(strings.NewReader(dockerfile)); err != nil {
+			failed++
+			fmt.Printf("\033[31m  BuildKit parser validation failed: %v\033[0m\n", err)
+			continue
 		}
 
 		fmt.Printf("\033[32m  Successfully generated Dockerfile: %s\033[0m\n", outputPath)
@@ -474,6 +482,7 @@ func init() {
 
 	rootCmd.AddCommand(&generateDockerfileCmd)
 
+	// test-all flags
 	rootCmd.AddCommand(&testAllCmd)
 
 	// Build command flags: --local KEY=DIR can be repeated to supply named contexts

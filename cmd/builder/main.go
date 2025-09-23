@@ -314,53 +314,102 @@ func stageIntoBuildContext(cfg builderConfig, recipePath, dockerfile, buildDir s
 		}
 	}
 
-	// 2) stage COPY sources into build context (relative to recipe dir)
-	baseDirAbs, _ := filepath.Abs(recipePath)
-	buildDirAbs, _ := filepath.Abs(buildDir)
-	for _, spec := range parseCopySpecs(dockerfile) {
-		for _, srcRel := range spec.Src {
-			if filepath.IsAbs(srcRel) {
-				return fmt.Errorf("absolute COPY sources are not allowed: %q", srcRel)
-			}
-			// Destination in build context is buildDir/<srcRel>
-			bcPath := filepath.Join(buildDir, filepath.FromSlash(srcRel))
-			// keep inside buildDir
-			bcAbs := bcPath
-			if abs, err := filepath.Abs(bcPath); err == nil {
-				bcAbs = abs
-			}
-			if rel, err := filepath.Rel(buildDirAbs, bcAbs); err != nil || strings.HasPrefix(rel, "..") {
-				return fmt.Errorf("COPY destination path escapes build context: %q", srcRel)
-			}
-			src := filepath.Join(baseDirAbs, filepath.FromSlash(srcRel))
-			srcEval, err := filepath.EvalSymlinks(src)
-			if err != nil {
-				return fmt.Errorf("COPY source %q not found in recipe directory", srcRel)
-			}
-			if rel, err := filepath.Rel(baseDirAbs, srcEval); err != nil || strings.HasPrefix(rel, "..") {
-				return fmt.Errorf("COPY source %q is outside the recipe directory", srcRel)
-			}
-			st, err := os.Stat(srcEval)
-			if err != nil {
-				return fmt.Errorf("COPY source %q not found in recipe directory", srcRel)
-			}
-			if st.IsDir() {
-				if verbose {
-					fmt.Printf("[verbose] Copying directory %s -> %s\n", srcEval, bcPath)
-				}
-				if err := copyDir(srcEval, bcPath); err != nil {
-					return fmt.Errorf("copying directory %q into build context: %w", srcRel, err)
-				}
-			} else {
-				if verbose {
-					fmt.Printf("[verbose] Copying file %s -> %s\n", srcEval, bcPath)
-				}
-				if err := copyFile(srcEval, bcPath, false); err != nil {
-					return fmt.Errorf("copying file %q into build context: %w", srcRel, err)
-				}
-			}
-		}
-	}
+    // Build a set of virtual file names declared via files{} to support COPY of virtual files
+    vset := map[string]struct{}{}
+    for _, f := range plan.Files {
+        if f.Name != "" {
+            vset[f.Name] = struct{}{}
+        }
+    }
+
+    // 2) stage COPY sources into build context (relative to recipe dir)
+    baseDirAbs, _ := filepath.Abs(recipePath)
+    buildDirAbs, _ := filepath.Abs(buildDir)
+    for _, spec := range parseCopySpecs(dockerfile) {
+        for _, srcRel := range spec.Src {
+            // Normalize to forward slashes for checks
+            srcNorm := strings.TrimPrefix(strings.ReplaceAll(srcRel, "\\", "/"), "./")
+
+            // Support COPY from virtual cache using either absolute get_file path, or cache/<name>
+            if filepath.IsAbs(srcRel) {
+                if strings.HasPrefix(srcNorm, "/.neurocontainer-cache/") {
+                    name := strings.TrimPrefix(srcNorm, "/.neurocontainer-cache/")
+                    srcRel = "cache/" + name
+                    srcNorm = srcRel
+                } else {
+                    return fmt.Errorf("absolute COPY sources are not allowed: %q", srcRel)
+                }
+            }
+
+            // Destination in build context is buildDir/<srcRel>
+            bcPath := filepath.Join(buildDir, filepath.FromSlash(srcRel))
+            // keep inside buildDir
+            bcAbs := bcPath
+            if abs, err := filepath.Abs(bcPath); err == nil {
+                bcAbs = abs
+            }
+            if rel, err := filepath.Rel(buildDirAbs, bcAbs); err != nil || strings.HasPrefix(rel, "..") {
+                return fmt.Errorf("COPY destination path escapes build context: %q", srcRel)
+            }
+
+            // Handle virtual cache/<name> paths: ensure staged cache file exists; no copy needed
+            if strings.HasPrefix(srcNorm, "cache/") {
+                name := strings.TrimPrefix(srcNorm, "cache/")
+                cacheSrc := filepath.Join(buildDir, "cache", filepath.FromSlash(name))
+                if _, err := os.Stat(cacheSrc); err != nil {
+                    return fmt.Errorf("COPY source %q refers to missing staged cache file %q", srcRel, cacheSrc)
+                }
+                // No additional copy needed; Docker build will read from buildDir/cache/...
+                continue
+            }
+
+            // Handle bare virtual names (no slash) that refer to declared files: copy from cache into build context
+            if !strings.Contains(srcNorm, "/") {
+                if _, ok := vset[srcNorm]; ok {
+                    cacheSrc := filepath.Join(buildDir, "cache", filepath.FromSlash(srcNorm))
+                    if st, err := os.Stat(cacheSrc); err != nil || st.IsDir() {
+                        return fmt.Errorf("virtual COPY source %q not found in staged cache at %q", srcRel, cacheSrc)
+                    }
+                    if verbose {
+                        fmt.Printf("[verbose] Materializing virtual file %s -> %s\n", cacheSrc, bcPath)
+                    }
+                    if err := copyFile(cacheSrc, bcPath, false); err != nil {
+                        return fmt.Errorf("copying virtual file %q into build context: %w", srcRel, err)
+                    }
+                    continue
+                }
+            }
+
+            // Fallback: treat as real file from the recipe directory
+            src := filepath.Join(baseDirAbs, filepath.FromSlash(srcRel))
+            srcEval, err := filepath.EvalSymlinks(src)
+            if err != nil {
+                return fmt.Errorf("COPY source %q not found in recipe directory", srcRel)
+            }
+            if rel, err := filepath.Rel(baseDirAbs, srcEval); err != nil || strings.HasPrefix(rel, "..") {
+                return fmt.Errorf("COPY source %q is outside the recipe directory", srcRel)
+            }
+            st, err := os.Stat(srcEval)
+            if err != nil {
+                return fmt.Errorf("COPY source %q not found in recipe directory", srcRel)
+            }
+            if st.IsDir() {
+                if verbose {
+                    fmt.Printf("[verbose] Copying directory %s -> %s\n", srcEval, bcPath)
+                }
+                if err := copyDir(srcEval, bcPath); err != nil {
+                    return fmt.Errorf("copying directory %q into build context: %w", srcRel, err)
+                }
+            } else {
+                if verbose {
+                    fmt.Printf("[verbose] Copying file %s -> %s\n", srcEval, bcPath)
+                }
+                if err := copyFile(srcEval, bcPath, false); err != nil {
+                    return fmt.Errorf("copying file %q into build context: %w", srcRel, err)
+                }
+            }
+        }
+    }
 
 	return nil
 }
@@ -480,22 +529,22 @@ func testRecipes(recipes []string) error {
 		failed  int
 	)
 
-    for _, r := range recipes {
-        fmt.Printf("Testing recipe: %s\n", r)
-        build, err := recipe.LoadBuildFile(r)
-        if err != nil {
-            failed++
-            fmt.Printf("\033[31m  Failed to load build file: %v\033[0m\n", err)
-            continue
-        }
+	for _, r := range recipes {
+		fmt.Printf("Testing recipe: %s\n", r)
+		build, err := recipe.LoadBuildFile(r)
+		if err != nil {
+			failed++
+			fmt.Printf("\033[31m  Failed to load build file: %v\033[0m\n", err)
+			continue
+		}
 
-        // Generate IR and staging plan so we can validate file presence
-        out, plan, err := build.GenerateWithStaging(cfg.IncludeDirs)
-        if err != nil {
-            failed++
-            fmt.Printf("\033[31m  Failed to generate IR: %v\033[0m\n", err)
-            continue
-        }
+		// Generate IR and staging plan so we can validate file presence
+		out, plan, err := build.GenerateWithStaging(cfg.IncludeDirs)
+		if err != nil {
+			failed++
+			fmt.Printf("\033[31m  Failed to generate IR: %v\033[0m\n", err)
+			continue
+		}
 
 		dockerfile, err := ir.GenerateDockerfile(out)
 		if err != nil {
@@ -510,84 +559,126 @@ func testRecipes(recipes []string) error {
 			return fmt.Errorf("writing dockerfile: %w", err)
 		}
 
-        // Optionally validate the Dockerfile using the official BuildKit parser
-        if _, err := parser.Parse(strings.NewReader(dockerfile)); err != nil {
-            failed++
-            fmt.Printf("\033[31m  BuildKit parser validation failed: %v\033[0m\n", err)
-            continue
-        }
+		// Optionally validate the Dockerfile using the official BuildKit parser
+		if _, err := parser.Parse(strings.NewReader(dockerfile)); err != nil {
+			failed++
+			fmt.Printf("\033[31m  BuildKit parser validation failed: %v\033[0m\n", err)
+			continue
+		}
 
-        // Validate staged file sources exist in expected locations
-        missing := false
-        for _, f := range plan.Files {
-            if f.HostFilename == "" { // URLs and literals are not checked here
-                continue
-            }
-            src := f.HostFilename
-            // Resolve relative to recipe dir first, then include dirs
-            var candidates []string
-            if filepath.IsAbs(src) {
-                candidates = []string{src}
-            } else {
-                candidates = append(candidates, filepath.Join(r, src))
-                for _, d := range cfg.IncludeDirs {
-                    candidates = append(candidates, filepath.Join(d, src))
-                }
-            }
-            found := false
-            for _, cand := range candidates {
-                if st, err := os.Stat(cand); err == nil && !st.IsDir() {
-                    found = true
-                    break
-                }
-            }
-            if !found {
-                missing = true
-                fmt.Printf("\033[31m  Missing file referenced by files: %s (searched: %s)\033[0m\n", src, strings.Join(candidates, ", "))
-            }
-        }
+		// Validate staged file sources exist in expected locations
+		missing := false
+		for _, f := range plan.Files {
+			if f.HostFilename == "" { // URLs and literals are not checked here
+				continue
+			}
+			src := f.HostFilename
+			// Resolve relative to recipe dir first, then include dirs
+			var candidates []string
+			if filepath.IsAbs(src) {
+				candidates = []string{src}
+			} else {
+				candidates = append(candidates, filepath.Join(r, src))
+				for _, d := range cfg.IncludeDirs {
+					candidates = append(candidates, filepath.Join(d, src))
+				}
+			}
+			found := false
+			for _, cand := range candidates {
+				if st, err := os.Stat(cand); err == nil && !st.IsDir() {
+					found = true
+					break
+				}
+			}
+			if !found {
+				missing = true
+				fmt.Printf("\033[31m  Missing file referenced by files: %s (searched: %s)\033[0m\n", src, strings.Join(candidates, ", "))
+			}
+		}
 
-        // Validate COPY sources are present inside the recipe directory
-        for _, spec := range parseCopySpecs(dockerfile) {
-            for _, srcRel := range spec.Src {
-                if filepath.IsAbs(srcRel) {
-                    missing = true
-                    fmt.Printf("\033[31m  Invalid absolute COPY source: %s\033[0m\n", srcRel)
-                    continue
-                }
-                srcPath := filepath.Join(r, filepath.FromSlash(srcRel))
-                // Resolve symlinks and ensure it remains within recipe dir
-                eval, err := filepath.EvalSymlinks(srcPath)
-                if err != nil {
-                    missing = true
-                    fmt.Printf("\033[31m  COPY source not found: %s (from %s)\033[0m\n", srcRel, srcPath)
-                    continue
-                }
-                // Ensure path does not escape the recipe directory
-                baseAbs, _ := filepath.Abs(r)
-                evalAbs, _ := filepath.Abs(eval)
-                if rel, err := filepath.Rel(baseAbs, evalAbs); err != nil || strings.HasPrefix(rel, "..") {
-                    missing = true
-                    fmt.Printf("\033[31m  COPY source escapes recipe directory: %s -> %s\033[0m\n", srcRel, eval)
-                    continue
-                }
-                if _, err := os.Stat(eval); err != nil {
-                    missing = true
-                    fmt.Printf("\033[31m  COPY source missing: %s (resolved %s)\033[0m\n", srcRel, eval)
-                    continue
-                }
-            }
-        }
+		// Validate COPY sources are present, supporting "virtual" files declared via files{}.
+		// Virtual files are those declared in the recipe's files list; they are staged
+		// into the special cache context and may be referenced by name, by cache/<name>,
+		// or via the get_file() path "/.neurocontainer-cache/<name>".
+		// We do NOT attempt to download HTTP files here; we only validate names.
+		// Build a quick lookup of declared virtual file names.
+		vset := map[string]struct{}{}
+		for _, f := range plan.Files {
+			if f.Name != "" {
+				vset[f.Name] = struct{}{}
+			}
+		}
 
-        if missing {
-            failed++
-            fmt.Printf("\033[31m  One or more required files are missing\033[0m\n")
-            continue
-        }
+		for _, spec := range parseCopySpecs(dockerfile) {
+			for _, srcRel := range spec.Src {
+				// Normalize to forward slashes for checks
+				srcNorm := strings.TrimPrefix(strings.ReplaceAll(srcRel, "\\", "/"), "./")
 
-        fmt.Printf("\033[32m  Successfully generated Dockerfile: %s\033[0m\n", outputPath)
-        success++
-    }
+				// Handle absolute path that matches get_file() convention
+				if filepath.IsAbs(srcRel) {
+					if after, ok := strings.CutPrefix(srcNorm, "/.neurocontainer-cache/"); ok {
+						if _, ok := vset[after]; !ok {
+							missing = true
+							fmt.Printf("\033[31m  COPY references virtual file not declared: %s (name %s)\033[0m\n", srcRel, after)
+						}
+						continue
+					}
+					missing = true
+					fmt.Printf("\033[31m  Invalid absolute COPY source: %s\033[0m\n", srcRel)
+					continue
+				}
+
+				// cache/<name> maps to a declared virtual file
+				if after, ok := strings.CutPrefix(srcNorm, "cache/"); ok {
+					if _, ok := vset[after]; !ok {
+						missing = true
+						fmt.Printf("\033[31m  COPY references unknown cache file: %s (name %s)\033[0m\n", srcRel, after)
+					}
+					continue
+				}
+
+				// Bare name may refer to a declared virtual file
+				if !strings.Contains(srcNorm, "/") {
+					if _, ok := vset[srcNorm]; ok {
+						// It's a declared virtual; accept without filesystem check
+						continue
+					}
+				}
+
+				// Otherwise, expect a real file in the recipe directory
+				srcPath := filepath.Join(r, filepath.FromSlash(srcRel))
+				// Resolve symlinks and ensure it remains within recipe dir
+				eval, err := filepath.EvalSymlinks(srcPath)
+				if err != nil {
+					missing = true
+					fmt.Printf("\033[31m  COPY source not found: %s (from %s)\033[0m\n", srcRel, srcPath)
+					continue
+				}
+				// Ensure path does not escape the recipe directory
+				baseAbs, _ := filepath.Abs(r)
+				evalAbs, _ := filepath.Abs(eval)
+				if rel, err := filepath.Rel(baseAbs, evalAbs); err != nil || strings.HasPrefix(rel, "..") {
+					missing = true
+					fmt.Printf("\033[31m  COPY source escapes recipe directory: %s -> %s\033[0m\n", srcRel, eval)
+					continue
+				}
+				if _, err := os.Stat(eval); err != nil {
+					missing = true
+					fmt.Printf("\033[31m  COPY source missing: %s (resolved %s)\033[0m\n", srcRel, eval)
+					continue
+				}
+			}
+		}
+
+		if missing {
+			failed++
+			fmt.Printf("\033[31m  One or more required files are missing\033[0m\n")
+			continue
+		}
+
+		fmt.Printf("\033[32m  Successfully generated Dockerfile: %s\033[0m\n", outputPath)
+		success++
+	}
 
 	fmt.Printf("Tested %d recipes: %d succeeded, %d failed\n", len(recipes), success, failed)
 	if failed > 0 {

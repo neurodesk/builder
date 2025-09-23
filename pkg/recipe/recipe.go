@@ -491,6 +491,38 @@ func shellWords(s string) ([]string, error) {
 	return out, nil
 }
 
+// normalizeCopyParts rewrites COPY sources so that virtual files declared via
+// the files directive resolve to paths inside the build context.
+// Rules:
+// - "/.neurocontainer-cache/<name>" -> "cache/<name>"
+// - Bare "<name>" that matches a declared file -> "cache/<name>"
+// Destination (last element) is unchanged.
+func normalizeCopyParts(ctx *Context, parts []string) []string {
+    if len(parts) < 2 {
+        return parts
+    }
+    out := make([]string, len(parts))
+    copy(out, parts)
+    for i := 0; i < len(out)-1; i++ { // only sources
+        s := out[i]
+        sNorm := strings.ReplaceAll(s, "\\", "/")
+        if strings.HasPrefix(sNorm, "/.neurocontainer-cache/") {
+            name := strings.TrimPrefix(sNorm, "/.neurocontainer-cache/")
+            out[i] = "cache/" + name
+            continue
+        }
+        // Bare name -> virtual file
+        if !strings.Contains(sNorm, "/") {
+            if ctx != nil && ctx.files != nil {
+                if _, ok := ctx.files[sNorm]; ok {
+                    out[i] = "cache/" + sNorm
+                }
+            }
+        }
+    }
+    return out
+}
+
 type CPUArchitecture string
 
 const (
@@ -1591,6 +1623,7 @@ func (d Directive) Apply(ctx *Context) error {
 			if len(parts) != 2 {
 				return fmt.Errorf("copy command must have exactly two parts: source and destination")
 			}
+			parts = normalizeCopyParts(ctx, parts)
 			ctx.builder = ctx.builder.AddCopy(parts...)
 			return nil
 		case []string:
@@ -1607,6 +1640,7 @@ func (d Directive) Apply(ctx *Context) error {
 				}
 				parts = append(parts, s)
 			}
+			parts = normalizeCopyParts(ctx, parts)
 			ctx.builder = ctx.builder.AddCopy(parts...)
 			return nil
 		case []any:
@@ -1627,6 +1661,7 @@ func (d Directive) Apply(ctx *Context) error {
 				}
 				parts = append(parts, str)
 			}
+			parts = normalizeCopyParts(ctx, parts)
 			ctx.builder = ctx.builder.AddCopy(parts...)
 			return nil
 		default:

@@ -480,21 +480,22 @@ func testRecipes(recipes []string) error {
 		failed  int
 	)
 
-	for _, r := range recipes {
-		fmt.Printf("Testing recipe: %s\n", r)
-		build, err := recipe.LoadBuildFile(r)
-		if err != nil {
-			failed++
-			fmt.Printf("\033[31m  Failed to load build file: %v\033[0m\n", err)
-			continue
-		}
+    for _, r := range recipes {
+        fmt.Printf("Testing recipe: %s\n", r)
+        build, err := recipe.LoadBuildFile(r)
+        if err != nil {
+            failed++
+            fmt.Printf("\033[31m  Failed to load build file: %v\033[0m\n", err)
+            continue
+        }
 
-		out, err := build.Generate(cfg.IncludeDirs)
-		if err != nil {
-			failed++
-			fmt.Printf("\033[31m  Failed to generate IR: %v\033[0m\n", err)
-			continue
-		}
+        // Generate IR and staging plan so we can validate file presence
+        out, plan, err := build.GenerateWithStaging(cfg.IncludeDirs)
+        if err != nil {
+            failed++
+            fmt.Printf("\033[31m  Failed to generate IR: %v\033[0m\n", err)
+            continue
+        }
 
 		dockerfile, err := ir.GenerateDockerfile(out)
 		if err != nil {
@@ -509,16 +510,84 @@ func testRecipes(recipes []string) error {
 			return fmt.Errorf("writing dockerfile: %w", err)
 		}
 
-		// Optionally validate the Dockerfile using the official BuildKit parser
-		if _, err := parser.Parse(strings.NewReader(dockerfile)); err != nil {
-			failed++
-			fmt.Printf("\033[31m  BuildKit parser validation failed: %v\033[0m\n", err)
-			continue
-		}
+        // Optionally validate the Dockerfile using the official BuildKit parser
+        if _, err := parser.Parse(strings.NewReader(dockerfile)); err != nil {
+            failed++
+            fmt.Printf("\033[31m  BuildKit parser validation failed: %v\033[0m\n", err)
+            continue
+        }
 
-		fmt.Printf("\033[32m  Successfully generated Dockerfile: %s\033[0m\n", outputPath)
-		success++
-	}
+        // Validate staged file sources exist in expected locations
+        missing := false
+        for _, f := range plan.Files {
+            if f.HostFilename == "" { // URLs and literals are not checked here
+                continue
+            }
+            src := f.HostFilename
+            // Resolve relative to recipe dir first, then include dirs
+            var candidates []string
+            if filepath.IsAbs(src) {
+                candidates = []string{src}
+            } else {
+                candidates = append(candidates, filepath.Join(r, src))
+                for _, d := range cfg.IncludeDirs {
+                    candidates = append(candidates, filepath.Join(d, src))
+                }
+            }
+            found := false
+            for _, cand := range candidates {
+                if st, err := os.Stat(cand); err == nil && !st.IsDir() {
+                    found = true
+                    break
+                }
+            }
+            if !found {
+                missing = true
+                fmt.Printf("\033[31m  Missing file referenced by files: %s (searched: %s)\033[0m\n", src, strings.Join(candidates, ", "))
+            }
+        }
+
+        // Validate COPY sources are present inside the recipe directory
+        for _, spec := range parseCopySpecs(dockerfile) {
+            for _, srcRel := range spec.Src {
+                if filepath.IsAbs(srcRel) {
+                    missing = true
+                    fmt.Printf("\033[31m  Invalid absolute COPY source: %s\033[0m\n", srcRel)
+                    continue
+                }
+                srcPath := filepath.Join(r, filepath.FromSlash(srcRel))
+                // Resolve symlinks and ensure it remains within recipe dir
+                eval, err := filepath.EvalSymlinks(srcPath)
+                if err != nil {
+                    missing = true
+                    fmt.Printf("\033[31m  COPY source not found: %s (from %s)\033[0m\n", srcRel, srcPath)
+                    continue
+                }
+                // Ensure path does not escape the recipe directory
+                baseAbs, _ := filepath.Abs(r)
+                evalAbs, _ := filepath.Abs(eval)
+                if rel, err := filepath.Rel(baseAbs, evalAbs); err != nil || strings.HasPrefix(rel, "..") {
+                    missing = true
+                    fmt.Printf("\033[31m  COPY source escapes recipe directory: %s -> %s\033[0m\n", srcRel, eval)
+                    continue
+                }
+                if _, err := os.Stat(eval); err != nil {
+                    missing = true
+                    fmt.Printf("\033[31m  COPY source missing: %s (resolved %s)\033[0m\n", srcRel, eval)
+                    continue
+                }
+            }
+        }
+
+        if missing {
+            failed++
+            fmt.Printf("\033[31m  One or more required files are missing\033[0m\n")
+            continue
+        }
+
+        fmt.Printf("\033[32m  Successfully generated Dockerfile: %s\033[0m\n", outputPath)
+        success++
+    }
 
 	fmt.Printf("Tested %d recipes: %d succeeded, %d failed\n", len(recipes), success, failed)
 	if failed > 0 {

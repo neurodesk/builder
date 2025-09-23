@@ -522,15 +522,15 @@ type DeployInfo struct {
 }
 
 type FileInfo struct {
-	Name       string `yaml:"name"`
-	Executable bool   `yaml:"executable,omitempty"`
-	Retry      *int   `yaml:"retry,omitempty"`
-	Insecure   *bool  `yaml:"insecure,omitempty"`
+	Name       jinja2.TemplateString `yaml:"name"`
+	Executable bool                  `yaml:"executable,omitempty"`
+	Retry      *int                  `yaml:"retry,omitempty"`
+	Insecure   *bool                 `yaml:"insecure,omitempty"`
 
 	// Only one of the following should be set.
-	Filename string `yaml:"filename,omitempty"` // Path to a file to include.
-	Url      string `yaml:"url,omitempty"`      // URL to download file from.
-	Contents string `yaml:"contents,omitempty"` // Literal contents of the file.
+	Filename jinja2.TemplateString `yaml:"filename,omitempty"` // Path to a file to include.
+	Url      jinja2.TemplateString `yaml:"url,omitempty"`      // URL to download file from.
+	Contents jinja2.TemplateString `yaml:"contents,omitempty"` // Literal contents of the file.
 }
 
 type GuiApp struct {
@@ -690,16 +690,25 @@ type FileDirective FileInfo
 
 func (f FileDirective) Validate() error {
 	return v.All(
-		v.NotEmpty(f.Name, "file.name"),
+		f.Name.Validate(),
 		func() error {
 			count := 0
 			if f.Filename != "" {
+				if err := f.Filename.Validate(); err != nil {
+					return fmt.Errorf("validating filename: %w", err)
+				}
 				count++
 			}
 			if f.Url != "" {
+				if err := f.Url.Validate(); err != nil {
+					return fmt.Errorf("validating url: %w", err)
+				}
 				count++
 			}
 			if f.Contents != "" {
+				if err := f.Contents.Validate(); err != nil {
+					return fmt.Errorf("validating contents: %w", err)
+				}
 				count++
 			}
 			if count == 0 {
@@ -714,24 +723,44 @@ func (f FileDirective) Validate() error {
 }
 
 func (f FileDirective) Apply(ctx *Context) error {
+	name, err := ctx.evaluateValue(f.Name)
+	if err != nil {
+		return fmt.Errorf("evaluating file name: %w", err)
+	}
+
 	if f.Filename != "" {
+		val, err := ctx.evaluateValue(f.Filename)
+		if err != nil {
+			return fmt.Errorf("evaluating filename: %w", err)
+		}
+
 		return ctx.addFile(contextFile{
-			Name:         f.Name,
-			HostFilename: f.Filename,
+			Name:         name.(string),
+			HostFilename: val.(string),
 			Executable:   f.Executable,
 		})
 	} else if f.Url != "" {
+		val, err := ctx.evaluateValue(f.Url)
+		if err != nil {
+			return fmt.Errorf("evaluating url: %w", err)
+		}
+
 		return ctx.addFile(httpFile{
-			Name:       f.Name,
-			URL:        f.Url,
+			Name:       name.(string),
+			URL:        val.(string),
 			Executable: f.Executable,
 			Retry:      f.Retry,
 			Insecure:   f.Insecure,
 		})
 	} else if f.Contents != "" {
+		val, err := ctx.evaluateValue(f.Contents)
+		if err != nil {
+			return fmt.Errorf("evaluating contents: %w", err)
+		}
+
 		return ctx.addFile(literalFile{
-			Name:       f.Name,
-			Contents:   f.Contents,
+			Name:       name.(string),
+			Contents:   val.(string),
 			Executable: f.Executable,
 		})
 	} else {
@@ -1389,50 +1418,50 @@ func (d Directive) Validate(ctx Context) error {
 }
 
 func (d Directive) Apply(ctx *Context) error {
-    // Evaluate condition if present
-    if d.Condition != "" {
-        // Evaluate the condition as a boolean Jinja2 expression rather than
-        // rendering it as a template string.
-        condCtx := jinja2.Context{
-            "context":       ctx,
-            "local":         ctx,
-            "parallel_jobs": jinja2.IntValue(ctx.parallelJobs()),
-            "arch":          jinja2.StringValue(string(ctx.Arch)),
-        }
-        // Provide top-level helpers for convenience in conditions
-        condCtx["has_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
-            if len(args) != 1 {
-                return nil, fmt.Errorf("has_local expects 1 argument")
-            }
-            return jinja2.BoolValue(ctx.hasLocal(args[0].String())), nil
-        }}
-        condCtx["get_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
-            if len(args) != 1 {
-                return nil, fmt.Errorf("get_local expects 1 argument")
-            }
-            return jinja2.StringValue("/.neurocontainer-local/" + args[0].String()), nil
-        }}
-        condCtx["get_file"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
-            if len(args) != 1 {
-                return nil, fmt.Errorf("get_file expects 1 argument")
-            }
-            name := args[0].String()
-            if _, ok := ctx.files[name]; ok {
-                return jinja2.StringValue("/.neurocontainer-cache/" + name), nil
-            }
-            return jinja2.StringValue("/.neurocontainer-cache/" + name), nil
-        }}
+	// Evaluate condition if present
+	if d.Condition != "" {
+		// Evaluate the condition as a boolean Jinja2 expression rather than
+		// rendering it as a template string.
+		condCtx := jinja2.Context{
+			"context":       ctx,
+			"local":         ctx,
+			"parallel_jobs": jinja2.IntValue(ctx.parallelJobs()),
+			"arch":          jinja2.StringValue(string(ctx.Arch)),
+		}
+		// Provide top-level helpers for convenience in conditions
+		condCtx["has_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
+			if len(args) != 1 {
+				return nil, fmt.Errorf("has_local expects 1 argument")
+			}
+			return jinja2.BoolValue(ctx.hasLocal(args[0].String())), nil
+		}}
+		condCtx["get_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
+			if len(args) != 1 {
+				return nil, fmt.Errorf("get_local expects 1 argument")
+			}
+			return jinja2.StringValue("/.neurocontainer-local/" + args[0].String()), nil
+		}}
+		condCtx["get_file"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
+			if len(args) != 1 {
+				return nil, fmt.Errorf("get_file expects 1 argument")
+			}
+			name := args[0].String()
+			if _, ok := ctx.files[name]; ok {
+				return jinja2.StringValue("/.neurocontainer-cache/" + name), nil
+			}
+			return jinja2.StringValue("/.neurocontainer-cache/" + name), nil
+		}}
 
-        ev := jinja2.NewEvaluator()
-        condBool, err := ev.Truthy(d.Condition, condCtx)
-        if err != nil {
-            return fmt.Errorf("evaluating condition %q: %w", d.Condition, err)
-        }
-        if !condBool {
-            // Skip this directive
-            return nil
-        }
-    }
+		ev := jinja2.NewEvaluator()
+		condBool, err := ev.Truthy(d.Condition, condCtx)
+		if err != nil {
+			return fmt.Errorf("evaluating condition %q: %w", d.Condition, err)
+		}
+		if !condBool {
+			// Skip this directive
+			return nil
+		}
+	}
 
 	if d.Group != nil {
 		return d.Group.Apply(ctx, d.With)
@@ -1777,13 +1806,13 @@ func (b *BuildFile) GenerateWithStaging(includeDirs []string) (*ir.Definition, *
 // GenerateWithStagingAndLocals is like GenerateWithStaging, but allows the caller
 // to specify which optional local contexts are available (by key).
 func (b *BuildFile) GenerateWithStagingAndLocals(includeDirs []string, locals []string) (*ir.Definition, *StagingPlan, error) {
-    ctx := newContext(
-        b.Build.PackageManager,
-        b.Version,
-        includeDirs,
-        ir.New(),
-        nil,
-    )
+	ctx := newContext(
+		b.Build.PackageManager,
+		b.Version,
+		includeDirs,
+		ir.New(),
+		nil,
+	)
 
 	if len(locals) > 0 {
 		ctx.locals = make(map[string]struct{}, len(locals))
@@ -1795,30 +1824,30 @@ func (b *BuildFile) GenerateWithStagingAndLocals(includeDirs []string, locals []
 		}
 	}
 
-    // Default architecture: first declared, or x86_64 if unspecified
-    if len(b.Architectures) > 0 {
-        ctx.Arch = b.Architectures[0]
-    }
+	// Default architecture: first declared, or x86_64 if unspecified
+	if len(b.Architectures) > 0 {
+		ctx.Arch = b.Architectures[0]
+	}
 
-    // Expose declared options (with defaults) to template/evaluator as context.options
-    if len(b.Options) > 0 {
-        optVals := make(map[string]any, len(b.Options))
-        for k, info := range b.Options {
-            if info.Default != nil {
-                optVals[k] = info.Default
-            } else {
-                // If no explicit default, assume false-y
-                optVals[k] = false
-            }
-        }
-        ctx.SetVariable("options", optVals)
-    }
+	// Expose declared options (with defaults) to template/evaluator as context.options
+	if len(b.Options) > 0 {
+		optVals := make(map[string]any, len(b.Options))
+		for k, info := range b.Options {
+			if info.Default != nil {
+				optVals[k] = info.Default
+			} else {
+				// If no explicit default, assume false-y
+				optVals[k] = false
+			}
+		}
+		ctx.SetVariable("options", optVals)
+	}
 
-    // Apply top-level variables early so they are available to directives
-    if len(b.Variables) > 0 {
-        vars := VariablesDirective(b.Variables)
-        if err := vars.Apply(ctx); err != nil {
-            return nil, nil, fmt.Errorf("applying top-level variables: %w", err)
+	// Apply top-level variables early so they are available to directives
+	if len(b.Variables) > 0 {
+		vars := VariablesDirective(b.Variables)
+		if err := vars.Apply(ctx); err != nil {
+			return nil, nil, fmt.Errorf("applying top-level variables: %w", err)
 		}
 	}
 

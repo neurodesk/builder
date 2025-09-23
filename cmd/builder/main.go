@@ -51,6 +51,7 @@ func (b *builderConfig) loadConfig(path string) error {
 }
 
 var rootBuilderConfig string
+var verbose bool
 
 var rootCmd = cobra.Command{
 	Use:   "builder",
@@ -61,6 +62,9 @@ var generateDockerfileCmd = cobra.Command{
 	Use:   "generate [recipe]",
 	Short: "Generate a Dockerfile for the specified recipe",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if verbose {
+			os.Setenv("BUILDER_VERBOSE", "1")
+		}
 		if len(args) == 0 {
 			return fmt.Errorf("no recipe specified")
 		}
@@ -170,6 +174,9 @@ var testAllCmd = cobra.Command{
 	Use:   "test-all",
 	Short: "Test all recipes in the configured recipe roots",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if verbose {
+			os.Setenv("BUILDER_VERBOSE", "1")
+		}
 		var cfg builderConfig
 
 		if err := cfg.loadConfig(rootBuilderConfig); err != nil {
@@ -208,6 +215,9 @@ var buildCmd = cobra.Command{
 	Use:   "build [recipe]",
 	Short: "Generate Dockerfile and print buildctl command for the recipe",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if verbose {
+			os.Setenv("BUILDER_VERBOSE", "1")
+		}
 		if len(args) == 0 {
 			return fmt.Errorf("no recipe specified")
 		}
@@ -243,21 +253,21 @@ var buildCmd = cobra.Command{
 			return fmt.Errorf("loading build file: %w", err)
 		}
 
-        // Parse optional local contexts supplied as --local KEY=DIR and pass keys to recipe generator
-        var localKeys []string
-        if lvals, _ := cmd.Flags().GetStringArray("local"); len(lvals) > 0 {
-            for _, kv := range lvals {
-                parts := strings.SplitN(kv, "=", 2)
-                if len(parts) == 2 && parts[0] != "" {
-                    localKeys = append(localKeys, parts[0])
-                }
-            }
-        }
+		// Parse optional local contexts supplied as --local KEY=DIR and pass keys to recipe generator
+		var localKeys []string
+		if lvals, _ := cmd.Flags().GetStringArray("local"); len(lvals) > 0 {
+			for _, kv := range lvals {
+				parts := strings.SplitN(kv, "=", 2)
+				if len(parts) == 2 && parts[0] != "" {
+					localKeys = append(localKeys, parts[0])
+				}
+			}
+		}
 
-        irDef, plan, err := build.GenerateWithStagingAndLocals(cfg.IncludeDirs, localKeys)
-        if err != nil {
-            return fmt.Errorf("generating build IR: %w", err)
-        }
+		irDef, plan, err := build.GenerateWithStagingAndLocals(cfg.IncludeDirs, localKeys)
+		if err != nil {
+			return fmt.Errorf("generating build IR: %w", err)
+		}
 		dockerfile, err := ir.GenerateDockerfile(irDef)
 		if err != nil {
 			return fmt.Errorf("generating dockerfile: %w", err)
@@ -356,19 +366,35 @@ var buildCmd = cobra.Command{
 						return fmt.Errorf("staging file %q: %w", f.HostFilename, err)
 					}
 				}
+				if verbose {
+					fmt.Printf("[verbose] Staging local file %s -> %s\n", src, dst)
+				}
 				if err := copyFile(src, dst, f.Executable); err != nil {
 					return fmt.Errorf("staging file %q: %w", f.HostFilename, err)
 				}
 			case f.Contents != "":
+				if verbose {
+					fmt.Printf("[verbose] Staging literal file %s (%d bytes) -> %s\n", f.Name, len(f.Contents), dst)
+				}
 				if err := writeFromReader(dst, strings.NewReader(f.Contents), f.Executable); err != nil {
 					return err
 				}
 			case f.URL != "":
 				// Fetch via persistent HTTP cache and stage streamed
+				if verbose {
+					fmt.Printf("[verbose] Downloading %s -> %s\n", f.URL, dst)
+				}
 				ctx := context.Background()
-				localPath, _, err := hc.Get(ctx, f.URL)
+				localPath, fromCache, err := hc.Get(ctx, f.URL)
 				if err != nil {
 					return fmt.Errorf("fetching %q: %w", f.URL, err)
+				}
+				if verbose {
+					if fromCache {
+						fmt.Printf("[verbose] Using cached %s\n", localPath)
+					} else {
+						fmt.Printf("[verbose] Downloaded to cache %s\n", localPath)
+					}
 				}
 				if err := copyFile(localPath, dst, f.Executable); err != nil {
 					return fmt.Errorf("staging downloaded file %q: %w", f.URL, err)
@@ -492,10 +518,16 @@ var buildCmd = cobra.Command{
 				return fmt.Errorf("COPY source %q not found in recipe directory", first)
 			}
 			if st.IsDir() {
+				if verbose {
+					fmt.Printf("[verbose] Copying directory %s -> %s\n", srcEval, bcPath)
+				}
 				if err := copyDir(srcEval, bcPath); err != nil {
 					return fmt.Errorf("copying directory %q into build context: %w", first, err)
 				}
 			} else {
+				if verbose {
+					fmt.Printf("[verbose] Copying file %s -> %s\n", srcEval, bcPath)
+				}
 				if err := copyFile(srcEval, bcPath, false); err != nil {
 					return fmt.Errorf("copying file %q into build context: %w", first, err)
 				}
@@ -567,6 +599,7 @@ var buildCmd = cobra.Command{
 
 func init() {
 	rootCmd.PersistentFlags().StringVar(&rootBuilderConfig, "config", "builder.config.yaml", "Path to builder configuration file")
+	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
 
 	rootCmd.AddCommand(&generateDockerfileCmd)
 

@@ -81,8 +81,14 @@ func (c *Cache) Get(ctx context.Context, url string) (string, bool, error) {
 				// Update cache with new body
 				dataFile := key + ".data"
 				path := filepath.Join(c.Dir, dataFile)
-				if err := streamToFile(resp.Body, path, 0o644); err != nil {
-					return "", false, err
+				if verboseEnabled() {
+					if err := streamToFileWithProgress(resp.Body, path, 0o644, resp.ContentLength, contentFilename(url, resp)); err != nil {
+						return "", false, err
+					}
+				} else {
+					if err := streamToFile(resp.Body, path, 0o644); err != nil {
+						return "", false, err
+					}
 				}
 				nm := meta{
 					URL:          url,
@@ -121,7 +127,13 @@ func (c *Cache) Get(ctx context.Context, url string) (string, bool, error) {
 				if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 					dataFile := key + ".data"
 					path := filepath.Join(c.Dir, dataFile)
-					if err := streamToFile(resp.Body, path, 0o644); err != nil {
+					var err error
+					if verboseEnabled() {
+						err = streamToFileWithProgress(resp.Body, path, 0o644, resp.ContentLength, contentFilename(url, resp))
+					} else {
+						err = streamToFile(resp.Body, path, 0o644)
+					}
+					if err != nil {
 						lastErr = err
 						return
 					}
@@ -175,6 +187,117 @@ func streamToFile(r io.Reader, dst string, mode os.FileMode) error {
 	return os.Rename(tmp, dst)
 }
 
+// streamToFileWithProgress writes r to dst while printing a status line with
+// downloaded bytes, speed, and ETA (when total >= 0). Progress is printed to stderr.
+func streamToFileWithProgress(r io.Reader, dst string, mode os.FileMode, total int64, label string) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+	tmp := dst + ".tmp"
+	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode)
+	if err != nil {
+		return err
+	}
+	pr := &progressReporter{total: total, label: label, start: time.Now(), lastTick: time.Now()}
+	reader := io.TeeReader(r, pr)
+	_, copyErr := io.Copy(f, reader)
+	closeErr := f.Close()
+	pr.finish(copyErr == nil && closeErr == nil)
+	if copyErr != nil {
+		_ = os.Remove(tmp)
+		return copyErr
+	}
+	if closeErr != nil {
+		_ = os.Remove(tmp)
+		return closeErr
+	}
+	return os.Rename(tmp, dst)
+}
+
+type progressReporter struct {
+	total    int64
+	read     int64
+	label    string
+	start    time.Time
+	lastTick time.Time
+}
+
+func humanBytes(n int64) string {
+	const (
+		KB = 1024
+		MB = 1024 * KB
+		GB = 1024 * MB
+	)
+	switch {
+	case n >= GB:
+		return fmt.Sprintf("%.2f GB", float64(n)/float64(GB))
+	case n >= MB:
+		return fmt.Sprintf("%.2f MB", float64(n)/float64(MB))
+	case n >= KB:
+		return fmt.Sprintf("%.1f KB", float64(n)/float64(KB))
+	default:
+		return fmt.Sprintf("%d B", n)
+	}
+}
+
+func (p *progressReporter) Write(b []byte) (int, error) {
+	n := len(b)
+	p.read += int64(n)
+	now := time.Now()
+	if now.Sub(p.lastTick) >= 200*time.Millisecond {
+		p.print(now)
+		p.lastTick = now
+	}
+	return n, nil
+}
+
+func (p *progressReporter) finish(ok bool) {
+	// Final print and newline
+	p.print(time.Now())
+	if ok {
+		fmt.Fprint(os.Stderr, "\n")
+	} else {
+		fmt.Fprint(os.Stderr, "\n")
+	}
+}
+
+func (p *progressReporter) print(now time.Time) {
+	elapsed := now.Sub(p.start).Seconds()
+	if elapsed <= 0 {
+		elapsed = 0.001
+	}
+	speed := float64(p.read) / elapsed // bytes/sec
+	var etaStr string
+	if p.total > 0 && speed > 0 {
+		remain := float64(p.total - p.read)
+		if remain < 0 {
+			remain = 0
+		}
+		eta := time.Duration(remain/speed) * time.Second
+		etaStr = eta.String()
+	} else {
+		etaStr = "?-?"
+	}
+	var totalStr string
+	if p.total > 0 {
+		totalStr = humanBytes(p.total)
+	} else {
+		totalStr = "unknown"
+	}
+	line := fmt.Sprintf("\rDownloading %s: %s / %s at %.2f MB/s, ETA %s",
+		p.label,
+		humanBytes(p.read),
+		totalStr,
+		speed/1024.0/1024.0,
+		etaStr,
+	)
+	// Avoid overly long lines
+	if len(line) > 120 {
+		line = line[:120]
+	}
+	fmt.Fprint(os.Stderr, line)
+}
+
 func writeMeta(path string, m meta) error {
 	b, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
@@ -219,3 +342,15 @@ func contentFilename(url string, resp *http.Response) string {
 }
 
 var _ = errors.New // keep errors imported if not used in some builds
+
+// verboseEnabled reports whether verbose output is enabled.
+// It is controlled by the environment variable BUILDER_VERBOSE.
+func verboseEnabled() bool {
+	v := os.Getenv("BUILDER_VERBOSE")
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "yes", "y", "on":
+		return true
+	default:
+		return false
+	}
+}

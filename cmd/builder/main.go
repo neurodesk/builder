@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -174,6 +175,20 @@ func copyFile(src, dst string, exec bool) error {
 	}
 	defer in.Close()
 	return writeFromReader(dst, in, exec)
+}
+
+// helper: try to hard link cache entries into the build context to avoid copying where possible
+func linkOrCopyCacheFile(src, dst string) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+	if err := os.Remove(dst); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	if err := os.Link(src, dst); err == nil {
+		return nil
+	}
+	return copyFile(src, dst, false)
 }
 
 // helper: parse local flags into keys and kv pairs
@@ -352,18 +367,20 @@ func stageIntoBuildContext(cfg builderConfig, recipePath, dockerfile, buildDir s
 				return fmt.Errorf("COPY destination path escapes build context: %q", srcRel)
 			}
 
-			// Handle virtual cache/<name> paths: ensure staged cache file exists; no copy needed
+			// Handle virtual cache/<name> paths declared via files{}; otherwise fall through to real file handling
 			if strings.HasPrefix(srcNorm, "cache/") {
 				name := strings.TrimPrefix(srcNorm, "cache/")
-				cacheSrc := filepath.Join(buildDir, "cache", filepath.FromSlash(name))
-				if _, err := os.Stat(cacheSrc); err != nil {
-					return fmt.Errorf("COPY source %q refers to missing staged cache file %q", srcRel, cacheSrc)
+				if _, ok := vset[name]; ok {
+					cacheSrc := filepath.Join(buildDir, "cache", filepath.FromSlash(name))
+					if _, err := os.Stat(cacheSrc); err != nil {
+						return fmt.Errorf("COPY source %q refers to missing staged cache file %q", srcRel, cacheSrc)
+					}
+					// No additional copy needed; Docker build will read from buildDir/cache/...
+					continue
 				}
-				// No additional copy needed; Docker build will read from buildDir/cache/...
-				continue
 			}
 
-			// Handle bare virtual names (no slash) that refer to declared files: copy from cache into build context
+			// Handle bare virtual names (no slash) declared via files{}: materialize into build context
 			if !strings.Contains(srcNorm, "/") {
 				if _, ok := vset[srcNorm]; ok {
 					cacheSrc := filepath.Join(buildDir, "cache", filepath.FromSlash(srcNorm))
@@ -373,7 +390,7 @@ func stageIntoBuildContext(cfg builderConfig, recipePath, dockerfile, buildDir s
 					if verbose {
 						fmt.Printf("[verbose] Materializing virtual file %s -> %s\n", cacheSrc, bcPath)
 					}
-					if err := copyFile(cacheSrc, bcPath, false); err != nil {
+					if err := linkOrCopyCacheFile(cacheSrc, bcPath); err != nil {
 						return fmt.Errorf("copying virtual file %q into build context: %w", srcRel, err)
 					}
 					continue

@@ -498,29 +498,29 @@ func shellWords(s string) ([]string, error) {
 // - Bare "<name>" that matches a declared file -> "cache/<name>"
 // Destination (last element) is unchanged.
 func normalizeCopyParts(ctx *Context, parts []string) []string {
-    if len(parts) < 2 {
-        return parts
-    }
-    out := make([]string, len(parts))
-    copy(out, parts)
-    for i := 0; i < len(out)-1; i++ { // only sources
-        s := out[i]
-        sNorm := strings.ReplaceAll(s, "\\", "/")
-        if strings.HasPrefix(sNorm, "/.neurocontainer-cache/") {
-            name := strings.TrimPrefix(sNorm, "/.neurocontainer-cache/")
-            out[i] = "cache/" + name
-            continue
-        }
-        // Bare name -> virtual file
-        if !strings.Contains(sNorm, "/") {
-            if ctx != nil && ctx.files != nil {
-                if _, ok := ctx.files[sNorm]; ok {
-                    out[i] = "cache/" + sNorm
-                }
-            }
-        }
-    }
-    return out
+	if len(parts) < 2 {
+		return parts
+	}
+	out := make([]string, len(parts))
+	copy(out, parts)
+	for i := 0; i < len(out)-1; i++ { // only sources
+		s := out[i]
+		sNorm := strings.ReplaceAll(s, "\\", "/")
+		if strings.HasPrefix(sNorm, "/.neurocontainer-cache/") {
+			name := strings.TrimPrefix(sNorm, "/.neurocontainer-cache/")
+			out[i] = "cache/" + name
+			continue
+		}
+		// Bare name -> virtual file
+		if !strings.Contains(sNorm, "/") {
+			if ctx != nil && ctx.files != nil {
+				if _, ok := ctx.files[sNorm]; ok {
+					out[i] = "cache/" + sNorm
+				}
+			}
+		}
+	}
+	return out
 }
 
 type CPUArchitecture string

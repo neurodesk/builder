@@ -314,102 +314,102 @@ func stageIntoBuildContext(cfg builderConfig, recipePath, dockerfile, buildDir s
 		}
 	}
 
-    // Build a set of virtual file names declared via files{} to support COPY of virtual files
-    vset := map[string]struct{}{}
-    for _, f := range plan.Files {
-        if f.Name != "" {
-            vset[f.Name] = struct{}{}
-        }
-    }
+	// Build a set of virtual file names declared via files{} to support COPY of virtual files
+	vset := map[string]struct{}{}
+	for _, f := range plan.Files {
+		if f.Name != "" {
+			vset[f.Name] = struct{}{}
+		}
+	}
 
-    // 2) stage COPY sources into build context (relative to recipe dir)
-    baseDirAbs, _ := filepath.Abs(recipePath)
-    buildDirAbs, _ := filepath.Abs(buildDir)
-    for _, spec := range parseCopySpecs(dockerfile) {
-        for _, srcRel := range spec.Src {
-            // Normalize to forward slashes for checks
-            srcNorm := strings.TrimPrefix(strings.ReplaceAll(srcRel, "\\", "/"), "./")
+	// 2) stage COPY sources into build context (relative to recipe dir)
+	baseDirAbs, _ := filepath.Abs(recipePath)
+	buildDirAbs, _ := filepath.Abs(buildDir)
+	for _, spec := range parseCopySpecs(dockerfile) {
+		for _, srcRel := range spec.Src {
+			// Normalize to forward slashes for checks
+			srcNorm := strings.TrimPrefix(strings.ReplaceAll(srcRel, "\\", "/"), "./")
 
-            // Support COPY from virtual cache using either absolute get_file path, or cache/<name>
-            if filepath.IsAbs(srcRel) {
-                if strings.HasPrefix(srcNorm, "/.neurocontainer-cache/") {
-                    name := strings.TrimPrefix(srcNorm, "/.neurocontainer-cache/")
-                    srcRel = "cache/" + name
-                    srcNorm = srcRel
-                } else {
-                    return fmt.Errorf("absolute COPY sources are not allowed: %q", srcRel)
-                }
-            }
+			// Support COPY from virtual cache using either absolute get_file path, or cache/<name>
+			if filepath.IsAbs(srcRel) {
+				if strings.HasPrefix(srcNorm, "/.neurocontainer-cache/") {
+					name := strings.TrimPrefix(srcNorm, "/.neurocontainer-cache/")
+					srcRel = "cache/" + name
+					srcNorm = srcRel
+				} else {
+					return fmt.Errorf("absolute COPY sources are not allowed: %q", srcRel)
+				}
+			}
 
-            // Destination in build context is buildDir/<srcRel>
-            bcPath := filepath.Join(buildDir, filepath.FromSlash(srcRel))
-            // keep inside buildDir
-            bcAbs := bcPath
-            if abs, err := filepath.Abs(bcPath); err == nil {
-                bcAbs = abs
-            }
-            if rel, err := filepath.Rel(buildDirAbs, bcAbs); err != nil || strings.HasPrefix(rel, "..") {
-                return fmt.Errorf("COPY destination path escapes build context: %q", srcRel)
-            }
+			// Destination in build context is buildDir/<srcRel>
+			bcPath := filepath.Join(buildDir, filepath.FromSlash(srcRel))
+			// keep inside buildDir
+			bcAbs := bcPath
+			if abs, err := filepath.Abs(bcPath); err == nil {
+				bcAbs = abs
+			}
+			if rel, err := filepath.Rel(buildDirAbs, bcAbs); err != nil || strings.HasPrefix(rel, "..") {
+				return fmt.Errorf("COPY destination path escapes build context: %q", srcRel)
+			}
 
-            // Handle virtual cache/<name> paths: ensure staged cache file exists; no copy needed
-            if strings.HasPrefix(srcNorm, "cache/") {
-                name := strings.TrimPrefix(srcNorm, "cache/")
-                cacheSrc := filepath.Join(buildDir, "cache", filepath.FromSlash(name))
-                if _, err := os.Stat(cacheSrc); err != nil {
-                    return fmt.Errorf("COPY source %q refers to missing staged cache file %q", srcRel, cacheSrc)
-                }
-                // No additional copy needed; Docker build will read from buildDir/cache/...
-                continue
-            }
+			// Handle virtual cache/<name> paths: ensure staged cache file exists; no copy needed
+			if strings.HasPrefix(srcNorm, "cache/") {
+				name := strings.TrimPrefix(srcNorm, "cache/")
+				cacheSrc := filepath.Join(buildDir, "cache", filepath.FromSlash(name))
+				if _, err := os.Stat(cacheSrc); err != nil {
+					return fmt.Errorf("COPY source %q refers to missing staged cache file %q", srcRel, cacheSrc)
+				}
+				// No additional copy needed; Docker build will read from buildDir/cache/...
+				continue
+			}
 
-            // Handle bare virtual names (no slash) that refer to declared files: copy from cache into build context
-            if !strings.Contains(srcNorm, "/") {
-                if _, ok := vset[srcNorm]; ok {
-                    cacheSrc := filepath.Join(buildDir, "cache", filepath.FromSlash(srcNorm))
-                    if st, err := os.Stat(cacheSrc); err != nil || st.IsDir() {
-                        return fmt.Errorf("virtual COPY source %q not found in staged cache at %q", srcRel, cacheSrc)
-                    }
-                    if verbose {
-                        fmt.Printf("[verbose] Materializing virtual file %s -> %s\n", cacheSrc, bcPath)
-                    }
-                    if err := copyFile(cacheSrc, bcPath, false); err != nil {
-                        return fmt.Errorf("copying virtual file %q into build context: %w", srcRel, err)
-                    }
-                    continue
-                }
-            }
+			// Handle bare virtual names (no slash) that refer to declared files: copy from cache into build context
+			if !strings.Contains(srcNorm, "/") {
+				if _, ok := vset[srcNorm]; ok {
+					cacheSrc := filepath.Join(buildDir, "cache", filepath.FromSlash(srcNorm))
+					if st, err := os.Stat(cacheSrc); err != nil || st.IsDir() {
+						return fmt.Errorf("virtual COPY source %q not found in staged cache at %q", srcRel, cacheSrc)
+					}
+					if verbose {
+						fmt.Printf("[verbose] Materializing virtual file %s -> %s\n", cacheSrc, bcPath)
+					}
+					if err := copyFile(cacheSrc, bcPath, false); err != nil {
+						return fmt.Errorf("copying virtual file %q into build context: %w", srcRel, err)
+					}
+					continue
+				}
+			}
 
-            // Fallback: treat as real file from the recipe directory
-            src := filepath.Join(baseDirAbs, filepath.FromSlash(srcRel))
-            srcEval, err := filepath.EvalSymlinks(src)
-            if err != nil {
-                return fmt.Errorf("COPY source %q not found in recipe directory", srcRel)
-            }
-            if rel, err := filepath.Rel(baseDirAbs, srcEval); err != nil || strings.HasPrefix(rel, "..") {
-                return fmt.Errorf("COPY source %q is outside the recipe directory", srcRel)
-            }
-            st, err := os.Stat(srcEval)
-            if err != nil {
-                return fmt.Errorf("COPY source %q not found in recipe directory", srcRel)
-            }
-            if st.IsDir() {
-                if verbose {
-                    fmt.Printf("[verbose] Copying directory %s -> %s\n", srcEval, bcPath)
-                }
-                if err := copyDir(srcEval, bcPath); err != nil {
-                    return fmt.Errorf("copying directory %q into build context: %w", srcRel, err)
-                }
-            } else {
-                if verbose {
-                    fmt.Printf("[verbose] Copying file %s -> %s\n", srcEval, bcPath)
-                }
-                if err := copyFile(srcEval, bcPath, false); err != nil {
-                    return fmt.Errorf("copying file %q into build context: %w", srcRel, err)
-                }
-            }
-        }
-    }
+			// Fallback: treat as real file from the recipe directory
+			src := filepath.Join(baseDirAbs, filepath.FromSlash(srcRel))
+			srcEval, err := filepath.EvalSymlinks(src)
+			if err != nil {
+				return fmt.Errorf("COPY source %q not found in recipe directory", srcRel)
+			}
+			if rel, err := filepath.Rel(baseDirAbs, srcEval); err != nil || strings.HasPrefix(rel, "..") {
+				return fmt.Errorf("COPY source %q is outside the recipe directory", srcRel)
+			}
+			st, err := os.Stat(srcEval)
+			if err != nil {
+				return fmt.Errorf("COPY source %q not found in recipe directory", srcRel)
+			}
+			if st.IsDir() {
+				if verbose {
+					fmt.Printf("[verbose] Copying directory %s -> %s\n", srcEval, bcPath)
+				}
+				if err := copyDir(srcEval, bcPath); err != nil {
+					return fmt.Errorf("copying directory %q into build context: %w", srcRel, err)
+				}
+			} else {
+				if verbose {
+					fmt.Printf("[verbose] Copying file %s -> %s\n", srcEval, bcPath)
+				}
+				if err := copyFile(srcEval, bcPath, false); err != nil {
+					return fmt.Errorf("copying file %q into build context: %w", srcRel, err)
+				}
+			}
+		}
+	}
 
 	return nil
 }

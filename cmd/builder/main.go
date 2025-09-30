@@ -493,6 +493,108 @@ func prepareStage(cfg builderConfig, recipeSpec string, locals []string) (*stage
 	return res, nil
 }
 
+func buildTesterBinary(goarch string) (string, func(), error) {
+	tmpDir, err := os.MkdirTemp("", "builder-tester-")
+	if err != nil {
+		return "", nil, fmt.Errorf("creating temp dir for tester: %w", err)
+	}
+	cleanup := func() { _ = os.RemoveAll(tmpDir) }
+	outputPath := filepath.Join(tmpDir, "tester")
+	args := []string{"build", "-o", outputPath, "./cmd/tester"}
+	cmd := exec.Command("./go.sh", args...)
+	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH="+goarch)
+	if verbose {
+		fmt.Printf("Building tester binary (GOARCH=%s)\n", goarch)
+	}
+	if out, err := cmd.CombinedOutput(); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("building tester binary: %w\n%s", err, string(out))
+	}
+	abs, err := filepath.Abs(outputPath)
+	if err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("resolving tester path: %w", err)
+	}
+	return abs, cleanup, nil
+}
+
+func goArchFromRecipe(b *recipe.BuildFile) (string, error) {
+	arch := recipe.CPUArchAMD64
+	if len(b.Architectures) > 0 {
+		arch = b.Architectures[0]
+	}
+	switch arch {
+	case recipe.CPUArchAMD64:
+		return "amd64", nil
+	case recipe.CPUArchARM64:
+		return "arm64", nil
+	default:
+		return "", fmt.Errorf("unsupported architecture %q", arch)
+	}
+}
+
+func runTesterInContainer(tag, testerPath, platform string) ([]byte, error) {
+	mount := fmt.Sprintf("%s:/tester/tester:ro", testerPath)
+	args := []string{"run", "--rm"}
+	if platform != "" {
+		args = append(args, "--platform", platform)
+	}
+	args = append(args, "-v", mount, "--entrypoint", "/tester/tester", tag)
+	cmd := exec.Command("docker", args...)
+	return cmd.CombinedOutput()
+}
+
+var testCmd = cobra.Command{
+	Use:   "test [recipe]",
+	Short: "Run the deployment tester inside the built container",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if verbose {
+			os.Setenv("BUILDER_VERBOSE", "1")
+		}
+		if _, err := exec.LookPath("docker"); err != nil {
+			return fmt.Errorf("docker CLI not found in PATH; please install Docker and rerun")
+		}
+
+		recipeSpec := args[0]
+		cfg, err := loadBuilderConfig()
+		if err != nil {
+			return err
+		}
+		recipePath, err := resolveRecipePath(cfg, recipeSpec)
+		if err != nil {
+			return err
+		}
+		build, err := recipe.LoadBuildFile(recipePath)
+		if err != nil {
+			return fmt.Errorf("loading build file: %w", err)
+		}
+		goarch, err := goArchFromRecipe(build)
+		if err != nil {
+			return err
+		}
+		testerPath, cleanup, err := buildTesterBinary(goarch)
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+
+		tag := build.Name + ":" + build.Version
+		inspect := exec.Command("docker", "image", "inspect", tag)
+		if out, err := inspect.CombinedOutput(); err != nil {
+			return fmt.Errorf("docker image %s not found: %w\n%s", tag, err, string(out))
+		}
+
+		platform := "linux/" + goarch
+		output, err := runTesterInContainer(tag, testerPath, platform)
+		fmt.Print(string(output))
+		if err != nil {
+			return fmt.Errorf("tester reported failure: %w", err)
+		}
+		return nil
+	},
+}
+
 // stageCmd prepares the build context (Dockerfile + staged files) but does not build.
 // It emits a small JSON blob with details so wrapper scripts can invoke BuildKit.
 var stageCmd = cobra.Command{
@@ -838,6 +940,7 @@ func init() {
 
 	// test-all flags
 	rootCmd.AddCommand(&testAllCmd)
+	rootCmd.AddCommand(&testCmd)
 
 	// Build command flags: --local KEY=DIR can be repeated to supply named contexts
 	buildCmd.Flags().StringArray("local", []string{}, "Supply a named local context as KEY=DIR for RUN --mount from=KEY")

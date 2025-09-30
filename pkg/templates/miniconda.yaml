@@ -44,6 +44,8 @@ binaries:
     curl -fsSL -o "$conda_installer" {{ self.urls["*"] }}
     bash "$conda_installer" -b -p {{ self.install_path }}
     rm -f "$conda_installer"
+    # Accept terms automatically. The command might not exist on older conda versions so don't fail.
+    conda tos accept || true
     {% if self.version == "latest" -%}
     conda update -yq -nbase conda
     {% endif -%}
@@ -53,8 +55,6 @@ binaries:
     {% endif -%}
     # Prefer packages in conda-forge
     conda config --system --prepend channels conda-forge
-    # Accept terms automatically. The command might not exist on older conda versions so don't fail.
-    conda tos accept || true
     # Packages in lower-priority channels not considered if a package with the same
     # name exists in a higher priority channel. Can dramatically speed up installations.
     # Conda recommends this as a default

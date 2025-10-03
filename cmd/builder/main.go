@@ -53,6 +53,7 @@ func (b *builderConfig) loadConfig(path string) error {
 }
 
 var rootBuilderConfig string
+var testCaptureOutput bool
 var verbose bool
 
 var rootCmd = cobra.Command{
@@ -501,7 +502,7 @@ func buildTesterBinary(goarch string) (string, func(), error) {
 	cleanup := func() { _ = os.RemoveAll(tmpDir) }
 	outputPath := filepath.Join(tmpDir, "tester")
 	args := []string{"build", "-o", outputPath, "./cmd/tester"}
-	cmd := exec.Command("./go.sh", args...)
+	cmd := exec.Command("go", args...)
 	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH="+goarch)
 	if verbose {
 		fmt.Printf("Building tester binary (GOARCH=%s)\n", goarch)
@@ -533,13 +534,16 @@ func goArchFromRecipe(b *recipe.BuildFile) (string, error) {
 	}
 }
 
-func runTesterInContainer(tag, testerPath, platform string) ([]byte, error) {
+func runTesterInContainer(tag, testerPath, platform string, captureOutput bool) ([]byte, error) {
 	mount := fmt.Sprintf("%s:/tester/tester:ro", testerPath)
 	args := []string{"run", "--rm"}
 	if platform != "" {
 		args = append(args, "--platform", platform)
 	}
 	args = append(args, "-v", mount, "--entrypoint", "/tester/tester", tag)
+	if captureOutput {
+		args = append(args, "--capture-output")
+	}
 	cmd := exec.Command("docker", args...)
 	return cmd.CombinedOutput()
 }
@@ -586,7 +590,7 @@ var testCmd = cobra.Command{
 		}
 
 		platform := "linux/" + goarch
-		output, err := runTesterInContainer(tag, testerPath, platform)
+		output, err := runTesterInContainer(tag, testerPath, platform, testCaptureOutput)
 		fmt.Print(string(output))
 		if err != nil {
 			return fmt.Errorf("tester reported failure: %w", err)
@@ -940,6 +944,9 @@ func init() {
 
 	// test-all flags
 	rootCmd.AddCommand(&testAllCmd)
+
+	// test command
+	testCmd.Flags().BoolVar(&testCaptureOutput, "capture-output", false, "Capture output from commands")
 	rootCmd.AddCommand(&testCmd)
 
 	// Build command flags: --local KEY=DIR can be repeated to supply named contexts

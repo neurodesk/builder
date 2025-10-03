@@ -1,3 +1,99 @@
+- name: afni-binaries
+  template: afni
+  arguments:
+    method: binaries
+    version: latest
+  base_image: ubuntu:22.04
+  package_manager: apt
+  image_version: "0.0.0"
+  tests:
+    - name: afni-in-path
+      command: command -v afni
+
+- name: ants-binaries
+  template: ants
+  arguments:
+    method: binaries
+    version: "2.4.3"
+  base_image: ubuntu:22.04
+  package_manager: apt
+  image_version: "0.0.0"
+  tests:
+    - name: ants-registration
+      command: command -v antsRegistration
+
+- name: bids-validator-binaries
+  template: bids_validator
+  arguments:
+    method: binaries
+    version: "1.13.0"
+  base_image: ubuntu:22.04
+  package_manager: apt
+  image_version: "0.0.0"
+  tests:
+    - name: bids-validator-version
+      command: bids-validator --version
+
+# - name: cat12-binaries
+#   template: cat12
+#   arguments:
+#     method: binaries
+#     version: r2166_R2017b
+#   base_image: ubuntu:22.04
+#   package_manager: apt
+#   image_version: "0.0.0"
+#   tests:
+#     - name: cat12-install-dir
+#       command: test -d /opt/CAT12-r2166_R2017b
+
+- name: convert3d-binaries
+  template: convert3d
+  arguments:
+    method: binaries
+    version: "1.0.0"
+  base_image: ubuntu:22.04
+  package_manager: apt
+  image_version: "0.0.0"
+  tests:
+    - name: c3d-in-path
+      command: command -v c3d
+
+- name: dcm2niix-binaries
+  template: dcm2niix
+  arguments:
+    method: binaries
+    version: latest
+  base_image: ubuntu:22.04
+  package_manager: apt
+  image_version: "0.0.0"
+  tests:
+    - name: dcm2niix-version
+      command: dcm2niix --version || true
+
+# - name: freesurfer-binaries
+#   template: freesurfer
+#   arguments:
+#     method: binaries
+#     version: "7.4.1"
+#   base_image: ubuntu:22.04
+#   package_manager: apt
+#   image_version: "0.0.0"
+#   tests:
+#     - name: freesurfer-bin-dir
+#       command: test -d /opt/freesurfer-7.4.1/bin
+
+# - name: fsl-binaries
+#   template: fsl
+#   arguments:
+#     method: binaries
+#     version: "6.0.7.18"
+#   base_image: ubuntu:22.04
+#   package_manager: apt
+#   image_version: "0.0.0"
+#   tests:
+#     - name: fsl-bet
+#       command: command -v bet
+
 - name: jq-binaries
   template: jq
   arguments:
@@ -11,3 +107,136 @@
       command: jq --version
     - name: jq-exists
       command: command -v jq
+
+- name: matlabmcr-binaries
+  template: matlabmcr
+  arguments:
+    method: binaries
+    version: "2023b"
+  base_image: ubuntu:22.04
+  package_manager: apt
+  image_version: "0.0.0"
+  tests:
+    - name: matlabmcr-install-path
+      command: test -d /opt/MCR-2023b
+
+- name: minc-binaries
+  template: minc
+  arguments:
+    method: binaries
+    version: "1.9.18"
+  base_image: ubuntu:22.04
+  package_manager: apt
+  image_version: "0.0.0"
+  tests:
+    - name: mincinfo
+      command: command -v mincinfo
+
+- name: miniconda-binaries
+  template: miniconda
+  arguments:
+    method: binaries
+    version: latest
+  base_image: ubuntu:22.04
+  package_manager: apt
+  image_version: "0.0.0"
+  tests:
+    - name: conda-version
+      command: conda --version
+
+# - name: mricron-binaries
+#   template: mricron
+#   arguments:
+#     method: binaries
+#     version: "1.0.20190902"
+#   base_image: ubuntu:22.04
+#   package_manager: apt
+#   image_version: "0.0.0"
+#   tests:
+#     - name: mricron
+#       command: command -v mricron
+
+- name: mrtrix3-binaries
+  template: mrtrix3
+  arguments:
+    method: binaries
+    version: "3.0.4"
+  base_image: ubuntu:22.04
+  package_manager: apt
+  image_version: "0.0.0"
+  tests:
+    - name: mrconvert
+      command: command -v mrconvert
+
+# - name: ndfreeze-source
+#   template: ndfreeze
+#   arguments:
+#     method: source
+#     date: "2024-01-01"
+#   base_image: debian:12
+#   package_manager: apt
+#   image_version: "0.0.0"
+#   tests:
+#     - name: nd-freeze
+#       command: command -v nd_freeze
+
+# - name: neurodebian-binaries
+#   template: neurodebian
+#   arguments:
+#     method: binaries
+#     version: usa-ca
+#     os_codename: bookworm
+#   base_image: debian:12
+#   package_manager: apt
+#   image_version: "0.0.0"
+#   tests:
+#     - name: neurodebian-sources
+#       command: test -f /etc/apt/sources.list.d/neurodebian.sources.list
+
+- name: niftyreg-source
+  template: niftyreg
+  arguments:
+    method: source
+    version: master
+  base_image: ubuntu:22.04
+  package_manager: apt
+  image_version: "0.0.0"
+  tests:
+    - name: reg-aladin
+      command: command -v reg_aladin
+
+- name: petpvc-binaries
+  template: petpvc
+  arguments:
+    method: binaries
+    version: "1.2.4"
+  base_image: ubuntu:22.04
+  package_manager: apt
+  image_version: "0.0.0"
+  tests:
+    - name: petpvc
+      command: command -v petpvc
+
+# - name: spm12-binaries
+#   template: spm12
+#   arguments:
+#     method: binaries
+#     version: r7771
+#   base_image: ubuntu:22.04
+#   package_manager: apt
+#   image_version: "0.0.0"
+#   tests:
+#     - name: spm12-runner
+#       command: test -x /opt/spm12-r7771/run_spm12.sh
+
+- name: vnc-source
+  template: vnc
+  arguments:
+    method: source
+    passwd: password
+  base_image: ubuntu:22.04
+  package_manager: apt
+  image_version: "0.0.0"
+  tests:
+    - name: vnc-passwd
+      command: test -f /root/.vnc/passwd

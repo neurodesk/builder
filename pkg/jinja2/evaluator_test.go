@@ -118,3 +118,28 @@ func TestInNotInTuple(t *testing.T) {
 		t.Fatalf("got %q, want BAD", got)
 	}
 }
+
+func TestLogicalAndOr(t *testing.T) {
+	tpl := "{% if self.version == \"2.4.1\" or self.version == \"2.4.2\" or self.version == \"2.4.3\" %}ZIP{% else %}TAR{% endif %}"
+	ctx := Context{"self": DictValue{"version": StringValue("2.4.3")}}
+	got, err := renderHelper(t, tpl, ctx)
+	if err != nil {
+		t.Fatalf("render error: %v", err)
+	}
+	if got != "ZIP" {
+		t.Fatalf("got %q, want ZIP", got)
+	}
+	tpl = "{% if self.a and self.b or self.c %}TRUE{% else %}FALSE{% endif %}"
+	ctx = Context{"self": DictValue{
+		"a": BoolValue(true),
+		"b": BoolValue(false),
+		"c": BoolValue(true),
+	}}
+	got, err = renderHelper(t, tpl, ctx)
+	if err != nil {
+		t.Fatalf("render error: %v", err)
+	}
+	if got != "TRUE" {
+		t.Fatalf("got %q, want TRUE", got)
+	}
+}

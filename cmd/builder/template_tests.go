@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -111,7 +112,7 @@ var templateTestsCmd = cobra.Command{
 					}
 				}
 
-				if err := runTemplateTests(stage.Tag, tests); err != nil {
+				if err := runTemplateTests(stage, tests); err != nil {
 					return fmt.Errorf("%s: %w", spec.Identifier(), err)
 				}
 			}
@@ -477,7 +478,19 @@ func stageBuildFileForTemplate(cfg builderConfig, build *recipe.BuildFile) (*sta
 	return res, nil
 }
 
+func ensureTemplateLogDir(stage *stageResult) (string, error) {
+	logDir := filepath.Join("local", "template_tests", stage.Name)
+	if err := os.MkdirAll(logDir, 0o755); err != nil {
+		return "", fmt.Errorf("creating log directory: %w", err)
+	}
+	return logDir, nil
+}
+
 func runDockerBuild(stage *stageResult) error {
+	logDir, err := ensureTemplateLogDir(stage)
+	if err != nil {
+		return err
+	}
 	dockerArgs := []string{
 		"build",
 		"-t", stage.Tag,
@@ -490,25 +503,64 @@ func runDockerBuild(stage *stageResult) error {
 
 	cmd := exec.Command("docker", dockerArgs...)
 	cmd.Env = append(os.Environ(), "DOCKER_BUILDKIT=1")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	var buf bytes.Buffer
+	multi := io.MultiWriter(os.Stdout, &buf)
+	cmd.Stdout = multi
+	cmd.Stderr = multi
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("docker build failed: %w", err)
+	runErr := cmd.Run()
+	exitCode := 0
+	if exitErr, ok := runErr.(*exec.ExitError); ok {
+		exitCode = exitErr.ExitCode()
+	} else if runErr != nil {
+		exitCode = 1
+	}
+
+	logPath := filepath.Join(logDir, "build.log")
+	logHeader := fmt.Sprintf("Command: DOCKER_BUILDKIT=1 docker %s\nExitCode: %d\n\n", strings.Join(dockerArgs, " "), exitCode)
+	if writeErr := os.WriteFile(logPath, append([]byte(logHeader), buf.Bytes()...), 0o644); writeErr != nil {
+		return fmt.Errorf("writing build log: %w", writeErr)
+	}
+	fmt.Printf("Build log written to %s\n", logPath)
+
+	if runErr != nil {
+		return fmt.Errorf("docker build failed: %w", runErr)
 	}
 
 	fmt.Printf("Built image %s\n", stage.Tag)
 	return nil
 }
 
-func runTemplateTests(tag string, tests []templateTestCase) error {
+func runTemplateTests(stage *stageResult, tests []templateTestCase) error {
+	logDir, err := ensureTemplateLogDir(stage)
+	if err != nil {
+		return err
+	}
+
+	tag := stage.Tag
 	for _, t := range tests {
 		fmt.Printf("Running test %s for %s\n", t.Name, tag)
 		args := []string{"run", "--rm", tag, "bash", "-lc", t.Command}
 		cmd := exec.Command("docker", args...)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
+		var buf bytes.Buffer
+		multi := io.MultiWriter(os.Stdout, &buf)
+		cmd.Stdout = multi
+		cmd.Stderr = multi
+		err := cmd.Run()
+		exitCode := 0
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		} else if err != nil {
+			exitCode = 1
+		}
+
+		logPath := filepath.Join(logDir, fmt.Sprintf("%s.log", t.Name))
+		logHeader := fmt.Sprintf("Command: docker %s\nExitCode: %d\n\n", strings.Join(args, " "), exitCode)
+		if writeErr := os.WriteFile(logPath, append([]byte(logHeader), buf.Bytes()...), 0o644); writeErr != nil {
+			return fmt.Errorf("writing log %s: %w", logPath, writeErr)
+		}
+		fmt.Printf("Log written to %s\n", logPath)
+		if err != nil {
 			return fmt.Errorf("test %s failed: %w", t.Name, err)
 		}
 	}

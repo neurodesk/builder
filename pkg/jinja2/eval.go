@@ -174,6 +174,36 @@ func (e *Evaluator) Truthy(expr string, ctx Context) (bool, error) {
 		}
 		return !b, nil
 	}
+	if parts, ok := splitLogical(s, "or"); ok && len(parts) > 1 {
+		for _, part := range parts {
+			if part == "" {
+				continue
+			}
+			b, err := e.Truthy(part, ctx)
+			if err != nil {
+				return false, err
+			}
+			if b {
+				return true, nil
+			}
+		}
+		return false, nil
+	}
+	if parts, ok := splitLogical(s, "and"); ok && len(parts) > 1 {
+		for _, part := range parts {
+			if part == "" {
+				return false, nil
+			}
+			b, err := e.Truthy(part, ctx)
+			if err != nil {
+				return false, err
+			}
+			if !b {
+				return false, nil
+			}
+		}
+		return true, nil
+	}
 	// handle 'not in' and 'in' operators
 	if op, lhs, rhs, ok := findInOperator(s); ok {
 		lv, err := e.Eval(lhs, ctx)
@@ -251,6 +281,85 @@ func (e *Evaluator) Truthy(expr string, ctx Context) (bool, error) {
 		return false, err
 	}
 	return v.Truth(), nil
+}
+
+func splitLogical(s, op string) ([]string, bool) {
+	lower := strings.ToLower(s)
+	depthParen, depthBracket, depthBrace := 0, 0, 0
+	inStr := byte(0)
+	last := 0
+	var parts []string
+	for i := 0; i <= len(lower)-len(op); i++ {
+		c := s[i]
+		if inStr != 0 {
+			if c == inStr {
+				inStr = 0
+			}
+			continue
+		}
+		switch c {
+		case '\'', '"':
+			inStr = c
+		case '(':
+			depthParen++
+		case ')':
+			if depthParen > 0 {
+				depthParen--
+			}
+		case '[':
+			depthBracket++
+		case ']':
+			if depthBracket > 0 {
+				depthBracket--
+			}
+		case '{':
+			depthBrace++
+		case '}':
+			if depthBrace > 0 {
+				depthBrace--
+			}
+		}
+		if depthParen == 0 && depthBracket == 0 && depthBrace == 0 && strings.HasPrefix(lower[i:], op) {
+			if logicalBoundary(lower, i, op) {
+				segment := strings.TrimSpace(s[last:i])
+				parts = append(parts, segment)
+				i += len(op)
+				last = i
+				i--
+			}
+		}
+	}
+	if len(parts) > 0 {
+		segment := strings.TrimSpace(s[last:])
+		parts = append(parts, segment)
+		return parts, true
+	}
+	return nil, false
+}
+
+func logicalBoundary(s string, idx int, op string) bool {
+	if idx > 0 {
+		if isIdentifierChar(rune(s[idx-1])) {
+			return false
+		}
+	}
+	after := idx + len(op)
+	if after < len(s) {
+		if isIdentifierChar(rune(s[after])) {
+			return false
+		}
+	}
+	return true
+}
+
+func isIdentifierChar(r rune) bool {
+	if r >= 'a' && r <= 'z' {
+		return true
+	}
+	if r >= '0' && r <= '9' {
+		return true
+	}
+	return r == '_' || r == '.'
 }
 
 // findInOperator finds top-level 'in' or 'not in' in s, ignoring brackets/quotes.

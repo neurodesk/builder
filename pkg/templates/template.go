@@ -423,6 +423,10 @@ func init() {
 			continue
 		}
 		name := entry.Name()
+		if name == "test_all.yaml" {
+			// test_all.yaml is consumed by the builder CLI command and is not a template
+			continue
+		}
 		content, err := Files.ReadFile(name)
 		if err != nil {
 			panic(err)

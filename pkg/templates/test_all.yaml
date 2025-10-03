@@ -1,0 +1,13 @@
+- name: jq-binaries
+  template: jq
+  arguments:
+    method: binaries
+    version: "1.6"
+  base_image: ubuntu:22.04
+  package_manager: apt
+  image_version: "0.0.0"
+  tests:
+    - name: jq-version
+      command: jq --version
+    - name: jq-exists
+      command: command -v jq

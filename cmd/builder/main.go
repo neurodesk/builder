@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/moby/buildkit/frontend/dockerfile/parser"
@@ -55,6 +58,7 @@ func (b *builderConfig) loadConfig(path string) error {
 var rootBuilderConfig string
 var testCaptureOutput bool
 var verbose bool
+var graphOutputPath string
 
 var rootCmd = cobra.Command{
 	Use:   "builder",
@@ -444,6 +448,20 @@ type stageResult struct {
 	Dockerfile     string   `json:"-"`
 }
 
+type compiledRecipe struct {
+	Path       string
+	Build      *recipe.BuildFile
+	Definition *ir.Definition
+	Plan       *recipe.StagingPlan
+	Dockerfile string
+}
+
+type recipeGenerationResult struct {
+	Compiled   *compiledRecipe
+	OutputPath string
+	Errors     []string
+}
+
 // helper: generate, render, write dockerfile, and stage files/COPYs
 func prepareStage(cfg builderConfig, recipeSpec string, locals []string) (*stageResult, error) {
 	recipePath, err := resolveRecipePath(cfg, recipeSpec)
@@ -492,6 +510,148 @@ func prepareStage(cfg builderConfig, recipeSpec string, locals []string) (*stage
 		Dockerfile:     dockerfile,
 	}
 	return res, nil
+}
+
+func compileRecipe(cfg builderConfig, recipeDir string) (*compiledRecipe, error) {
+	build, err := recipe.LoadBuildFile(recipeDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load build file: %w", err)
+	}
+	def, plan, err := build.GenerateWithStaging(cfg.IncludeDirs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate IR: %w", err)
+	}
+	dockerfile, err := ir.GenerateDockerfile(def)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate dockerfile: %w", err)
+	}
+	return &compiledRecipe{
+		Path:       recipeDir,
+		Build:      build,
+		Definition: def,
+		Plan:       plan,
+		Dockerfile: dockerfile,
+	}, nil
+}
+
+func generateDockerfileForRecipe(cfg builderConfig, recipeDir, outputDir string) (*recipeGenerationResult, error) {
+	compiled, err := compileRecipe(cfg, recipeDir)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return nil, fmt.Errorf("creating output directory: %w", err)
+	}
+	outputPath := filepath.Join(outputDir, fmt.Sprintf("%s_%s.Dockerfile", compiled.Build.Name, compiled.Build.Version))
+	if err := os.WriteFile(outputPath, []byte(compiled.Dockerfile), 0o644); err != nil {
+		return nil, fmt.Errorf("writing dockerfile: %w", err)
+	}
+	issues := validateCompiledRecipe(cfg, compiled)
+	return &recipeGenerationResult{
+		Compiled:   compiled,
+		OutputPath: outputPath,
+		Errors:     issues,
+	}, nil
+}
+
+func validateCompiledRecipe(cfg builderConfig, compiled *compiledRecipe) []string {
+	if compiled == nil {
+		return []string{"internal error: nil compiled recipe"}
+	}
+	if _, err := parser.Parse(strings.NewReader(compiled.Dockerfile)); err != nil {
+		return []string{fmt.Sprintf("BuildKit parser validation failed: %v", err)}
+	}
+	var issues []string
+	missing := false
+	for _, f := range compiled.Plan.Files {
+		if f.HostFilename == "" {
+			continue
+		}
+		src := f.HostFilename
+		var candidates []string
+		if filepath.IsAbs(src) {
+			candidates = []string{src}
+		} else {
+			candidates = append(candidates, filepath.Join(compiled.Path, src))
+			for _, d := range cfg.IncludeDirs {
+				candidates = append(candidates, filepath.Join(d, src))
+			}
+		}
+		found := false
+		for _, cand := range candidates {
+			if st, err := os.Stat(cand); err == nil && !st.IsDir() {
+				found = true
+				break
+			}
+		}
+		if !found {
+			missing = true
+			issues = append(issues, fmt.Sprintf("Missing file referenced by files: %s (searched: %s)", src, strings.Join(candidates, ", ")))
+		}
+	}
+
+	vset := map[string]struct{}{}
+	for _, f := range compiled.Plan.Files {
+		if f.Name != "" {
+			vset[f.Name] = struct{}{}
+		}
+	}
+
+	for _, spec := range parseCopySpecs(compiled.Dockerfile) {
+		for _, srcRel := range spec.Src {
+			srcNorm := strings.TrimPrefix(strings.ReplaceAll(srcRel, "\\", "/"), "./")
+			if filepath.IsAbs(srcRel) {
+				if after, ok := strings.CutPrefix(srcNorm, "/.neurocontainer-cache/"); ok {
+					if _, ok := vset[after]; !ok {
+						missing = true
+						issues = append(issues, fmt.Sprintf("COPY references virtual file not declared: %s (name %s)", srcRel, after))
+					}
+					continue
+				}
+				missing = true
+				issues = append(issues, fmt.Sprintf("Invalid absolute COPY source: %s", srcRel))
+				continue
+			}
+
+			if after, ok := strings.CutPrefix(srcNorm, "cache/"); ok {
+				if _, ok := vset[after]; !ok {
+					missing = true
+					issues = append(issues, fmt.Sprintf("COPY references unknown cache file: %s (name %s)", srcRel, after))
+				}
+				continue
+			}
+
+			if !strings.Contains(srcNorm, "/") {
+				if _, ok := vset[srcNorm]; ok {
+					continue
+				}
+			}
+
+			srcPath := filepath.Join(compiled.Path, filepath.FromSlash(srcRel))
+			eval, err := filepath.EvalSymlinks(srcPath)
+			if err != nil {
+				missing = true
+				issues = append(issues, fmt.Sprintf("COPY source not found: %s (from %s)", srcRel, srcPath))
+				continue
+			}
+			baseAbs, _ := filepath.Abs(compiled.Path)
+			evalAbs, _ := filepath.Abs(eval)
+			if rel, err := filepath.Rel(baseAbs, evalAbs); err != nil || strings.HasPrefix(rel, "..") {
+				missing = true
+				issues = append(issues, fmt.Sprintf("COPY source escapes recipe directory: %s -> %s", srcRel, eval))
+				continue
+			}
+			if _, err := os.Stat(eval); err != nil {
+				missing = true
+				issues = append(issues, fmt.Sprintf("COPY source missing: %s (resolved %s)", srcRel, eval))
+			}
+		}
+	}
+
+	if missing {
+		issues = append(issues, "One or more required files are missing")
+	}
+	return issues
 }
 
 func buildTesterBinary(goarch string) (string, func(), error) {
@@ -654,152 +814,20 @@ func testRecipes(recipes []string) error {
 
 	for _, r := range recipes {
 		fmt.Printf("Testing recipe: %s\n", r)
-		build, err := recipe.LoadBuildFile(r)
+		res, err := generateDockerfileForRecipe(cfg, r, outputDir)
 		if err != nil {
 			failed++
-			fmt.Printf("\033[31m  Failed to load build file: %v\033[0m\n", err)
+			fmt.Printf("\033[31m  %v\033[0m\n", err)
 			continue
 		}
-
-		// Generate IR and staging plan so we can validate file presence
-		out, plan, err := build.GenerateWithStaging(cfg.IncludeDirs)
-		if err != nil {
+		if len(res.Errors) > 0 {
 			failed++
-			fmt.Printf("\033[31m  Failed to generate IR: %v\033[0m\n", err)
+			for _, msg := range res.Errors {
+				fmt.Printf("\033[31m  %s\033[0m\n", msg)
+			}
 			continue
 		}
-
-		dockerfile, err := ir.GenerateDockerfile(out)
-		if err != nil {
-			failed++
-			fmt.Printf("\033[31m  Failed to generate dockerfile: %v\033[0m\n", err)
-			continue
-		}
-
-		// write it to local/docker/<name>_<version>.Dockerfile
-		outputPath := filepath.Join(outputDir, fmt.Sprintf("%s_%s.Dockerfile", build.Name, build.Version))
-		if err := os.WriteFile(outputPath, []byte(dockerfile), 0o644); err != nil {
-			return fmt.Errorf("writing dockerfile: %w", err)
-		}
-
-		// Optionally validate the Dockerfile using the official BuildKit parser
-		if _, err := parser.Parse(strings.NewReader(dockerfile)); err != nil {
-			failed++
-			fmt.Printf("\033[31m  BuildKit parser validation failed: %v\033[0m\n", err)
-			continue
-		}
-
-		// Validate staged file sources exist in expected locations
-		missing := false
-		for _, f := range plan.Files {
-			if f.HostFilename == "" { // URLs and literals are not checked here
-				continue
-			}
-			src := f.HostFilename
-			// Resolve relative to recipe dir first, then include dirs
-			var candidates []string
-			if filepath.IsAbs(src) {
-				candidates = []string{src}
-			} else {
-				candidates = append(candidates, filepath.Join(r, src))
-				for _, d := range cfg.IncludeDirs {
-					candidates = append(candidates, filepath.Join(d, src))
-				}
-			}
-			found := false
-			for _, cand := range candidates {
-				if st, err := os.Stat(cand); err == nil && !st.IsDir() {
-					found = true
-					break
-				}
-			}
-			if !found {
-				missing = true
-				fmt.Printf("\033[31m  Missing file referenced by files: %s (searched: %s)\033[0m\n", src, strings.Join(candidates, ", "))
-			}
-		}
-
-		// Validate COPY sources are present, supporting "virtual" files declared via files{}.
-		// Virtual files are those declared in the recipe's files list; they are staged
-		// into the special cache context and may be referenced by name, by cache/<name>,
-		// or via the get_file() path "/.neurocontainer-cache/<name>".
-		// We do NOT attempt to download HTTP files here; we only validate names.
-		// Build a quick lookup of declared virtual file names.
-		vset := map[string]struct{}{}
-		for _, f := range plan.Files {
-			if f.Name != "" {
-				vset[f.Name] = struct{}{}
-			}
-		}
-
-		for _, spec := range parseCopySpecs(dockerfile) {
-			for _, srcRel := range spec.Src {
-				// Normalize to forward slashes for checks
-				srcNorm := strings.TrimPrefix(strings.ReplaceAll(srcRel, "\\", "/"), "./")
-
-				// Handle absolute path that matches get_file() convention
-				if filepath.IsAbs(srcRel) {
-					if after, ok := strings.CutPrefix(srcNorm, "/.neurocontainer-cache/"); ok {
-						if _, ok := vset[after]; !ok {
-							missing = true
-							fmt.Printf("\033[31m  COPY references virtual file not declared: %s (name %s)\033[0m\n", srcRel, after)
-						}
-						continue
-					}
-					missing = true
-					fmt.Printf("\033[31m  Invalid absolute COPY source: %s\033[0m\n", srcRel)
-					continue
-				}
-
-				// cache/<name> maps to a declared virtual file
-				if after, ok := strings.CutPrefix(srcNorm, "cache/"); ok {
-					if _, ok := vset[after]; !ok {
-						missing = true
-						fmt.Printf("\033[31m  COPY references unknown cache file: %s (name %s)\033[0m\n", srcRel, after)
-					}
-					continue
-				}
-
-				// Bare name may refer to a declared virtual file
-				if !strings.Contains(srcNorm, "/") {
-					if _, ok := vset[srcNorm]; ok {
-						// It's a declared virtual; accept without filesystem check
-						continue
-					}
-				}
-
-				// Otherwise, expect a real file in the recipe directory
-				srcPath := filepath.Join(r, filepath.FromSlash(srcRel))
-				// Resolve symlinks and ensure it remains within recipe dir
-				eval, err := filepath.EvalSymlinks(srcPath)
-				if err != nil {
-					missing = true
-					fmt.Printf("\033[31m  COPY source not found: %s (from %s)\033[0m\n", srcRel, srcPath)
-					continue
-				}
-				// Ensure path does not escape the recipe directory
-				baseAbs, _ := filepath.Abs(r)
-				evalAbs, _ := filepath.Abs(eval)
-				if rel, err := filepath.Rel(baseAbs, evalAbs); err != nil || strings.HasPrefix(rel, "..") {
-					missing = true
-					fmt.Printf("\033[31m  COPY source escapes recipe directory: %s -> %s\033[0m\n", srcRel, eval)
-					continue
-				}
-				if _, err := os.Stat(eval); err != nil {
-					missing = true
-					fmt.Printf("\033[31m  COPY source missing: %s (resolved %s)\033[0m\n", srcRel, eval)
-					continue
-				}
-			}
-		}
-
-		if missing {
-			failed++
-			fmt.Printf("\033[31m  One or more required files are missing\033[0m\n")
-			continue
-		}
-
-		fmt.Printf("\033[32m  Successfully generated Dockerfile: %s\033[0m\n", outputPath)
+		fmt.Printf("\033[32m  Successfully generated Dockerfile: %s\033[0m\n", res.OutputPath)
 		success++
 	}
 
@@ -808,6 +836,27 @@ func testRecipes(recipes []string) error {
 		return fmt.Errorf("%d recipes failed", failed)
 	}
 	return nil
+}
+
+func listRecipes(cfg builderConfig) ([]string, error) {
+	var recipes []string
+	for _, root := range cfg.RecipeRoots {
+		entries, err := os.ReadDir(root)
+		if err != nil {
+			return nil, fmt.Errorf("reading recipe root %s: %w", root, err)
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			if _, err := os.Stat(filepath.Join(root, entry.Name(), "build.yaml")); err != nil {
+				continue
+			}
+			recipes = append(recipes, filepath.Join(root, entry.Name()))
+		}
+	}
+	sort.Strings(recipes)
+	return recipes, nil
 }
 
 var testAllCmd = cobra.Command{
@@ -821,28 +870,263 @@ var testAllCmd = cobra.Command{
 		if err != nil {
 			return err
 		}
+		recipes, err := listRecipes(cfg)
+		if err != nil {
+			return err
+		}
+		return testRecipes(recipes)
+	},
+}
 
-		var recipes []string
-		for _, root := range cfg.RecipeRoots {
-			entries, err := os.ReadDir(root)
-			if err != nil {
-				return fmt.Errorf("reading recipe root %s: %w", root, err)
+var graphCmd = cobra.Command{
+	Use:   "graph [recipe...]",
+	Short: "Generate all Dockerfiles and emit a hashed layer Graphviz graph",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if verbose {
+			os.Setenv("BUILDER_VERBOSE", "1")
+		}
+		cfg, err := loadBuilderConfig()
+		if err != nil {
+			return err
+		}
+
+		var recipeDirs []string
+		if len(args) > 0 {
+			for _, spec := range args {
+				path, err := resolveRecipePath(cfg, spec)
+				if err != nil {
+					return err
+				}
+				recipeDirs = append(recipeDirs, path)
 			}
-			for _, entry := range entries {
-				if !entry.IsDir() {
-					continue
-				}
-
-				if _, err := os.Stat(filepath.Join(root, entry.Name(), "build.yaml")); err != nil {
-					continue
-				}
-
-				recipes = append(recipes, filepath.Join(root, entry.Name()))
+		} else {
+			recipeDirs, err = listRecipes(cfg)
+			if err != nil {
+				return err
 			}
 		}
 
-		return testRecipes(recipes)
+		if len(recipeDirs) == 0 {
+			return fmt.Errorf("no recipes to process")
+		}
+
+		outputDir := filepath.Join("local", "docker")
+		results := make([]*recipeGenerationResult, 0, len(recipeDirs))
+		var failures []string
+		for _, r := range recipeDirs {
+			fmt.Printf("Processing recipe: %s\n", r)
+			res, err := generateDockerfileForRecipe(cfg, r, outputDir)
+			if err != nil {
+				failures = append(failures, fmt.Sprintf("%s: %v", r, err))
+				fmt.Printf("\033[31m  %v\033[0m\n", err)
+				continue
+			}
+			if len(res.Errors) > 0 {
+				failures = append(failures, fmt.Sprintf("%s: %s", r, strings.Join(res.Errors, "; ")))
+				for _, msg := range res.Errors {
+					fmt.Printf("\033[31m  %s\033[0m\n", msg)
+				}
+				continue
+			}
+			results = append(results, res)
+			fmt.Printf("\033[32m  Dockerfile ready: %s\033[0m\n", res.OutputPath)
+		}
+
+		if len(results) == 0 {
+			if len(failures) > 0 {
+				return fmt.Errorf("all recipes failed: %s", strings.Join(failures, "; "))
+			}
+			return fmt.Errorf("no recipes processed")
+		}
+		if len(failures) > 0 {
+			return fmt.Errorf("%d recipe(s) failed; aborting graph generation", len(failures))
+		}
+
+		outPath := graphOutputPath
+		if outPath == "" {
+			outPath = filepath.Join("local", "graphs", "layers.dot")
+		}
+		if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
+			return fmt.Errorf("creating graph output directory: %w", err)
+		}
+
+		dot := buildGraphviz(results)
+		if err := os.WriteFile(outPath, []byte(dot), 0o644); err != nil {
+			return fmt.Errorf("writing Graphviz output: %w", err)
+		}
+		fmt.Printf("Graphviz graph written to %s\n", outPath)
+		return nil
 	},
+}
+
+func buildGraphviz(results []*recipeGenerationResult) string {
+	var b strings.Builder
+	b.WriteString("digraph BuilderLayers {\n")
+	b.WriteString("  rankdir=LR;\n")
+	b.WriteString("  graph [fontname=\"Helvetica\"];\n")
+	b.WriteString("  node [shape=box, style=filled, fillcolor=\"#e2e8f0\", fontname=\"Helvetica\"];\n")
+	b.WriteString("  edge [color=\"#6b7280\", fontname=\"Helvetica\"];\n\n")
+
+	nodes := make(map[string]string)
+	nodeAttrs := make(map[string][]string)
+	edges := make(map[string]map[string]struct{})
+
+	addEdge := func(from, to string) {
+		if from == "" || to == "" {
+			return
+		}
+		if edges[from] == nil {
+			edges[from] = make(map[string]struct{})
+		}
+		edges[from][to] = struct{}{}
+	}
+
+	for idx, res := range results {
+		startID := fmt.Sprintf("start_%d", idx)
+		startLabel := fmt.Sprintf("%s:%s", res.Compiled.Build.Name, res.Compiled.Build.Version)
+		nodes[startID] = startLabel
+		nodeAttrs[startID] = []string{"shape=oval", "fillcolor=\"#fde68a\""}
+
+		prev := startID
+		directives := res.Compiled.Definition.Directives
+		if len(directives) == 0 {
+			emptyID := fmt.Sprintf("empty_%d", idx)
+			nodes[emptyID] = "EMPTY"
+			nodeAttrs[emptyID] = []string{"style=dashed", "fillcolor=\"#ffffff\""}
+			addEdge(prev, emptyID)
+			continue
+		}
+
+		for _, directive := range directives {
+			hash, summary := directiveHashAndSummary(directive)
+			nodeID := "layer_" + strings.ToLower(hash)
+			if _, ok := nodes[nodeID]; !ok {
+				label := shortenLabel(summary, 96)
+				nodes[nodeID] = label
+				tooltip := fmt.Sprintf("%s\\n%s", hash, summary)
+				nodeAttrs[nodeID] = []string{
+					"shape=box",
+					"fillcolor=\"#cbd5f5\"",
+					fmt.Sprintf("tooltip=%s", quoteGraphviz(tooltip)),
+				}
+			}
+			addEdge(prev, nodeID)
+			prev = nodeID
+		}
+	}
+
+	var nodeIDs []string
+	for id := range nodes {
+		nodeIDs = append(nodeIDs, id)
+	}
+	sort.Strings(nodeIDs)
+	for _, id := range nodeIDs {
+		attrs := append([]string{fmt.Sprintf("label=%s", quoteGraphviz(nodes[id]))}, nodeAttrs[id]...)
+		b.WriteString(fmt.Sprintf("  %s [%s];\n", id, strings.Join(attrs, ", ")))
+	}
+
+	var fromIDs []string
+	for from := range edges {
+		fromIDs = append(fromIDs, from)
+	}
+	sort.Strings(fromIDs)
+	for _, from := range fromIDs {
+		var toIDs []string
+		for to := range edges[from] {
+			toIDs = append(toIDs, to)
+		}
+		sort.Strings(toIDs)
+		for _, to := range toIDs {
+			b.WriteString(fmt.Sprintf("  %s -> %s;\n", from, to))
+		}
+	}
+
+	b.WriteString("}\n")
+	return b.String()
+}
+
+func directiveHashAndSummary(d ir.Directive) (string, string) {
+	summary := formatDirectiveLabel(d)
+	sum := sha256.Sum256([]byte(summary))
+	hash := strings.ToUpper(hex.EncodeToString(sum[:])[:12])
+	return hash, summary
+}
+
+func formatDirectiveLabel(d ir.Directive) string {
+	switch v := d.(type) {
+	case ir.FromImageDirective:
+		return "FROM " + string(v)
+	case ir.EnvironmentDirective:
+		if len(v) == 0 {
+			return "ENV"
+		}
+		keys := make([]string, 0, len(v))
+		for k := range v {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		parts := make([]string, 0, len(keys))
+		for _, k := range keys {
+			parts = append(parts, fmt.Sprintf("%s=%q", k, v[k]))
+		}
+		return "ENV " + strings.Join(parts, " ")
+	case ir.RunDirective:
+		return "RUN " + string(v)
+	case ir.RunWithMountsDirective:
+		parts := make([]string, 0, len(v.Mounts))
+		for _, m := range v.Mounts {
+			parts = append(parts, "--mount="+m)
+		}
+		if len(parts) > 0 {
+			return "RUN " + strings.Join(parts, " ") + " " + v.Command
+		}
+		return "RUN " + v.Command
+	case ir.CopyDirective:
+		return "COPY " + strings.Join(v.Parts, " ")
+	case ir.WorkDirDirective:
+		return "WORKDIR " + string(v)
+	case ir.UserDirective:
+		return "USER " + string(v)
+	case ir.EntryPointDirective:
+		return "ENTRYPOINT " + string(v)
+	case ir.ExecEntryPointDirective:
+		if len(v) == 0 {
+			return "ENTRYPOINT []"
+		}
+		quoted := make([]string, len(v))
+		for i, arg := range v {
+			quoted[i] = fmt.Sprintf("%q", arg)
+		}
+		return "ENTRYPOINT [" + strings.Join(quoted, ", ") + "]"
+	case ir.LiteralFileDirective:
+		if v.Name != "" {
+			return fmt.Sprintf("RUN (literal file %s)", v.Name)
+		}
+		return "RUN (literal file)"
+	default:
+		return fmt.Sprintf("%T", d)
+	}
+}
+
+func quoteGraphviz(s string) string {
+	replaced := strings.ReplaceAll(s, "\\", "\\\\")
+	replaced = strings.ReplaceAll(replaced, "\"", "\\\"")
+	replaced = strings.ReplaceAll(replaced, "\n", "\\n")
+	return "\"" + replaced + "\""
+}
+
+func shortenLabel(s string, max int) string {
+	if max <= 0 {
+		return ""
+	}
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	if max <= 3 {
+		return string(runes[:max])
+	}
+	return string(runes[:max-3]) + "..."
 }
 
 var buildCmd = cobra.Command{
@@ -944,6 +1228,9 @@ func init() {
 
 	// test-all flags
 	rootCmd.AddCommand(&testAllCmd)
+
+	graphCmd.Flags().StringVar(&graphOutputPath, "output", filepath.Join("local", "graphs", "layers.dot"), "Path to Graphviz DOT output")
+	rootCmd.AddCommand(&graphCmd)
 
 	// test command
 	testCmd.Flags().BoolVar(&testCaptureOutput, "capture-output", false, "Capture output from commands")

@@ -51,7 +51,8 @@ binaries:
     {% endif -%}
     {% if self.mamba == "true" -%}
     conda install -yq -nbase conda-libmamba-solver
-    conda config --set solver libmamba
+    # Use libmamba solver by default if installed. Might not be available on older conda versions so don't fail.
+    conda config --set solver libmamba || true
     {% endif -%}
     # Prefer packages in conda-forge
     conda config --system --prepend channels conda-forge

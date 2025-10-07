@@ -126,6 +126,11 @@ func normalizeRunCommand(cmd string) string {
 func RenderDockerfile(dirs []Directive) (string, error) {
 	var buf bytes.Buffer
 
+	// Track users we've already handled to avoid repeating user creation steps.
+	createdUsers := map[string]struct{}{
+		"root": {},
+	}
+
 	writeLine := func(format string, a ...any) {
 		fmt.Fprintf(&buf, format+"\n", a...)
 	}
@@ -251,7 +256,12 @@ func RenderDockerfile(dirs []Directive) (string, error) {
 			if v == "" {
 				return "", fmt.Errorf("USER: empty user")
 			}
-			writeLine("USER %s", string(v))
+			user := string(v)
+			if _, ok := createdUsers[user]; !ok {
+				writeLine("RUN test \"$(getent passwd %[1]s)\" \\\n    || useradd --no-user-group --create-home --shell /bin/bash %[1]s", user)
+				createdUsers[user] = struct{}{}
+			}
+			writeLine("USER %s", user)
 
 		case EntryPoint:
 			if v == "" {

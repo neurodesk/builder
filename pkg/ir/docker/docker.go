@@ -67,6 +67,61 @@ type ExecEntryPoint []string
 
 func (ExecEntryPoint) isDirective() {}
 
+// normalizeRunCommand removes blank spacer lines that follow a trailing backslash
+// line-continuation. Templates sometimes emit additional blank lines for readability,
+// but in a shell script they terminate the continued command, causing subsequent
+// arguments (e.g. conda packages) to be executed as standalone commands.
+func normalizeRunCommand(cmd string) string {
+	if !strings.Contains(cmd, "\\\n") {
+		return cmd
+	}
+
+	var b strings.Builder
+	b.Grow(len(cmd))
+
+	for i := 0; i < len(cmd); i++ {
+		c := cmd[i]
+		b.WriteByte(c)
+		if c != '\\' {
+			continue
+		}
+
+		j := i + 1
+		for j < len(cmd) {
+			cj := cmd[j]
+			if cj == ' ' || cj == '\t' || cj == '\r' {
+				j++
+				continue
+			}
+			break
+		}
+
+		if j < len(cmd) && cmd[j] == '\n' {
+			b.WriteByte('\n')
+			j++
+
+			for j < len(cmd) {
+				lineStart := j
+				for lineStart < len(cmd) && (cmd[lineStart] == ' ' || cmd[lineStart] == '\t' || cmd[lineStart] == '\r') {
+					lineStart++
+				}
+				if lineStart < len(cmd) && cmd[lineStart] == '\n' {
+					j = lineStart + 1
+					continue
+				}
+				break
+			}
+
+			i = j - 1
+			continue
+		}
+
+		i = j - 1
+	}
+
+	return b.String()
+}
+
 // RenderDockerfile converts the directive list into a Dockerfile string.
 func RenderDockerfile(dirs []Directive) (string, error) {
 	var buf bytes.Buffer
@@ -137,7 +192,8 @@ func RenderDockerfile(dirs []Directive) (string, error) {
 			// Use exec form to ensure correct shell parsing and robust handling
 			// of quotes, newlines, and operators. JSON-encode the argv array
 			// without HTML escaping so special characters remain as-is.
-			argv := []string{"/bin/sh", "-lec", v.Command}
+			command := normalizeRunCommand(v.Command)
+			argv := []string{"/bin/sh", "-lec", command}
 			var jbuf bytes.Buffer
 			enc := json.NewEncoder(&jbuf)
 			enc.SetEscapeHTML(false)
@@ -152,7 +208,8 @@ func RenderDockerfile(dirs []Directive) (string, error) {
 
 		case RunWithMounts:
 			// JSON exec form is supported with BuildKit options preceding the command.
-			argv := []string{"/bin/sh", "-lec", v.Command}
+			command := normalizeRunCommand(v.Command)
+			argv := []string{"/bin/sh", "-lec", command}
 			var jbuf bytes.Buffer
 			enc := json.NewEncoder(&jbuf)
 			enc.SetEscapeHTML(false)

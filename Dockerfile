@@ -28,5 +28,8 @@ RUN chmod +x /usr/local/bin/sf-make
 # Default runtime directory for rootless buildkitd
 ENV XDG_RUNTIME_DIR=/tmp/buildkit
 
+# Set working directory for builds
+WORKDIR /work
+
 # Convenience: default to bash in interactive sessions
 ENTRYPOINT ["bash"]

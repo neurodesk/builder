@@ -114,23 +114,32 @@ A Dockerfile is provided to package this builder together with BuildKit and Appt
 - Base image: `moby/buildkit:latest`
 - Installs: `apptainer`, `bash`, and the `builder` CLI
 - Helper: `sf-make` script to stage, build via BuildKit, and optionally emit a SIF
+- Published to: `ghcr.io/neurodesk/builder:latest`
 
 Quick usage:
 
-1) Build the image
-   docker build -t neurodesk/builder:latest -f Dockerfile .
+1) Pull the published image (or build locally)
+   ```bash
+   docker pull ghcr.io/neurodesk/builder:latest
+   # Or build locally:
+   # docker build -t neurodesk/builder:latest -f Dockerfile .
+   ```
 
 2) Run and build a recipe to a SIF
+   ```bash
    docker run --rm -it \
-     -v "$PWD":/work -w /work \
+     -v "$PWD":/work \
      --privileged=false \
-     neurodesk/builder:latest \
+     ghcr.io/neurodesk/builder:latest \
      sf-make --config builder.config.yaml path/to/recipe
+   ```
 
 The `sf-make` command:
-- Generates the Dockerfile and build context using this repo’s CLI (`builder stage`)
+- Generates the Dockerfile and build context using this repo's CLI (`builder stage`)
 - Starts a rootless `buildkitd` inside the container and builds with `buildctl`
 - Produces a `docker-archive` tar and, by default, a SIF under `sifs/`
+
+**Note**: The image expects a mounted volume at `/work` containing your neurocontainers repository with recipes and configuration.
 
 ## Large Files and HTTP Caching
 

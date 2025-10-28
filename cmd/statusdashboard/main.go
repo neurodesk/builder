@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -25,20 +26,27 @@ const (
 )
 
 type BuildResult struct {
-	Name         string
-	Status       BuildStatus
-	RunCommand   string
-	ErrorCommand string
-	ErrorOutput  string
-	LogPath      string
-	LogRelative  string
-	LastModified time.Time
+	Name                  string
+	Status                BuildStatus
+	RunCommand            string
+	ErrorCommand          string
+	ErrorOutput           string
+	LogPath               string
+	LogRelative           string
+	LastModified          time.Time
+	BaselineProvided      bool
+	BaselineStatus        BuildStatus
+	BaselineReason        string
+	BaselineFailureOutput string
+	StatusDelta           string
 }
 
 type TemplateData struct {
-	GeneratedAt time.Time
-	LogsDir     string
-	Builds      []BuildResult
+	GeneratedAt  time.Time
+	LogsDir      string
+	Builds       []BuildResult
+	HasBaseline  bool
+	BaselinePath string
 }
 
 var (
@@ -47,16 +55,23 @@ var (
 		"statusLabel":  statusLabel,
 		"statusBadge":  statusBadgeClass,
 		"statusBorder": statusBorderClass,
+		"deltaClass":   statusDeltaClass,
 	}
 	dashboardTemplate = template.Must(template.New("dashboard").Funcs(templateFuncs).Parse(dashboardTemplateHTML))
 )
 
 func main() {
 	logsDir := flag.String("logs", "local/local_logs", "directory containing docker build logs")
+	baselinePath := flag.String("baseline", "unpriv_build_summary.json", "optional baseline summary JSON (leave empty to disable)")
 	outPath := flag.String("out", "", "write HTML output to this path (default stdout)")
 	flag.Parse()
 
-	builds, err := collectBuilds(*logsDir)
+	baselineEntries, baselineLoaded, err := loadBaseline(*baselinePath)
+	if err != nil {
+		log.Fatalf("loading baseline: %v", err)
+	}
+
+	builds, err := collectBuilds(*logsDir, baselineEntries)
 	if err != nil {
 		log.Fatalf("collecting build results: %v", err)
 	}
@@ -65,6 +80,13 @@ func main() {
 		GeneratedAt: time.Now(),
 		LogsDir:     *logsDir,
 		Builds:      builds,
+		HasBaseline: baselineLoaded,
+		BaselinePath: func() string {
+			if baselineLoaded {
+				return *baselinePath
+			}
+			return ""
+		}(),
 	}
 
 	var buf bytes.Buffer
@@ -84,7 +106,7 @@ func main() {
 	}
 }
 
-func collectBuilds(logsDir string) ([]BuildResult, error) {
+func collectBuilds(logsDir string, baseline map[string]baselineEntry) ([]BuildResult, error) {
 	entries, err := os.ReadDir(logsDir)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -124,6 +146,14 @@ func collectBuilds(logsDir string) ([]BuildResult, error) {
 		base := strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name()))
 		result.Name = strings.TrimPrefix(base, "build_")
 
+		if entry, ok := baseline[normalizeRecipeName(result.Name)]; ok {
+			result.BaselineProvided = true
+			result.BaselineStatus = normalizeBaselineStatus(entry.Status)
+			result.BaselineReason = entry.Reason
+			result.BaselineFailureOutput = entry.FailureOutput
+			result.StatusDelta = computeStatusDelta(result.Status, result.BaselineStatus)
+		}
+
 		builds = append(builds, result)
 	}
 
@@ -157,6 +187,132 @@ func parseLog(path string) (BuildResult, error) {
 	result.Status = determineStatus(content, result.ErrorCommand)
 
 	return result, nil
+}
+
+type baselineSummary struct {
+	Entries []baselineEntry `json:"entries"`
+}
+
+type baselineEntry struct {
+	Name          string `json:"name"`
+	Recipe        string `json:"recipe"`
+	Status        string `json:"status"`
+	Reason        string `json:"reason"`
+	FailureOutput string `json:"failure_output"`
+}
+
+func loadBaseline(path string) (map[string]baselineEntry, bool, error) {
+	baseline := make(map[string]baselineEntry)
+	if path == "" {
+		return baseline, false, nil
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return baseline, false, nil
+		}
+		return nil, false, fmt.Errorf("reading %q: %w", path, err)
+	}
+
+	var summary baselineSummary
+	if err := json.Unmarshal(data, &summary); err != nil {
+		return nil, false, fmt.Errorf("decoding %q: %w", path, err)
+	}
+
+	for _, entry := range summary.Entries {
+		key := normalizeRecipeName(entry.Recipe)
+		if key == "" {
+			key = deriveRecipeFromName(entry.Name)
+		}
+		if key == "" {
+			continue
+		}
+		baseline[key] = entry
+	}
+
+	return baseline, true, nil
+}
+
+func deriveRecipeFromName(name string) string {
+	if name == "" {
+		return ""
+	}
+	normalized := strings.ToLower(name)
+	normalized = strings.ReplaceAll(normalized, "_", " ")
+	normalized = strings.ReplaceAll(normalized, "-", " ")
+	fields := strings.Fields(normalized)
+	if len(fields) == 0 {
+		return ""
+	}
+	for len(fields) > 0 {
+		if _, err := strconv.Atoi(strings.Trim(fields[0], ":")); err == nil {
+			fields = fields[1:]
+			continue
+		}
+		break
+	}
+	if len(fields) == 0 {
+		return ""
+	}
+	for len(fields) > 0 {
+		switch fields[0] {
+		case "recipe", "recipes", "build":
+			fields = fields[1:]
+			continue
+		}
+		break
+	}
+	if len(fields) == 0 {
+		return ""
+	}
+	return normalizeRecipeName(fields[0])
+}
+
+func normalizeRecipeName(name string) string {
+	n := strings.ToLower(strings.TrimSpace(name))
+	if n == "" {
+		return ""
+	}
+	n = strings.Trim(n, ".,:;")
+	for _, cut := range []string{" ", "_", "-"} {
+		if strings.Contains(n, cut) {
+			n = strings.ReplaceAll(n, cut, "")
+		}
+	}
+	for _, suffix := range []string{".sif", ".simg", ".img", ".squashfs", ".tar", ".tgz", ".gz"} {
+		if strings.HasSuffix(n, suffix) {
+			n = strings.TrimSuffix(n, suffix)
+		}
+	}
+	return n
+}
+
+func normalizeBaselineStatus(status string) BuildStatus {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "succeeded", "success":
+		return BuildStatusSucceeded
+	case "failed", "failure", "error":
+		return BuildStatusFailed
+	default:
+		return BuildStatusUnknown
+	}
+}
+
+func computeStatusDelta(current, baseline BuildStatus) string {
+	if baseline == BuildStatusUnknown || current == BuildStatusUnknown {
+		return ""
+	}
+	if current == baseline {
+		return ""
+	}
+	if baseline == BuildStatusFailed && current == BuildStatusSucceeded {
+		return "Improved"
+	}
+	if baseline == BuildStatusSucceeded && current == BuildStatusFailed {
+		return "Regressed"
+	}
+	return "Changed"
 }
 
 func findRunCommand(content string) string {
@@ -277,6 +433,19 @@ func statusBorderClass(status BuildStatus) string {
 	}
 }
 
+func statusDeltaClass(delta string) string {
+	switch delta {
+	case "Improved":
+		return "bg-emerald-500/10 text-emerald-200 border border-emerald-500/30"
+	case "Regressed":
+		return "bg-rose-500/10 text-rose-200 border border-rose-500/30"
+	case "Changed":
+		return "bg-amber-500/10 text-amber-200 border border-amber-500/30"
+	default:
+		return "bg-slate-800 text-slate-300 border border-slate-700"
+	}
+}
+
 const dashboardTemplateHTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -289,6 +458,9 @@ const dashboardTemplateHTML = `<!DOCTYPE html>
     <header class="space-y-2">
       <h1 class="text-3xl font-semibold tracking-tight">Docker Build Status</h1>
       <p class="text-sm text-slate-400">Generated {{.GeneratedAt.Format "2006-01-02 15:04:05 MST"}} from logs in <span class="font-mono text-slate-200">{{.LogsDir}}</span></p>
+      {{if .HasBaseline}}
+      <p class="text-sm text-slate-400">Baseline comparison: <span class="font-mono text-slate-200">{{.BaselinePath}}</span></p>
+      {{end}}
     </header>
     {{if not .Builds}}
     <p class="rounded-md border border-slate-800 bg-slate-900/80 px-4 py-6 text-slate-300">No build logs found.</p>
@@ -308,6 +480,32 @@ const dashboardTemplateHTML = `<!DOCTYPE html>
             <dt class="font-medium text-slate-200">Log file</dt>
             <dd class="font-mono text-xs text-slate-400">{{.LogRelative}}</dd>
           </div>
+          {{if $.HasBaseline}}
+          <div>
+            <dt class="font-medium text-slate-200">Baseline</dt>
+            <dd>
+              {{if .BaselineProvided}}
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium tracking-wide {{statusBadge .BaselineStatus}}">{{statusLabel .BaselineStatus}}</span>
+                {{if .StatusDelta}}
+                <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide {{deltaClass .StatusDelta}}">{{.StatusDelta}}</span>
+                {{end}}
+              </div>
+              {{if .BaselineReason}}
+              <p class="mt-1 whitespace-pre-wrap text-xs text-slate-400">{{.BaselineReason}}</p>
+              {{end}}
+              {{if and .BaselineFailureOutput (eq .StatusDelta "Improved")}}
+              <details class="mt-2">
+                <summary class="cursor-pointer text-xs text-emerald-300 hover:text-emerald-200">View baseline failure output</summary>
+                <pre class="mt-1 whitespace-pre-wrap rounded border border-emerald-700/40 bg-emerald-950/30 p-3 text-xs text-emerald-100 overflow-x-auto">{{.BaselineFailureOutput}}</pre>
+              </details>
+              {{end}}
+              {{else}}
+              <p class="text-xs italic text-slate-500">No baseline entry.</p>
+              {{end}}
+            </dd>
+          </div>
+          {{end}}
           {{if .RunCommand}}
           <div>
             <dt class="font-medium text-slate-200">Docker invocation</dt>

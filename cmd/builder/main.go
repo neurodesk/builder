@@ -1265,9 +1265,9 @@ var buildCmd = cobra.Command{
 			fmt.Printf("Built image %s:%s\n", res.Name, res.Version)
 			return nil
 		case "llb":
-			// Build with buildctl and LLB
-			if _, err := exec.LookPath("buildctl"); err != nil {
-				return fmt.Errorf("buildctl not found in PATH; please install BuildKit and rerun")
+			// Build with Docker and LLB
+			if _, err := exec.LookPath("docker"); err != nil {
+				return fmt.Errorf("docker not found in PATH; please install Docker and rerun")
 			}
 
 			stage, err := prepareStage(cfg, recipeName, locals)

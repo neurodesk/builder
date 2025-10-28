@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"os/exec"
@@ -50,9 +51,6 @@ func SubmitToDockerViaBuildx(
 ) error {
 	if llbDef == nil {
 		return fmt.Errorf("empty LLB definition")
-	}
-	if outputChannel != nil {
-		defer close(outputChannel)
 	}
 
 	// Derive an initial digest->name index from LLB metadata. This relies on
@@ -143,7 +141,10 @@ func SubmitToDockerViaBuildx(
 		// 	},
 		// },
 	}, statusCh)
-	close(statusCh)
+	if err != nil {
+		slog.Error("buildkit solve error", "error", err)
+	}
+	// close(statusCh)
 	wg.Wait()
 
 	if err != nil {

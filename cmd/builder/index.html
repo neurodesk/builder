@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Builder UI — YAML Editor and LLB Build</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Scrollbar styling */
+        .thin-scrollbar::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        .thin-scrollbar::-webkit-scrollbar-thumb {
+            background-color: rgba(100, 116, 139, 0.5);
+            border-radius: 9999px;
+        }
+
+        .thin-scrollbar::-webkit-scrollbar-track {
+            background-color: transparent;
+        }
+
+        /* Prevent layout shift when showing/hiding elements */
+        [hidden] {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen bg-slate-50 text-slate-800">
+    <!-- Top Nav -->
+    <header class="sticky top-0 z-30 border-b border-slate-200 bg-white/80 backdrop-blur">
+        <div class="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-8 w-8 items-center justify-center rounded bg-indigo-600 text-white"
+                        title="Builder">
+                        B
+                    </div>
+                    <div>
+                        <div class="text-lg font-semibold">Builder UI</div>
+                        <div class="text-xs text-slate-500">
+                            Edit YAML recipes and build via LLB (BuildKit)
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="toggleApiDocBtn"
+                        class="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+                        type="button">
+                        API Docs
+                    </button>
+                    <a href="#" id="openInNewTabLink"
+                        class="hidden md:inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+                        title="Open in new tab">
+                        Open in new tab
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main -->
+    <main class="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
+            <!-- Left: YAML Editor -->
+            <section class="flex min-h-[70vh] flex-col rounded-lg border border-slate-200 bg-white shadow-sm">
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                    <div class="flex flex-1 items-center gap-2">
+                        <label for="fileSelect" class="text-sm font-medium text-slate-700">Recipe</label>
+                        <select id="fileSelect"
+                            class="thin-scrollbar block max-w-full flex-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            title="Select a YAML recipe from the repository">
+                            <option value="">Select a file…</option>
+                        </select>
+                        <button id="reloadListBtn"
+                            class="inline-flex items-center rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+                            type="button" title="Reload file list">
+                            Reload
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="newFileBtn"
+                            class="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+                            type="button" title="Create a new YAML file">
+                            New
+                        </button>
+                        <button id="saveBtn"
+                            class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            type="button" disabled title="Save (Ctrl/Cmd+S)">
+                            Save
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between px-4 pt-2 text-xs">
+                    <div class="flex items-center gap-3">
+                        <span id="filePathLabel" class="text-slate-500">No file</span>
+                        <span id="dirtyBadge"
+                            class="hidden rounded bg-amber-100 px-2 py-0.5 font-medium text-amber-800">Unsaved
+                            changes</span>
+                        <span id="readOnlyBadge"
+                            class="hidden rounded bg-slate-100 px-2 py-0.5 font-medium text-slate-700">Read-only</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span id="etagLabel" class="text-slate-400"></span>
+                        <span id="statusLabel" class="text-slate-400"></span>
+                    </div>
+                </div>
+
+                <div class="relative mt-2 flex-1 overflow-hidden px-4 pb-4">
+                    <textarea id="editor"
+                        class="thin-scrollbar h-[60vh] w-full resize-none rounded-md border border-slate-200 bg-slate-50 p-3 font-mono text-sm leading-5 text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        placeholder="# Select or create a YAML recipe on the left menu" spellcheck="false"
+                        autocomplete="off" autocapitalize="off" autocorrect="off" wrap="off"></textarea>
+                    <div class="mt-2 flex items-center justify-between">
+                        <div class="text-xs text-slate-500">
+                            Tip: Press Ctrl/Cmd+S to save
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="inline-flex cursor-pointer items-center gap-2">
+                                <input id="wrapToggle" type="checkbox"
+                                    class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                                <span class="text-xs text-slate-600">Soft wrap</span>
+                            </label>
+                            <label class="inline-flex cursor-pointer items-center gap-2">
+                                <input id="readonlyToggle" type="checkbox"
+                                    class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                                <span class="text-xs text-slate-600">Read-only</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right: Build / Output -->
+            <section class="flex min-h-[70vh] flex-col rounded-lg border border-slate-200 bg-white shadow-sm">
+                <div class="border-b border-slate-200 px-4 py-3">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <div class="text-base font-semibold text-slate-900">
+                                Build (LLB)
+                            </div>
+                            <div class="text-xs text-slate-500">
+                                Uses BuildKit via Docker Buildx; streams live events.
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button id="clearOutputBtn"
+                                class="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+                                type="button">
+                                Clear
+                            </button>
+                            <button id="cancelBuildBtn"
+                                class="inline-flex items-center rounded-md border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm font-semibold text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                type="button" disabled>
+                                Cancel
+                            </button>
+                            <button id="startBuildBtn"
+                                class="inline-flex items-center rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                type="button" disabled>
+                                Build LLB
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Build options -->
+                    <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+                        <div class="flex items-center gap-2">
+                            <label for="builderName"
+                                class="w-28 shrink-0 text-sm font-medium text-slate-700">Builder</label>
+                            <input id="builderName" type="text"
+                                class="block w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                placeholder="default" />
+                        </div>
+                        <div class="md:col-span-2">
+                            <div class="flex items-start gap-2">
+                                <label class="w-28 shrink-0 pt-1 text-sm font-medium text-slate-700">Local
+                                    contexts</label>
+                                <div class="flex-1">
+                                    <div id="localsContainer" class="space-y-2">
+                                        <!-- Local context rows injected here -->
+                                    </div>
+                                    <button id="addLocalBtn"
+                                        class="mt-2 inline-flex items-center rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+                                        type="button">
+                                        + Add local
+                                    </button>
+                                    <div class="mt-1 text-[11px] text-slate-500">
+                                        Named contexts map to RUN --mount from=KEY. Example:
+                                        KEY=DIR (e.g. "cache=./local/cache")
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Output / Progress -->
+                <div class="flex flex-1 flex-col gap-4 p-4">
+                    <!-- Build summary -->
+                    <div id="buildSummary" class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <div class="grid grid-cols-2 gap-2 md:grid-cols-4">
+                            <div>
+                                <div class="text-xs text-slate-500">Build ID</div>
+                                <div id="buildId" class="truncate text-sm font-medium text-slate-800">
+                                    —
+                                </div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-slate-500">Status</div>
+                                <div id="buildState" class="text-sm font-medium text-slate-800">
+                                    Idle
+                                </div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-slate-500">Steps</div>
+                                <div class="text-sm font-medium text-slate-800">
+                                    <span id="stepsDone">0</span>/<span id="stepsTotal">0</span>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-slate-500">Elapsed</div>
+                                <div id="elapsed" class="text-sm font-medium text-slate-800">
+                                    00:00
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-2 h-2 w-full rounded-full bg-slate-200">
+                            <div id="progressBar" class="h-2 rounded-full bg-emerald-500" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Steps -->
+                    <div class="space-y-2">
+                        <div class="text-sm font-semibold text-slate-800">Steps</div>
+                        <div id="stepsList"
+                            class="thin-scrollbar max-h-72 overflow-auto rounded-lg border border-slate-200">
+                            <!-- Step rows injected dynamically -->
+                            <div id="stepsEmpty" class="p-3 text-sm text-slate-500">
+                                No steps yet.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Logs -->
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div class="text-sm font-semibold text-slate-800">Logs</div>
+                            <div class="flex items-center gap-2">
+                                <label class="inline-flex items-center gap-2 text-xs">
+                                    <input id="followLogsToggle" type="checkbox" checked
+                                        class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                                    <span class="text-slate-600">Follow logs</span>
+                                </label>
+                                <select id="logFilterSelect"
+                                    class="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                    title="Filter logs by step">
+                                    <option value="">All steps</option>
+                                </select>
+                            </div>
+                        </div>
+                        <pre id="logs"
+                            class="thin-scrollbar h-64 overflow-auto rounded-lg border border-slate-200 bg-slate-900 p-3 text-xs leading-5 text-slate-100"><code id="logsCode"></code></pre>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- API Docs (toggle) -->
+        <section id="apiDocs" class="mt-6 hidden rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 class="mb-2 text-base font-semibold text-slate-900">
+                Backend API (to be implemented)
+            </h2>
+            <p class="mb-3 text-sm text-slate-600">
+                This UI assumes a backend exposes the following endpoints. No mocking
+                is performed in the UI; features are inactive until the backend is
+                available.
+            </p>
+            <div class="space-y-4 text-sm">
+                <div>
+                    <div class="font-semibold">List files</div>
+                    <pre class="mt-1 rounded bg-slate-50 p-2 text-xs text-slate-700">GET /api/v1/files?ext=.yaml
+200 application/json
+{
+  "files": [
+    { "path": "recipes/nginx/build.yaml", "name": "nginx/build.yaml", "updatedAt": "RFC3339" }
+  ]
+}</pre>
+                </div>
+                <div>
+                    <div class="font-semibold">Get file</div>
+                    <pre class="mt-1 rounded bg-slate-50 p-2 text-xs text-slate-700">GET /api/v1/files/{path}
+200 application/json
+{
+  "path": "recipes/nginx/build.yaml",
+  "content": "<YAML...>",
+  "etag": "sha256:...",
+  "updatedAt": "RFC3339",
+  "readOnly": false
+}</pre>
+                </div>
+                <div>
+                    <div class="font-semibold">Save file</div>
+                    <pre class="mt-1 rounded bg-slate-50 p-2 text-xs text-slate-700">PUT /api/v1/files/{path}
+Content-Type: application/json
+{
+  "content": "<YAML...>",
+  "etag": "sha256:..." // optional optimistic lock
+}
+200 application/json
+{ "etag": "sha256:...", "updatedAt": "RFC3339" }</pre>
+                </div>
+                <div>
+                    <div class="font-semibold">Start build (LLB)</div>
+                    <pre class="mt-1 rounded bg-slate-50 p-2 text-xs text-slate-700">POST /api/v1/builds
+Content-Type: application/json
+{
+  "filePath": "recipes/nginx/build.yaml",
+  "method": "llb",
+  "builderName": "default",
+  "locals": { "cache": "./local/cache" }
+}
+202 application/json
+{ "buildId": "uuid" }</pre>
+                </div>
+                <div>
+                    <div class="font-semibold">Stream build events</div>
+                    <pre class="mt-1 rounded bg-slate-50 p-2 text-xs text-slate-700">GET /api/v1/builds/{buildId}/events
+200 text/event-stream
+data: {"type":"status","status":{...},"vertexNames":{...}}
+data: {"type":"result","result":{...}}
+data: {"type":"error","error":"..."}
+</pre>
+                </div>
+                <div>
+                    <div class="font-semibold">Cancel build</div>
+                    <pre class="mt-1 rounded bg-slate-50 p-2 text-xs text-slate-700">DELETE /api/v1/builds/{buildId}
+202 application/json
+{ "status": "cancelling" }</pre>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Toasts -->
+    <div id="toasts" class="pointer-events-none fixed bottom-4 right-4 z-50 flex w-96 flex-col gap-2"></div>
+
+    <script>
+        // Basic configuration
+        const API_BASE = "/api/v1";
+
+        // Elements
+        const fileSelect = document.getElementById("fileSelect");
+        const reloadListBtn = document.getElementById("reloadListBtn");
+        const newFileBtn = document.getElementById("newFileBtn");
+        const saveBtn = document.getElementById("saveBtn");
+        const editor = document.getElementById("editor");
+        const wrapToggle = document.getElementById("wrapToggle");
+        const readonlyToggle = document.getElementById("readonlyToggle");
+        const filePathLabel = document.getElementById("filePathLabel");
+        const etagLabel = document.getElementById("etagLabel");
+        const statusLabel = document.getElementById("statusLabel");
+        const dirtyBadge = document.getElementById("dirtyBadge");
+        const readOnlyBadge = document.getElementById("readOnlyBadge");
+        const openInNewTabLink = document.getElementById("openInNewTabLink");
+
+        const builderName = document.getElementById("builderName");
+        const addLocalBtn = document.getElementById("addLocalBtn");
+        const localsContainer = document.getElementById("localsContainer");
+        const startBuildBtn = document.getElementById("startBuildBtn");
+        const cancelBuildBtn = document.getElementById("cancelBuildBtn");
+        const clearOutputBtn = document.getElementById("clearOutputBtn");
+
+        const buildIdEl = document.getElementById("buildId");
+        const buildStateEl = document.getElementById("buildState");
+        const stepsDoneEl = document.getElementById("stepsDone");
+        const stepsTotalEl = document.getElementById("stepsTotal");
+        const elapsedEl = document.getElementById("elapsed");
+        const progressBar = document.getElementById("progressBar");
+
+        const stepsList = document.getElementById("stepsList");
+        const stepsEmpty = document.getElementById("stepsEmpty");
+
+        const logFilterSelect = document.getElementById("logFilterSelect");
+        const logs = document.getElementById("logs");
+        const logsCode = document.getElementById("logsCode");
+        const followLogsToggle = document.getElementById("followLogsToggle");
+
+        const apiDocs = document.getElementById("apiDocs");
+        const toggleApiDocBtn = document.getElementById("toggleApiDocBtn");
+
+        // State
+        let fileList = [];
+        let currentFilePath = "";
+        let currentEtag = "";
+        let currentReadOnly = false;
+        let dirty = false;
+
+        let buildId = null;
+        let buildStartTs = null;
+        let sse = null;
+
+        // Vertex state
+        const vertexNames = new Map(); // digest -> name
+        const steps = new Map(); // digest -> step object
+        let totalSteps = 0;
+        let completedSteps = 0;
+        let logLines = []; // { ts, digest, stream, line }
+
+        // Utilities
+        function toast(message, style = "info") {
+            const colors = {
+                info: "bg-slate-800 text-white",
+                success: "bg-emerald-600 text-white",
+                warn: "bg-amber-500 text-white",
+                error: "bg-rose-600 text-white",
+            };
+            const el = document.createElement("div");
+            el.className =
+                "pointer-events-auto rounded-md px-3 py-2 text-sm shadow-lg " +
+                (colors[style] || colors.info);
+            el.textContent = message;
+            document.getElementById("toasts").appendChild(el);
+            setTimeout(() => {
+                el.classList.add("opacity-0", "transition-opacity", "duration-500");
+                setTimeout(() => el.remove(), 500);
+            }, 2500);
+        }
+
+        function setDirty(v) {
+            dirty = !!v;
+            dirtyBadge.hidden = !dirty;
+            saveBtn.disabled = !dirty || currentFilePath === "" || currentReadOnly;
+            startBuildBtn.disabled = currentFilePath === "" || dirty;
+        }
+
+        function setReadOnly(v) {
+            currentReadOnly = !!v;
+            readonlyToggle.checked = currentReadOnly;
+            editor.readOnly = currentReadOnly;
+            readOnlyBadge.hidden = !currentReadOnly;
+            saveBtn.disabled = currentReadOnly || !dirty || currentFilePath === "";
+        }
+
+        function setWrap(v) {
+            editor.wrap = v ? "soft" : "off";
+            editor.style.whiteSpace = v ? "pre-wrap" : "pre";
+        }
+
+        function bytesToBase64Decode(b64) {
+            try {
+                const binStr = atob(b64);
+                const len = binStr.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) bytes[i] = binStr.charCodeAt(i);
+                const dec = new TextDecoder("utf-8", { fatal: false });
+                return dec.decode(bytes);
+            } catch (e) {
+                return "(decode error)";
+            }
+        }
+
+        function hhmmss(ms) {
+            const s = Math.floor(ms / 1000);
+            const h = Math.floor(s / 3600);
+            const m = Math.floor((s % 3600) / 60);
+            const ss = s % 60;
+            return (h > 0 ? String(h).padStart(2, "0") + ":" : "") +
+                String(m).padStart(2, "0") + ":" + String(ss).padStart(2, "0");
+        }
+
+        function currentLocals() {
+            const rows = localsContainer.querySelectorAll("[data-local-row]");
+            const out = {};
+            rows.forEach((row) => {
+                const key = row.querySelector("[data-local-key]").value.trim();
+                const dir = row.querySelector("[data-local-dir]").value.trim();
+                if (key && dir) out[key] = dir;
+            });
+            return out;
+        }
+
+        function resetBuildUI() {
+            buildId = null;
+            buildIdEl.textContent = "—";
+            buildStateEl.textContent = "Idle";
+            buildStartTs = null;
+            steps.clear();
+            vertexNames.clear();
+            totalSteps = 0;
+            completedSteps = 0;
+            stepsDoneEl.textContent = "0";
+            stepsTotalEl.textContent = "0";
+            progressBar.style.width = "0%";
+            stepsList.replaceChildren(stepsEmpty);
+            stepsEmpty.hidden = false;
+            // reset logs
+            logLines = [];
+            logsCode.textContent = "";
+            logFilterSelect.replaceChildren(
+                new Option("All steps", "", true, true)
+            );
+            cancelBuildBtn.disabled = true;
+        }
+
+        function ensureStepRow(digest) {
+            if (!steps.has(digest)) {
+                const name = vertexNames.get(digest) || digest.slice(0, 19);
+                const step = {
+                    digest,
+                    name,
+                    status: "pending", // pending | running | cached | done | error
+                    started: null,
+                    completed: null,
+                    error: "",
+                };
+                steps.set(digest, step);
+                totalSteps = steps.size;
+                stepsTotalEl.textContent = String(totalSteps);
+
+                // Create row
+                const row = document.createElement("div");
+                row.dataset.digest = digest;
+                row.className =
+                    "flex items-start gap-3 border-b border-slate-200 px-3 py-2 last:border-b-0";
+
+                const dot = document.createElement("div");
+                dot.className =
+                    "mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-slate-300";
+                dot.title = "status";
+                row.appendChild(dot);
+
+                const main = document.createElement("div");
+                main.className = "min-w-0 flex-1";
+                const title = document.createElement("div");
+                title.className = "truncate text-sm font-medium text-slate-900";
+                title.textContent = name;
+                main.appendChild(title);
+
+                const sub = document.createElement("div");
+                sub.className =
+                    "mt-0.5 text-[11px] text-slate-500 flex items-center gap-2";
+                const dur = document.createElement("span");
+                dur.textContent = "";
+                const st = document.createElement("span");
+                st.textContent = "pending";
+                sub.appendChild(st);
+                sub.append("•");
+                sub.appendChild(dur);
+                main.appendChild(sub);
+
+                row.appendChild(main);
+
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.className =
+                    "ml-2 shrink-0 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50";
+                btn.textContent = "Focus logs";
+                btn.addEventListener("click", () => {
+                    logFilterSelect.value = digest;
+                    filterLogs();
+                });
+                row.appendChild(btn);
+
+                stepsEmpty.hidden = true;
+                stepsList.appendChild(row);
+
+                // Add to filter select
+                logFilterSelect.appendChild(new Option(name, digest, false, false));
+
+                step._elements = { row, dot, title, st, dur };
+            }
+            return steps.get(digest);
+        }
+
+        function updateStepVisual(step) {
+            const { dot, st, dur } = step._elements || {};
+            if (!dot) return;
+            const statusColor = {
+                pending: "bg-slate-300",
+                running: "bg-sky-500",
+                cached: "bg-amber-500",
+                done: "bg-emerald-500",
+                error: "bg-rose-600",
+            };
+            Object.values(statusColor).forEach((c) => dot.classList.remove(c));
+            dot.classList.add(statusColor[step.status] || "bg-slate-300");
+            st.textContent = step.status;
+            if (step.started && step.completed) {
+                dur.textContent = hhmmss(step.completed - step.started);
+            } else if (step.started) {
+                dur.textContent = hhmmss(Date.now() - step.started);
+            } else {
+                dur.textContent = "";
+            }
+        }
+
+        function appendLogLine(digest, stream, text) {
+            const ts = Date.now();
+            logLines.push({ ts, digest, stream, line: text });
+            // Fast path appending only last line when not filtered
+            const sel = logFilterSelect.value;
+            if (!sel || sel === digest) {
+                const prefix =
+                    "[" + (vertexNames.get(digest) || digest.slice(0, 19)) + "] " +
+                    (stream === 2 ? "stderr" : "stdout") + ": ";
+                logsCode.appendChild(
+                    document.createTextNode(prefix + text + "\n")
+                );
+                if (followLogsToggle.checked) {
+                    logs.scrollTop = logs.scrollHeight;
+                }
+            }
+        }
+
+        function filterLogs() {
+            const sel = logFilterSelect.value;
+            logsCode.textContent = "";
+            for (const { digest, stream, line } of logLines) {
+                if (sel && digest !== sel) continue;
+                const prefix =
+                    "[" + (vertexNames.get(digest) || digest.slice(0, 19)) + "] " +
+                    (stream === 2 ? "stderr" : "stdout") + ": ";
+                logsCode.appendChild(
+                    document.createTextNode(prefix + line + "\n")
+                );
+            }
+            if (followLogsToggle.checked) {
+                logs.scrollTop = logs.scrollHeight;
+            }
+        }
+
+        function updateProgress() {
+            stepsDoneEl.textContent = String(completedSteps);
+            stepsTotalEl.textContent = String(totalSteps);
+            const pct =
+                totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
+            progressBar.style.width = pct + "%";
+        }
+
+        function tickElapsed() {
+            if (!buildStartTs) return;
+            elapsedEl.textContent = hhmmss(Date.now() - buildStartTs);
+        }
+        setInterval(tickElapsed, 500);
+
+        // API Calls
+        async function apiListFiles() {
+            const res = await fetch(`${API_BASE}/files?ext=.yaml`, {
+                headers: { Accept: "application/json" },
+            });
+            if (!res.ok) throw new Error(`List files failed: ${res.status}`);
+            return res.json();
+        }
+
+        async function apiGetFile(path) {
+            const url = `${API_BASE}/files/${encodeURIComponent(path)}`;
+            const res = await fetch(url, {
+                headers: { Accept: "application/json" },
+            });
+            if (!res.ok) throw new Error(`Get file failed: ${res.status}`);
+            return res.json();
+        }
+
+        async function apiPutFile(path, content, etag) {
+            const url = `${API_BASE}/files/${encodeURIComponent(path)}`;
+            const body = { content };
+            if (etag) body.etag = etag;
+            const res = await fetch(url, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+            });
+            if (!res.ok) {
+                const txt = await res.text().catch(() => "");
+                throw new Error(
+                    `Save failed: ${res.status} ${res.statusText} ${txt || ""}`
+                );
+            }
+            return res.json();
+        }
+
+        async function apiStartBuildLLB(filePath, builder, locals) {
+            const res = await fetch(`${API_BASE}/builds`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    filePath,
+                    method: "llb",
+                    builderName: builder || "default",
+                    locals,
+                }),
+            });
+            if (!res.ok) {
+                const txt = await res.text().catch(() => "");
+                throw new Error(
+                    `Start build failed: ${res.status} ${res.statusText} ${txt || ""}`
+                );
+            }
+            return res.json();
+        }
+
+        async function apiCancelBuild(id) {
+            const res = await fetch(`${API_BASE}/builds/${encodeURIComponent(id)}`, {
+                method: "DELETE",
+            });
+            if (!res.ok) {
+                const txt = await res.text().catch(() => "");
+                throw new Error(
+                    `Cancel build failed: ${res.status} ${res.statusText} ${txt || ""}`
+                );
+            }
+            return res.json().catch(() => ({}));
+        }
+
+        function openBuildEvents(id) {
+            if (sse) {
+                sse.close();
+                sse = null;
+            }
+            const url = `${API_BASE}/builds/${encodeURIComponent(
+                id
+            )}/events`;
+            sse = new EventSource(url, { withCredentials: false });
+
+            sse.addEventListener("message", (ev) => {
+                if (!ev.data) return;
+                let msg;
+                try {
+                    msg = JSON.parse(ev.data);
+                } catch {
+                    return;
+                }
+                handleBuildEvent(msg);
+            });
+
+            sse.addEventListener("error", () => {
+                // Keep the UI state; connection might auto-retry.
+                // If build is done, backend should close the stream.
+            });
+        }
+
+        function handleBuildEvent(ev) {
+            // Expected schema mirrors server Event type:
+            // { type: "status"|"result"|"error", status?, result?, error?, vertexNames? }
+            if (ev.vertexNames) {
+                Object.entries(ev.vertexNames).forEach(([dgst, name]) => {
+                    vertexNames.set(dgst, name);
+                    const s = steps.get(dgst);
+                    if (s) {
+                        s.name = name;
+                        if (s._elements?.title) s._elements.title.textContent = name;
+                    }
+                });
+            }
+
+            if (ev.type === "status" && ev.status) {
+                const s = ev.status;
+
+                // Vertex updates
+                if (Array.isArray(s.vertexes)) {
+                    for (const v of s.vertexes) {
+                        const dgst = v.digest || (v.Digest ? v.Digest : null);
+                        if (!dgst) continue;
+                        const digest =
+                            typeof dgst === "string"
+                                ? dgst
+                                : (dgst.hash || dgst.Hash || "").toString();
+                        if (!digest) continue;
+
+                        if (v.name || v.Name) {
+                            vertexNames.set(digest, v.name || v.Name);
+                        }
+                        const step = ensureStepRow(digest);
+
+                        // Times may be RFC3339 strings or epoch; normalize to ms
+                        const started = v.started || v.Started || null;
+                        const completed = v.completed || v.Completed || null;
+
+                        if (started && !step.started) {
+                            step.started = new Date(started).getTime();
+                            step.status = "running";
+                        }
+                        if (v.error || v.Error) {
+                            step.error = v.error || v.Error;
+                            step.status = "error";
+                            if (!step.completed)
+                                step.completed = completed
+                                    ? new Date(completed).getTime()
+                                    : Date.now();
+                        } else if (v.cached || v.Cached) {
+                            step.status = "cached";
+                            if (!step.completed)
+                                step.completed = completed
+                                    ? new Date(completed).getTime()
+                                    : Date.now();
+                        } else if (completed && !step.completed) {
+                            step.completed = new Date(completed).getTime();
+                            step.status = "done";
+                        }
+
+                        // Update counts
+                        let doneBefore =
+                            step._doneCounted === true ||
+                            step.status === "cached" ||
+                            step.status === "done" ||
+                            step.status === "error";
+                        const nowDone =
+                            step.status === "cached" ||
+                            step.status === "done" ||
+                            step.status === "error";
+                        if (!doneBefore && nowDone) {
+                            step._doneCounted = true;
+                            completedSteps += 1;
+                        }
+
+                        updateStepVisual(step);
+                        updateProgress();
+                    }
+                }
+
+                // Logs
+                if (Array.isArray(s.logs)) {
+                    for (const l of s.logs) {
+                        const dgst = l.vertex || l.Vertex || null;
+                        if (!dgst) continue;
+                        const digest =
+                            typeof dgst === "string"
+                                ? dgst
+                                : (dgst.hash || dgst.Hash || "").toString();
+                        if (!digest) continue;
+
+                        const data = l.data || l.Data || "";
+                        const stream = l.stream ?? l.Stream ?? 1;
+                        const text = typeof data === "string" ? bytesToBase64Decode(data) : "";
+                        // Split by newline, strip CR
+                        text.split("\n").forEach((lineRaw) => {
+                            const line = lineRaw.replace(/\r$/, "");
+                            if (line.length > 0) appendLogLine(digest, stream, line);
+                        });
+                    }
+                }
+            } else if (ev.type === "error") {
+                buildStateEl.textContent = "Error";
+                toast(`Build failed: ${ev.error || "unknown error"}`, "error");
+                cancelBuildBtn.disabled = true;
+                if (sse) {
+                    sse.close();
+                    sse = null;
+                }
+            } else if (ev.type === "result") {
+                buildStateEl.textContent = "Completed";
+                toast("Build completed", "success");
+                cancelBuildBtn.disabled = true;
+                if (sse) {
+                    sse.close();
+                    sse = null;
+                }
+            }
+        }
+
+        // File list and editor handling
+        async function loadFileList() {
+            statusLabel.textContent = "Loading files…";
+            try {
+                const res = await apiListFiles();
+                fileList = Array.isArray(res.files) ? res.files : [];
+                // Populate select
+                const prev = fileSelect.value;
+                fileSelect.replaceChildren(new Option("Select a file…", "", true, true));
+                for (const f of fileList) {
+                    const name = f.name || f.path;
+                    const opt = new Option(name, f.path, false, false);
+                    fileSelect.appendChild(opt);
+                }
+                statusLabel.textContent = `${fileList.length} files`;
+                // Keep selection if still present
+                if (prev && fileList.some((f) => f.path === prev)) {
+                    fileSelect.value = prev;
+                }
+            } catch (e) {
+                statusLabel.textContent = "Failed to load file list";
+                toast(e.message || "Failed to load file list", "error");
+            }
+        }
+
+        async function loadFile(path) {
+            if (!path) return;
+            statusLabel.textContent = "Loading…";
+            try {
+                const res = await apiGetFile(path);
+                currentFilePath = res.path || path;
+                currentEtag = res.etag || "";
+                setReadOnly(!!res.readOnly);
+                editor.value = res.content || "";
+                filePathLabel.textContent = currentFilePath;
+                etagLabel.textContent = currentEtag ? `ETag ${currentEtag}` : "";
+                setDirty(false);
+                startBuildBtn.disabled = currentFilePath === "" || dirty;
+                statusLabel.textContent = res.updatedAt ? `Updated ${res.updatedAt}` : "";
+                openInNewTabLink.classList.remove("hidden");
+                openInNewTabLink.href = `#${encodeURIComponent(currentFilePath)}`;
+            } catch (e) {
+                statusLabel.textContent = "Load failed";
+                toast(e.message || "Failed to load file", "error");
+            }
+        }
+
+        async function saveFile() {
+            if (!currentFilePath) return;
+            try {
+                saveBtn.disabled = true;
+                const res = await apiPutFile(
+                    currentFilePath,
+                    editor.value,
+                    currentEtag || undefined
+                );
+                currentEtag = res.etag || "";
+                etagLabel.textContent = currentEtag ? `ETag ${currentEtag}` : "";
+                if (res.updatedAt) statusLabel.textContent = `Updated ${res.updatedAt}`;
+                setDirty(false);
+                toast("Saved", "success");
+                // Refresh list timestamps
+                loadFileList().catch(() => { });
+            } catch (e) {
+                saveBtn.disabled = false;
+                toast(e.message || "Save failed", "error");
+            }
+        }
+
+        // Build handling
+        async function startBuild() {
+            if (!currentFilePath) return;
+            if (dirty) {
+                const go = confirm(
+                    "You have unsaved changes. Save and start build?"
+                );
+                if (!go) return;
+                await saveFile();
+                if (dirty) return; // save failed
+            }
+            const locals = currentLocals();
+            const builder = builderName.value.trim() || "default";
+            try {
+                resetBuildUI();
+                buildStateEl.textContent = "Starting…";
+                const res = await apiStartBuildLLB(currentFilePath, builder, locals);
+                buildId = res.buildId || res.id || null;
+                if (!buildId) {
+                    toast("Backend did not return a buildId", "error");
+                    buildStateEl.textContent = "Error";
+                    return;
+                }
+                buildIdEl.textContent = buildId;
+                buildStartTs = Date.now();
+                buildStateEl.textContent = "Running";
+                cancelBuildBtn.disabled = false;
+                openBuildEvents(buildId);
+            } catch (e) {
+                toast(e.message || "Failed to start build", "error");
+                buildStateEl.textContent = "Error";
+            }
+        }
+
+        async function cancelBuild() {
+            if (!buildId) return;
+            try {
+                await apiCancelBuild(buildId);
+                toast("Cancel requested", "warn");
+            } catch (e) {
+                toast(e.message || "Cancel failed", "error");
+            }
+        }
+
+        // Locals UI
+        function addLocalRow(k = "", v = "") {
+            const row = document.createElement("div");
+            row.dataset.localRow = "1";
+            row.className = "flex items-center gap-2";
+            row.innerHTML = `
+          <input data-local-key type="text" placeholder="KEY"
+            class="w-32 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+          <input data-local-dir type="text" placeholder="DIR"
+            class="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+          <button type="button" title="Remove"
+            class="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50">Remove</button>
+        `;
+            const [keyEl, dirEl, rmBtn] = [
+                row.querySelector("[data-local-key]"),
+                row.querySelector("[data-local-dir]"),
+                row.querySelector("button"),
+            ];
+            keyEl.value = k;
+            dirEl.value = v;
+            rmBtn.addEventListener("click", () => row.remove());
+            localsContainer.appendChild(row);
+        }
+
+        // Event bindings
+        reloadListBtn.addEventListener("click", () => loadFileList());
+        fileSelect.addEventListener("change", (e) => {
+            const path = e.target.value;
+            if (path) loadFile(path);
+        });
+        newFileBtn.addEventListener("click", async () => {
+            const path = prompt(
+                "Enter new YAML file path (relative to configured repository root):"
+            );
+            if (!path) return;
+            currentFilePath = path.trim();
+            if (!currentFilePath) return;
+            editor.value = "# New recipe\n";
+            filePathLabel.textContent = currentFilePath;
+            setReadOnly(false);
+            setDirty(true);
+            etagLabel.textContent = "";
+            statusLabel.textContent = "New file (unsaved)";
+            // Add to dropdown
+            const opt = new Option(currentFilePath, currentFilePath, true, true);
+            fileSelect.add(opt);
+        });
+        saveBtn.addEventListener("click", () => saveFile());
+        editor.addEventListener("input", () => setDirty(true));
+        wrapToggle.addEventListener("change", (e) => setWrap(e.target.checked));
+        readonlyToggle.addEventListener("change", (e) =>
+            setReadOnly(e.target.checked)
+        );
+        startBuildBtn.addEventListener("click", () => startBuild());
+        cancelBuildBtn.addEventListener("click", () => cancelBuild());
+        clearOutputBtn.addEventListener("click", () => resetBuildUI());
+        addLocalBtn.addEventListener("click", () => addLocalRow());
+        logFilterSelect.addEventListener("change", () => filterLogs());
+        toggleApiDocBtn.addEventListener("click", () => {
+            const hidden = apiDocs.classList.contains("hidden");
+            apiDocs.classList.toggle("hidden", !hidden);
+            toggleApiDocBtn.classList.toggle("bg-slate-900", hidden);
+            toggleApiDocBtn.classList.toggle("text-white", hidden);
+            toggleApiDocBtn.classList.toggle("border-slate-900", hidden);
+        });
+
+        window.addEventListener("keydown", (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+                e.preventDefault();
+                if (!saveBtn.disabled) saveFile();
+            }
+        });
+
+        // Handle direct link to a file via hash
+        window.addEventListener("hashchange", () => {
+            const hash = decodeURIComponent(location.hash.slice(1));
+            if (hash) {
+                fileSelect.value = hash;
+                loadFile(hash);
+            }
+        });
+
+        // Initial UI setup
+        setWrap(false);
+        setReadOnly(false);
+        setDirty(false);
+        addLocalRow("cache", "./local/cache");
+
+        // Load file list; then if hash present, load that file
+        loadFileList().then(() => {
+            const hash = decodeURIComponent(location.hash.slice(1));
+            if (hash) {
+                fileSelect.value = hash;
+                loadFile(hash);
+            }
+        });
+
+        // Enable build button when a file is selected or unsaved state changes
+        const enableBuildObserver = new MutationObserver(() => {
+            startBuildBtn.disabled = currentFilePath === "" || dirty;
+        });
+        enableBuildObserver.observe(dirtyBadge, { attributes: true });
+
+        // Keep elapsed timer visible even when idle
+        setInterval(() => {
+            if (!buildStartTs) elapsedEl.textContent = "00:00";
+        }, 2000);
+    </script>
+</body>
+
+</html>

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	_ "embed"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -11,6 +12,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -28,6 +30,13 @@ import (
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v4"
 )
+
+// Embed the web UI HTML (index.html) located next to this source file.
+//
+//go:embed index.html
+var embeddedIndexHTML []byte
+
+var webAddr string
 
 type builderConfig struct {
 	RecipeRoots []string `yaml:"recipe_roots"`
@@ -1412,16 +1421,419 @@ var buildCmd = cobra.Command{
 				}
 			}()
 
-			if err := ir.SubmitToDockerViaBuildx(context.Background(), llbGen, "", "", events); err != nil {
-				wg.Wait()
+			err = ir.SubmitToDockerViaBuildx(context.Background(), llbGen, "", "", events)
+			// We own the channel; close it now that Submit has returned.
+			close(events)
+			wg.Wait()
+			if err != nil {
 				return fmt.Errorf("submitting to Docker via Buildx: %w", err)
 			}
-			wg.Wait()
 
 			return nil
 		default:
 			return fmt.Errorf("unsupported build method %q", buildMethod)
 		}
+	},
+}
+
+// ---- Web server (LLB-only) -------------------------------------------------
+
+type apiServer struct {
+	cfg builderConfig
+
+	// active builds
+	mu     sync.Mutex
+	builds map[string]*buildSession
+}
+
+type buildSession struct {
+	id      string
+	created time.Time
+	cancel  context.CancelFunc
+	events  chan ir.Event
+}
+
+func newAPIServer(cfg builderConfig) *apiServer {
+	return &apiServer{
+		cfg:    cfg,
+		builds: make(map[string]*buildSession),
+	}
+}
+
+func (s *apiServer) routes() http.Handler {
+	mux := http.NewServeMux()
+
+	// UI
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" && r.URL.Path != "/index.html" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(embeddedIndexHTML)
+	})
+
+	// API
+	mux.HandleFunc("/api/v1/files", s.handleListFiles)         // GET
+	mux.HandleFunc("/api/v1/files/", s.handleFilesWithPath)    // GET/PUT
+	mux.HandleFunc("/api/v1/builds", s.handleBuildsCollection) // POST
+	mux.HandleFunc("/api/v1/builds/", s.handleBuildItem)       // GET events / DELETE
+
+	return loggingMiddleware(mux)
+}
+
+// GET /api/v1/files?ext=.yaml
+func (s *apiServer) handleListFiles(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	ext := r.URL.Query().Get("ext")
+	if ext == "" {
+		ext = ".yaml"
+	}
+	type fileEnt struct {
+		Path      string `json:"path"`
+		Name      string `json:"name"`
+		UpdatedAt string `json:"updatedAt"`
+	}
+	var out []fileEnt
+	for _, root := range s.cfg.RecipeRoots {
+		_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			if d.IsDir() {
+				return nil
+			}
+			if strings.EqualFold(filepath.Ext(d.Name()), ext) {
+				rel := path
+				if rp, err := filepath.Rel(root, path); err == nil {
+					rel = filepath.ToSlash(filepath.Join(filepath.Base(root), rp))
+				}
+				info, _ := d.Info()
+				mod := ""
+				if info != nil {
+					mod = info.ModTime().UTC().Format(time.RFC3339)
+				}
+				out = append(out, fileEnt{
+					Path:      rel,
+					Name:      rel,
+					UpdatedAt: mod,
+				})
+			}
+			return nil
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
+	writeJSON(w, http.StatusOK, map[string]any{"files": out})
+}
+
+// GET /api/v1/files/{path}, PUT /api/v1/files/{path}
+func (s *apiServer) handleFilesWithPath(w http.ResponseWriter, r *http.Request) {
+	pathParam := strings.TrimPrefix(r.URL.Path, "/api/v1/files/")
+	if pathParam == "" || pathParam == r.URL.Path {
+		http.NotFound(w, r)
+		return
+	}
+	// Resolve to an absolute on-disk path inside one of the recipe roots
+	onDisk, ro, err := s.resolveRepoPath(pathParam)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		b, err := os.ReadFile(onDisk)
+		if err != nil {
+			if os.IsNotExist(err) {
+				http.Error(w, "file not found", http.StatusNotFound)
+			} else {
+				http.Error(w, "read error", http.StatusInternalServerError)
+			}
+			return
+		}
+		sum := sha256.Sum256(b)
+		etag := "sha256:" + hex.EncodeToString(sum[:])
+		st, _ := os.Stat(onDisk)
+		updated := ""
+		if st != nil {
+			updated = st.ModTime().UTC().Format(time.RFC3339)
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"path":      pathParam,
+			"content":   string(b),
+			"etag":      etag,
+			"updatedAt": updated,
+			"readOnly":  ro,
+		})
+	case http.MethodPut:
+		if ro {
+			http.Error(w, "repository is read-only", http.StatusForbidden)
+			return
+		}
+		var req struct {
+			Content string `json:"content"`
+			ETag    string `json:"etag"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		cur, _ := os.ReadFile(onDisk)
+		sum := sha256.Sum256(cur)
+		curETag := "sha256:" + hex.EncodeToString(sum[:])
+		// Optimistic locking if provided
+		if req.ETag != "" && string(cur) != "" && req.ETag != curETag {
+			http.Error(w, "etag mismatch", http.StatusPreconditionFailed)
+			return
+		}
+		if err := os.MkdirAll(filepath.Dir(onDisk), 0o755); err != nil {
+			http.Error(w, "mkdir failed", http.StatusInternalServerError)
+			return
+		}
+		tmp := onDisk + ".tmp"
+		if err := os.WriteFile(tmp, []byte(req.Content), 0o644); err != nil {
+			http.Error(w, "write failed", http.StatusInternalServerError)
+			return
+		}
+		if err := os.Rename(tmp, onDisk); err != nil {
+			_ = os.Remove(tmp)
+			http.Error(w, "commit failed", http.StatusInternalServerError)
+			return
+		}
+		sum = sha256.Sum256([]byte(req.Content))
+		newETag := "sha256:" + hex.EncodeToString(sum[:])
+		st, _ := os.Stat(onDisk)
+		updated := ""
+		if st != nil {
+			updated = st.ModTime().UTC().Format(time.RFC3339)
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"etag":      newETag,
+			"updatedAt": updated,
+		})
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// POST /api/v1/builds  { filePath, method:"llb", builderName?, locals? }
+func (s *apiServer) handleBuildsCollection(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		FilePath    string            `json:"filePath"`
+		Method      string            `json:"method"`
+		BuilderName string            `json:"builderName"`
+		Locals      map[string]string `json:"locals"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	if strings.ToLower(req.Method) != "llb" {
+		http.Error(w, "only method=llb is supported", http.StatusBadRequest)
+		return
+	}
+	// Resolve file to disk and derive recipe directory
+	onDisk, _, err := s.resolveRepoPath(req.FilePath)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	recipeDir := filepath.Dir(onDisk)
+
+	// Prepare stage (IR + plan + locals keys)
+	var localsPairs []string
+	for k, v := range req.Locals {
+		localsPairs = append(localsPairs, k+"="+v)
+	}
+	stage, err := prepareStage(s.cfg, recipeDir, localsPairs)
+	if err != nil {
+		http.Error(w, "failed to prepare stage: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Stage build context via Dockerfile pathing to collect COPY sources.
+	dstage, err := prepareDockerStage(stage)
+	if err != nil {
+		http.Error(w, "failed to stage files: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Generate LLB definition
+	llbDef, err := ir.GenerateLLBDefinition(stage.irDef)
+	if err != nil {
+		http.Error(w, "failed to generate LLB: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Build session
+	buildID := fmt.Sprintf("%d", time.Now().UnixNano())
+
+	// IMPORTANT: do not tie build lifecycle to this request context,
+	// otherwise the build is cancelled as soon as we return 202.
+	ctx, cancel := context.WithCancel(context.Background())
+	evCh := make(chan ir.Event, 32)
+	sess := &buildSession{
+		id:      buildID,
+		created: time.Now(),
+		cancel:  cancel,
+		events:  evCh,
+	}
+
+	s.mu.Lock()
+	s.builds[buildID] = sess
+	s.mu.Unlock()
+
+	// Start the build in background
+	go func() {
+		defer func() {
+			close(evCh)
+			s.mu.Lock()
+			delete(s.builds, buildID)
+			s.mu.Unlock()
+		}()
+		// Submit via buildx using the staged buildDir as the "context" local
+		_ = ir.SubmitToDockerViaBuildx(ctx, llbDef, req.BuilderName, dstage.BuildDir, evCh)
+	}()
+
+	writeJSON(w, http.StatusAccepted, map[string]any{"buildId": buildID})
+}
+
+// GET /api/v1/builds/{id}/events (SSE), DELETE /api/v1/builds/{id} (cancel)
+func (s *apiServer) handleBuildItem(w http.ResponseWriter, r *http.Request) {
+	rest := strings.TrimPrefix(r.URL.Path, "/api/v1/builds/")
+	if rest == "" || rest == r.URL.Path {
+		http.NotFound(w, r)
+		return
+	}
+	parts := strings.SplitN(rest, "/", 2)
+	id := parts[0]
+
+	s.mu.Lock()
+	sess := s.builds[id]
+	s.mu.Unlock()
+	if sess == nil {
+		http.Error(w, "build not found", http.StatusNotFound)
+		return
+	}
+
+	if len(parts) == 2 && parts[1] == "events" {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+		flusher, _ := w.(http.Flusher)
+		ctx := r.Context()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case ev, ok := <-sess.events:
+				if !ok {
+					return
+				}
+				var buf bytes.Buffer
+				if err := json.NewEncoder(&buf).Encode(ev); err != nil {
+					return
+				}
+				fmt.Fprintf(w, "data: %s\n\n", strings.TrimSpace(buf.String()))
+				if flusher != nil {
+					flusher.Flush()
+				}
+			}
+		}
+	}
+
+	if r.Method == http.MethodDelete {
+		sess.cancel()
+		writeJSON(w, http.StatusAccepted, map[string]any{"status": "cancelling"})
+		return
+	}
+	http.Error(w, "not found", http.StatusNotFound)
+}
+
+// Utility: resolve a repo-relative path (as listed by /files) into on-disk path
+// within one of the configured RecipeRoots; returns path, readOnly flag, error.
+func (s *apiServer) resolveRepoPath(repoPath string) (string, bool, error) {
+	// repoPath is relative display path: "<rootBase>/<rel...>" or raw path; try to locate.
+	clean := filepath.Clean(repoPath)
+	candidates := []string{}
+	for _, root := range s.cfg.RecipeRoots {
+		// Try interpreting clean as relative to this root after stripping leading root base name
+		base := filepath.Base(root)
+		if strings.HasPrefix(clean, base+"/") || clean == base {
+			rel := strings.TrimPrefix(clean, base)
+			rel = strings.TrimPrefix(rel, "/")
+			candidates = append(candidates, filepath.Join(root, filepath.FromSlash(rel)))
+		}
+		// Also try as path already relative to root
+		candidates = append(candidates, filepath.Join(root, filepath.FromSlash(clean)))
+	}
+	for _, cand := range candidates {
+		abs, err := filepath.Abs(cand)
+		if err != nil {
+			continue
+		}
+		for _, root := range s.cfg.RecipeRoots {
+			rootAbs, _ := filepath.Abs(root)
+			if rel, err := filepath.Rel(rootAbs, abs); err == nil && !strings.HasPrefix(rel, "..") {
+				return abs, false, nil
+			}
+		}
+	}
+	return "", false, fmt.Errorf("path not within configured roots: %s", repoPath)
+}
+
+func writeJSON(w http.ResponseWriter, code int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+func loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		next.ServeHTTP(w, r)
+		slog.Info("http", "method", r.Method, "path", r.URL.Path, "dur", time.Since(start))
+	})
+}
+
+var webCmd = cobra.Command{
+	Use:   "web",
+	Short: "Run the web UI server for editing YAML recipes and LLB builds",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if verbose {
+			os.Setenv("BUILDER_VERBOSE", "1")
+		}
+		cfg, err := loadBuilderConfig()
+		if err != nil {
+			return err
+		}
+		if len(cfg.RecipeRoots) == 0 {
+			return fmt.Errorf("no recipe_roots configured; update %s", rootBuilderConfig)
+		}
+
+		s := newAPIServer(cfg)
+		srv := &http.Server{
+			Addr:              webAddr,
+			Handler:           s.routes(),
+			ReadHeaderTimeout: 10 * time.Second,
+		}
+
+		slog.Info("web server starting", "addr", webAddr)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return err
+		}
+		return nil
 	},
 }
 
@@ -1449,6 +1861,10 @@ func init() {
 	// Stage command (no build), supports --local as well
 	stageCmd.Flags().StringArray("local", []string{}, "Supply a named local context as KEY=DIR for RUN --mount from=KEY")
 	rootCmd.AddCommand(&stageCmd)
+
+	// Web server command
+	webCmd.Flags().StringVar(&webAddr, "addr", "127.0.0.1:8080", "Address to bind the web server")
+	rootCmd.AddCommand(&webCmd)
 }
 
 func main() {

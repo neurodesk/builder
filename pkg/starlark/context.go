@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/neurodesk/builder/pkg/ir"
 	"github.com/neurodesk/builder/pkg/jinja2"
 	"go.starlark.net/starlark"
 )
 
 // RecipeContext provides an interface to recipe context for Starlark scripts
 type RecipeContext interface {
-	InstallPackages(pkgs ...string) error
+	InstallPackages(src ir.SourceID, pkgs ...string) error
 	SetVariable(key string, value any)
 	EvaluateValue(value any) (any, error)
 	// AddRunCommand allows Starlark to append shell commands to the build.
@@ -19,9 +20,9 @@ type RecipeContext interface {
 
 // NewEvaluatorWithStarlarkContext creates a Starlark evaluator with enhanced context
 // that provides access to directive functions like installing packages
-func NewEvaluatorWithStarlarkContext(ctx RecipeContext) *Evaluator {
+func NewEvaluatorWithStarlarkContext(ctx RecipeContext, src ir.SourceID) *Evaluator {
 	thread := &starlark.Thread{Name: "neurodesk-builder"}
-	builtins := CreateBuiltinsWithContext(ctx)
+	builtins := CreateBuiltinsWithContext(ctx, src)
 
 	return &Evaluator{
 		thread:   thread,
@@ -31,7 +32,7 @@ func NewEvaluatorWithStarlarkContext(ctx RecipeContext) *Evaluator {
 }
 
 // CreateBuiltinsWithContext creates Starlark built-in functions with recipe context access
-func CreateBuiltinsWithContext(ctx RecipeContext) starlark.StringDict {
+func CreateBuiltinsWithContext(ctx RecipeContext, src ir.SourceID) starlark.StringDict {
 	builtins := starlark.StringDict{
 		"print": starlark.NewBuiltin("print", func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 			var buf []string
@@ -52,7 +53,7 @@ func CreateBuiltinsWithContext(ctx RecipeContext) starlark.StringDict {
 				pkgs = append(pkgs, args[i].String())
 			}
 
-			err := ctx.InstallPackages(pkgs...)
+			err := ctx.InstallPackages(src, pkgs...)
 			if err != nil {
 				return starlark.None, fmt.Errorf("installing packages: %w", err)
 			}

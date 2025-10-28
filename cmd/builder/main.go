@@ -17,6 +17,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/moby/buildkit/frontend/dockerfile/parser"
 	"github.com/neurodesk/builder/pkg/ir"
@@ -1032,7 +1034,7 @@ func buildGraphviz(results []*recipeGenerationResult) string {
 		}
 
 		for _, directive := range directives {
-			hash, summary := directiveHashAndSummary(directive)
+			hash, summary := directiveHashAndSummary(directive.Directive)
 			nodeID := "layer_" + strings.ToLower(hash)
 			if _, ok := nodes[nodeID]; !ok {
 				label := shortenLabel(summary, 96)
@@ -1278,17 +1280,144 @@ var buildCmd = cobra.Command{
 				return fmt.Errorf("generating LLB definition: %w", err)
 			}
 
-			// generate LLB definition and pipe into buildctl build
-			cmd := exec.Command("buildctl", "build", "--progress", "rawjson")
-			cmd.Stdin = bytes.NewReader(llbGen)
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
+			slog.Info("submitting build to Docker via Buildx")
 
-			fmt.Printf("Running: buildctl build (LLB input via stdin)\n")
+			events := make(chan ir.Event)
 
-			if err := cmd.Run(); err != nil {
-				return fmt.Errorf("buildctl build failed: %w", err)
+			// Pretty console streaming of BuildKit events.
+			// - Prints step start/done/cached/error using vertex names (your original names).
+			// - Streams stdout/stderr from each step with a clear prefix.
+			// - Avoids duplicate messages when BuildKit resends updates.
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+
+				started := map[string]bool{}
+				done := map[string]bool{}
+				vertexNames := map[string]string{} // digest -> name
+				buildStart := time.Now()
+				var hadError bool
+
+				// helper to resolve a friendly name for a vertex digest
+				nameOf := func(dgst string) string {
+					if n := vertexNames[dgst]; n != "" {
+						return n
+					}
+					// Short fallback if we have no name yet
+					if len(dgst) > 19 { // "sha256:" + 12 chars
+						return dgst[:19]
+					}
+					return dgst
+				}
+
+				for ev := range events {
+					switch ev.Type {
+					case ir.EventTypeStatus:
+						s := ev.Status
+						if s == nil {
+							continue
+						}
+
+						// Merge provided vertex names into our local map.
+						for id, n := range ev.VertexNames {
+							if n != "" {
+								vertexNames[id] = n
+							}
+						}
+
+						// Vertex lifecycle updates (start/done/cached/error).
+						for _, v := range s.Vertexes {
+							id := v.Digest.String()
+							if v.Name != "" {
+								vertexNames[id] = v.Name
+							}
+							n := nameOf(id)
+
+							// Start (only once)
+							if !started[id] && v.Started != nil && !v.Started.IsZero() {
+								started[id] = true
+								slog.Info("step started", "name", n)
+							}
+
+							// Error
+							if v.Error != "" && !done[id] {
+								hadError = true
+								done[id] = true
+								var dur time.Duration
+								if !v.Started.IsZero() && v.Started != nil && !v.Completed.IsZero() {
+									dur = v.Completed.Sub(*v.Started)
+								}
+								slog.Error("step failed", "name", n, "duration", dur, "error", v.Error)
+								continue
+							}
+
+							// Cached
+							if v.Cached && !done[id] {
+								done[id] = true
+								slog.Info("step cached", "name", n)
+								continue
+							}
+
+							// Completed
+							if v.Completed != nil && !v.Completed.IsZero() && !done[id] {
+								done[id] = true
+								dur := v.Completed.Sub(*v.Started)
+								slog.Info("step completed", "name", n, "duration", dur)
+							}
+						}
+
+						// Stream logs with step-aware prefixes.
+						for _, l := range s.Logs {
+							id := l.Vertex.String()
+							n := nameOf(id)
+							stream := "stdout"
+							if l.Stream == 2 {
+								stream = "stderr"
+							}
+							// Print line by line to keep output tidy.
+							b := l.Data
+							for len(b) > 0 {
+								i := bytes.IndexByte(b, '\n')
+								if i < 0 {
+									i = len(b)
+								}
+								line := bytes.TrimRight(b[:i], "\r")
+								if len(line) > 0 {
+									fmt.Printf("[%s] %s: %s\n", n, stream, string(line))
+								}
+								if i == len(b) {
+									break
+								}
+								b = b[i+1:]
+							}
+						}
+
+					case ir.EventTypeError:
+						hadError = true
+						if ev.Error != "" {
+							slog.Error("build failed", "error", ev.Error)
+						} else {
+							slog.Error("build failed")
+						}
+
+					case ir.EventTypeResult:
+						total := time.Since(buildStart)
+						if hadError {
+							slog.Error("build finished with errors", "duration", total)
+						} else {
+							slog.Info("build finished successfully", "duration", total)
+						}
+					}
+				}
+			}()
+
+			if err := ir.SubmitToDockerViaBuildx(context.Background(), llbGen, "", "", events); err != nil {
+				wg.Wait()
+				return fmt.Errorf("submitting to Docker via Buildx: %w", err)
 			}
+			wg.Wait()
+
 			return nil
 		default:
 			return fmt.Errorf("unsupported build method %q", buildMethod)

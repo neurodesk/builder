@@ -78,7 +78,7 @@ set_variable("computed_name", package_name + "-" + version_info)
 `),
 	}
 
-	err := directive.Apply(ctx)
+	err := directive.Apply(ctx, "")
 	if err != nil {
 		t.Fatalf("StarlarkDirective.Apply() error = %v", err)
 	}
@@ -124,7 +124,7 @@ install_packages(app_name + "-dev", app_name + "-tools")
 `),
 	}
 
-	err := directive.Apply(ctx)
+	err := directive.Apply(ctx, "")
 	if err != nil {
 		t.Fatalf("StarlarkDirective.Apply() error = %v", err)
 	}
@@ -176,7 +176,7 @@ install_all_packages()
 `),
 	}
 
-	err := directive.Apply(ctx)
+	err := directive.Apply(ctx, "")
 	if err != nil {
 		t.Fatalf("StarlarkDirective.Apply() error = %v", err)
 	}
@@ -234,7 +234,7 @@ check_objects_match()
 `),
 	}
 
-	err := directive.Apply(ctx)
+	err := directive.Apply(ctx, "")
 	if err != nil {
 		t.Fatalf("StarlarkDirective.Apply() error = %v", err)
 	}
@@ -333,7 +333,7 @@ run_command("echo 'Setup complete for " + full_app_name + "'")
 `),
 	}
 
-	err := directive.Apply(ctx)
+	err := directive.Apply(ctx, "")
 	if err != nil {
 		t.Fatalf("StarlarkDirective.Apply() error = %v", err)
 	}
@@ -381,7 +381,7 @@ run_command("echo two")
 `),
 	}
 
-	if err := directive.Apply(ctx); err != nil {
+	if err := directive.Apply(ctx, ""); err != nil {
 		t.Fatalf("Apply failed: %v", err)
 	}
 
@@ -391,7 +391,7 @@ run_command("echo two")
 	}
 	var runCount int
 	for _, d := range def.Directives {
-		switch d.(type) {
+		switch d.Directive.(type) {
 		case ir.RunDirective, ir.RunWithMountsDirective:
 			runCount++
 		}

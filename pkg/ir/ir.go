@@ -80,24 +80,31 @@ var (
 	_ Directive = EntryPointDirective("")
 )
 
-type Definition struct {
-	Directives []Directive
+type DirectiveWithMetadata struct {
+	Directive Directive
+	Source    SourceID
 }
+
+type Definition struct {
+	Directives []DirectiveWithMetadata
+}
+
+type SourceID string
 
 type Builder interface {
 	Compile() (*Definition, error)
 
-	AddFromImage(image string) Builder
+	AddFromImage(src SourceID, image string) Builder
 
-	AddEnvironment(env map[string]string) Builder
-	AddRunCommand(cmd string) Builder
-	AddRunWithMounts(mounts []string, cmd string) Builder
-	AddCopy(parts ...string) Builder
-	AddLiteralFile(name, contents string, executable bool) Builder
-	SetWorkingDirectory(dir string) Builder
-	SetCurrentUser(user string) Builder
-	SetEntryPoint(cmd string) Builder
-	SetExecEntryPoint(argv []string) Builder
+	AddEnvironment(src SourceID, env map[string]string) Builder
+	AddRunCommand(src SourceID, cmd string) Builder
+	AddRunWithMounts(src SourceID, mounts []string, cmd string) Builder
+	AddCopy(src SourceID, parts ...string) Builder
+	AddLiteralFile(src SourceID, name, contents string, executable bool) Builder
+	SetWorkingDirectory(src SourceID, dir string) Builder
+	SetCurrentUser(src SourceID, user string) Builder
+	SetEntryPoint(src SourceID, cmd string) Builder
+	SetExecEntryPoint(src SourceID, argv []string) Builder
 }
 
 type builderImpl struct {
@@ -108,41 +115,44 @@ func (b *builderImpl) String() string {
 	return fmt.Sprintf("%#v", b.out)
 }
 
-func (b *builderImpl) add(d Directive) *builderImpl {
+func (b *builderImpl) add(src SourceID, d Directive) *builderImpl {
 	ret := *b
 	ret.out = &Definition{
-		Directives: append(append([]Directive{}, b.out.Directives...), d),
+		Directives: append(append([]DirectiveWithMetadata{}, b.out.Directives...), DirectiveWithMetadata{
+			Directive: d,
+			Source:    src,
+		}),
 	}
 	return &ret
 }
 
-func (b *builderImpl) AddFromImage(image string) Builder {
-	return b.add(FromImageDirective(image))
+func (b *builderImpl) AddFromImage(src SourceID, image string) Builder {
+	return b.add(src, FromImageDirective(image))
 }
 
 // AddEnvironment implements Builder.
-func (b *builderImpl) AddEnvironment(env map[string]string) Builder {
-	return b.add(EnvironmentDirective(env))
+func (b *builderImpl) AddEnvironment(src SourceID, env map[string]string) Builder {
+	return b.add(src, EnvironmentDirective(env))
 }
 
 // AddRunCommand implements Builder.
-func (b *builderImpl) AddRunCommand(cmd string) Builder {
-	return b.add(RunDirective(cmd))
+func (b *builderImpl) AddRunCommand(src SourceID, cmd string) Builder {
+	return b.add(src, RunDirective(cmd))
 }
 
 // AddRunWithMounts implements Builder.
-func (b *builderImpl) AddRunWithMounts(mounts []string, cmd string) Builder {
-	return b.add(RunWithMountsDirective{Mounts: append([]string{}, mounts...), Command: cmd})
+func (b *builderImpl) AddRunWithMounts(src SourceID, mounts []string, cmd string) Builder {
+	return b.add(src, RunWithMountsDirective{Mounts: append([]string{}, mounts...), Command: cmd})
 }
 
 // AddCopy implements Builder.
-func (b *builderImpl) AddCopy(parts ...string) Builder {
-	return b.add(CopyDirective{Parts: parts})
+func (b *builderImpl) AddCopy(src SourceID, parts ...string) Builder {
+	return b.add(src, CopyDirective{Parts: parts})
 }
 
 // AddLiteralFile implements Builder.
-func (b *builderImpl) AddLiteralFile(name, contents string, executable bool) Builder {
-	return b.add(LiteralFileDirective{
+func (b *builderImpl) AddLiteralFile(src SourceID, name, contents string, executable bool) Builder {
+	return b.add(src, LiteralFileDirective{
 		Name:       name,
 		Contents:   contents,
 		Executable: executable,
@@ -150,26 +160,26 @@ func (b *builderImpl) AddLiteralFile(name, contents string, executable bool) Bui
 }
 
 // SetWorkingDirectory implements Builder.
-func (b *builderImpl) SetWorkingDirectory(dir string) Builder {
-	return b.add(WorkDirDirective(dir))
+func (b *builderImpl) SetWorkingDirectory(src SourceID, dir string) Builder {
+	return b.add(src, WorkDirDirective(dir))
 }
 
 // SetCurrentUser implements Builder.
-func (b *builderImpl) SetCurrentUser(user string) Builder {
-	return b.add(UserDirective(user))
+func (b *builderImpl) SetCurrentUser(src SourceID, user string) Builder {
+	return b.add(src, UserDirective(user))
 }
 
 // SetEntryPoint implements Builder.
-func (b *builderImpl) SetEntryPoint(cmd string) Builder {
-	return b.add(EntryPointDirective(cmd))
+func (b *builderImpl) SetEntryPoint(src SourceID, cmd string) Builder {
+	return b.add(src, EntryPointDirective(cmd))
 }
 
 // SetExecEntryPoint implements Builder.
-func (b *builderImpl) SetExecEntryPoint(argv []string) Builder {
+func (b *builderImpl) SetExecEntryPoint(src SourceID, argv []string) Builder {
 	// make a copy for safety
 	out := make([]string, len(argv))
 	copy(out, argv)
-	return b.add(ExecEntryPointDirective(out))
+	return b.add(src, ExecEntryPointDirective(out))
 }
 
 func (b *builderImpl) Compile() (*Definition, error) {

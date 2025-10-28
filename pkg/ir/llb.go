@@ -23,7 +23,7 @@ import (
 //   - LiteralFileDirective is emitted using Mkdir/Mkfile file ops.
 //   - EntryPointDirective / ExecEntryPointDirective are currently ignored.
 //   - RunWithMountsDirective mounts are currently ignored and treated as RUN.
-func GenerateLLBDefinition(ir *Definition) ([]byte, error) {
+func GenerateLLBDefinition(ir *Definition) (*llb.Definition, error) {
 	if ir == nil {
 		return nil, fmt.Errorf("nil ir definition")
 	}
@@ -71,7 +71,7 @@ func GenerateLLBDefinition(ir *Definition) ([]byte, error) {
 	}
 
 	for _, d := range ir.Directives {
-		switch v := d.(type) {
+		switch v := d.Directive.(type) {
 		case FromImageDirective:
 			if v == "" {
 				return nil, fmt.Errorf("FROM: empty image")
@@ -114,6 +114,7 @@ func GenerateLLBDefinition(ir *Definition) ([]byte, error) {
 				append(
 					[]llb.RunOption{
 						llb.Args([]string{"/bin/sh", "-lec", createUser}),
+						llb.WithCustomName(string(d.Source)),
 					},
 					runOpts()...,
 				)...,
@@ -126,6 +127,7 @@ func GenerateLLBDefinition(ir *Definition) ([]byte, error) {
 				append(
 					[]llb.RunOption{
 						llb.Args([]string{"/bin/sh", "-lec", cmd}),
+						llb.WithCustomName(string(d.Source)),
 					},
 					runOpts()...,
 				)...,
@@ -138,6 +140,7 @@ func GenerateLLBDefinition(ir *Definition) ([]byte, error) {
 				append(
 					[]llb.RunOption{
 						llb.Args([]string{"/bin/sh", "-lec", cmd}),
+						llb.WithCustomName(string(d.Source)),
 					},
 					runOpts()...,
 				)...,
@@ -156,7 +159,10 @@ func GenerateLLBDefinition(ir *Definition) ([]byte, error) {
 			if v.Executable {
 				mode = 0o755
 			}
-			st = st.File(llb.Mkfile(target, os.FileMode(mode), []byte(v.Contents)))
+			st = st.File(
+				llb.Mkfile(target, os.FileMode(mode), []byte(v.Contents)),
+				llb.WithCustomName(string(d.Source)),
+			)
 
 		case EntryPointDirective:
 			// Not yet persisted to final image config in LLB path.
@@ -180,7 +186,7 @@ func GenerateLLBDefinition(ir *Definition) ([]byte, error) {
 		return nil, fmt.Errorf("marshal LLB: %w", err)
 	}
 
-	return def.ToPB().Marshal()
+	return def, nil
 }
 
 // normalizeRunCommand removes blank spacer lines that follow a trailing

@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/neurodesk/builder/pkg/common"
 	"github.com/neurodesk/builder/pkg/ir"
 	"github.com/neurodesk/builder/pkg/jinja2"
@@ -202,8 +203,8 @@ func (c *Context) EvaluateValue(value any) (any, error) {
 }
 
 // InstallPackages is a public wrapper for installPackages to satisfy the RecipeContext interface
-func (c *Context) InstallPackages(pkgs ...string) error {
-	return c.installPackages(pkgs...)
+func (c *Context) InstallPackages(src ir.SourceID, pkgs ...string) error {
+	return c.installPackages(src, pkgs...)
 }
 
 func (c *Context) Compile() (*ir.Definition, error) {
@@ -397,15 +398,15 @@ func (c *Context) evaluateValue(value any) (any, error) {
 	}
 }
 
-func (c *Context) installPackages(pkgs ...string) error {
+func (c *Context) installPackages(src ir.SourceID, pkgs ...string) error {
 	switch c.PackageManager {
 	case common.PkgManagerApt:
 		cmd := "apt-get -o Acquire::Retries=3 update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends " + strings.Join(pkgs, " ")
-		c.builder = c.builder.AddRunCommand(cmd)
+		c.builder = c.builder.AddRunCommand(src, cmd)
 		return nil
 	case common.PkgManagerYum:
 		cmd := "yum install -y " + strings.Join(pkgs, " ")
-		c.builder = c.builder.AddRunCommand(cmd)
+		c.builder = c.builder.AddRunCommand(src, cmd)
 	default:
 		return fmt.Errorf("unsupported package manager: %s", c.PackageManager)
 	}
@@ -647,7 +648,7 @@ func (r RunDirective) Validate() error {
 	}, "run")
 }
 
-func (r RunDirective) Apply(ctx *Context) error {
+func (r RunDirective) Apply(ctx *Context, src ir.SourceID) error {
 	// Use a stable, named local context for cache files.
 	// The CLI will provide --build-context cache=<dir>.
 	targetBase := "/.neurocontainer-cache"
@@ -716,9 +717,9 @@ func (r RunDirective) Apply(ctx *Context) error {
 
 	joined := strings.Join(commands, " &&\n ")
 	if len(mounts) > 0 {
-		ctx.builder = ctx.builder.AddRunWithMounts(mounts, joined)
+		ctx.builder = ctx.builder.AddRunWithMounts(src, mounts, joined)
 	} else {
-		ctx.builder = ctx.builder.AddRunCommand(joined)
+		ctx.builder = ctx.builder.AddRunCommand(src, joined)
 	}
 	return nil
 }
@@ -848,7 +849,7 @@ func (u UserDirective) Validate() error {
 	return jinja2.TemplateString(u).Validate()
 }
 
-func (u UserDirective) Apply(ctx *Context) error {
+func (u UserDirective) Apply(ctx *Context, src ir.SourceID) error {
 	result, err := ctx.evaluateValue(jinja2.TemplateString(u))
 	if err != nil {
 		return fmt.Errorf("evaluating user: %w", err)
@@ -857,7 +858,7 @@ func (u UserDirective) Apply(ctx *Context) error {
 	if !ok {
 		return fmt.Errorf("user must be a string, got %T", result)
 	}
-	ctx.builder = ctx.builder.SetCurrentUser(s)
+	ctx.builder = ctx.builder.SetCurrentUser(src, s)
 	return nil
 }
 
@@ -867,7 +868,7 @@ func (w WorkDirDirective) Validate() error {
 	return jinja2.TemplateString(w).Validate()
 }
 
-func (w WorkDirDirective) Apply(ctx *Context) error {
+func (w WorkDirDirective) Apply(ctx *Context, src ir.SourceID) error {
 	val, err := ctx.evaluateValue(jinja2.TemplateString(w))
 	if err != nil {
 		return fmt.Errorf("evaluating workdir: %w", err)
@@ -876,7 +877,7 @@ func (w WorkDirDirective) Apply(ctx *Context) error {
 	if !ok {
 		return fmt.Errorf("workdir must be a string, got %T", val)
 	}
-	ctx.builder = ctx.builder.SetWorkingDirectory(s)
+	ctx.builder = ctx.builder.SetWorkingDirectory(src, s)
 	return nil
 }
 
@@ -886,7 +887,7 @@ func (e EntryPointDirective) Validate() error {
 	return jinja2.TemplateString(e).Validate()
 }
 
-func (e EntryPointDirective) Apply(ctx *Context) error {
+func (e EntryPointDirective) Apply(ctx *Context, src ir.SourceID) error {
 	val, err := ctx.evaluateValue(jinja2.TemplateString(e))
 	if err != nil {
 		return fmt.Errorf("evaluating entrypoint: %w", err)
@@ -897,7 +898,7 @@ func (e EntryPointDirective) Apply(ctx *Context) error {
 		return fmt.Errorf("entrypoint must be a string, got %T", val)
 	}
 
-	ctx.builder = ctx.builder.SetEntryPoint(s)
+	ctx.builder = ctx.builder.SetEntryPoint(src, s)
 	return nil
 }
 
@@ -964,7 +965,7 @@ func (e EnvironmentDirective) Validate() error {
 	return nil
 }
 
-func (e EnvironmentDirective) Apply(ctx *Context) error {
+func (e EnvironmentDirective) Apply(ctx *Context, src ir.SourceID) error {
 	env := map[string]string{}
 	for key, val := range e {
 		result, err := ctx.evaluateValue(val)
@@ -977,7 +978,7 @@ func (e EnvironmentDirective) Apply(ctx *Context) error {
 		}
 		env[key] = s
 	}
-	ctx.builder = ctx.builder.AddEnvironment(env)
+	ctx.builder = ctx.builder.AddEnvironment(src, env)
 	return nil
 }
 
@@ -1066,7 +1067,7 @@ func (t TemplateDirective) Validate(ctx Context) error {
 	return nil
 }
 
-func (t TemplateDirective) Apply(ctx *Context) error {
+func (t TemplateDirective) Apply(ctx *Context, src ir.SourceID) error {
 	tpl, err := templates.Get(t.Name)
 	if err != nil {
 		return fmt.Errorf("template %q not found", t.Name)
@@ -1095,14 +1096,14 @@ func (t TemplateDirective) Apply(ctx *Context) error {
 			env[k] = jinja2.TemplateString(v)
 		}
 
-		if err := EnvironmentDirective(env).Apply(ctx); err != nil {
+		if err := EnvironmentDirective(env).Apply(ctx, src); err != nil {
 			return fmt.Errorf("applying template %q environment: %w", t.Name, err)
 		}
 	}
 
 	if err := RunDirective([]jinja2.TemplateString{
 		jinja2.TemplateString(result.Instructions),
-	}).Apply(ctx); err != nil {
+	}).Apply(ctx, src); err != nil {
 		return fmt.Errorf("applying template %q run: %w", t.Name, err)
 	}
 
@@ -1247,7 +1248,7 @@ func (b BoutiqueDirective) Validate() error {
 	)
 }
 
-func (b BoutiqueDirective) Apply(ctx *Context) error {
+func (b BoutiqueDirective) Apply(ctx *Context, src ir.SourceID) error {
 	// serialize boutique directive to JSON
 	data, err := json.Marshal(b)
 	if err != nil {
@@ -1256,7 +1257,7 @@ func (b BoutiqueDirective) Apply(ctx *Context) error {
 
 	// add boutique.json file to image
 	// TODO(joshua): this is probably incorrect compared to the Python version
-	ctx.builder = ctx.builder.AddLiteralFile("/boutique.json", string(data), false)
+	ctx.builder = ctx.builder.AddLiteralFile(src, "/boutique.json", string(data), false)
 
 	return nil
 }
@@ -1293,9 +1294,9 @@ func (s StarlarkDirective) Validate(ctx Context) error {
 	return nil
 }
 
-func (s StarlarkDirective) Apply(ctx *Context) error {
+func (s StarlarkDirective) Apply(ctx *Context, src ir.SourceID) error {
 	// Create Starlark evaluator with enhanced context
-	eval := starlarkpkg.NewEvaluatorWithStarlarkContext(ctx)
+	eval := starlarkpkg.NewEvaluatorWithStarlarkContext(ctx, src)
 
 	// Prepare context variables for Starlark
 	jinjaCtx := jinja2.Context{
@@ -1375,13 +1376,13 @@ func (s StarlarkDirective) Apply(ctx *Context) error {
 	// Apply run commands
 	if len(runCommands) > 0 {
 		for _, cmd := range runCommands {
-			ctx.builder = ctx.builder.AddRunCommand(cmd)
+			ctx.builder = ctx.builder.AddRunCommand(src, cmd)
 		}
 	}
 
 	// Apply environment variables
 	if len(envVars) > 0 {
-		ctx.builder = ctx.builder.AddEnvironment(envVars)
+		ctx.builder = ctx.builder.AddEnvironment(src, envVars)
 	}
 
 	// Clean up temporary variables
@@ -1397,6 +1398,8 @@ func (s StarlarkDirective) Apply(ctx *Context) error {
 }
 
 type Directive struct {
+	Source ir.SourceID `yaml:"source,omitempty"`
+
 	Group       *GroupDirective       `yaml:"group,omitempty"`
 	Run         *RunDirective         `yaml:"run,omitempty"`
 	File        *FileDirective        `yaml:"file,omitempty"`
@@ -1535,10 +1538,14 @@ func (d Directive) Apply(ctx *Context) error {
 		}
 	}
 
+	if d.Source == "" {
+		d.Source = ir.SourceID(uuid.NewString())
+	}
+
 	if d.Group != nil {
 		return d.Group.Apply(ctx, d.With)
 	} else if d.Run != nil {
-		return d.Run.Apply(ctx)
+		return d.Run.Apply(ctx, d.Source)
 	} else if d.File != nil {
 		return d.File.Apply(ctx)
 	} else if d.Install != nil {
@@ -1567,7 +1574,7 @@ func (d Directive) Apply(ctx *Context) error {
 				return fmt.Errorf("installing packages: %w", err)
 			}
 
-			return ctx.installPackages(pkgs...)
+			return ctx.installPackages(d.Source, pkgs...)
 		case []any:
 			var pkgs []string
 			for i, item := range install {
@@ -1581,24 +1588,24 @@ func (d Directive) Apply(ctx *Context) error {
 				}
 				pkgs = append(pkgs, sp...)
 			}
-			return ctx.installPackages(pkgs...)
+			return ctx.installPackages(d.Source, pkgs...)
 		default:
 			return fmt.Errorf("install must be a string or list of strings, got %T", install)
 		}
 	} else if d.Environment != nil {
-		return d.Environment.Apply(ctx)
+		return d.Environment.Apply(ctx, d.Source)
 	} else if d.User != nil {
-		return d.User.Apply(ctx)
+		return d.User.Apply(ctx, d.Source)
 	} else if d.WorkDir != nil {
-		return d.WorkDir.Apply(ctx)
+		return d.WorkDir.Apply(ctx, d.Source)
 	} else if d.Deploy != nil {
 		return d.Deploy.Apply(ctx)
 	} else if d.EntryPoint != nil {
-		return d.EntryPoint.Apply(ctx)
+		return d.EntryPoint.Apply(ctx, d.Source)
 	} else if d.Test != nil {
 		return d.Test.Apply(ctx)
 	} else if d.Template != nil {
-		return d.Template.Apply(ctx)
+		return d.Template.Apply(ctx, d.Source)
 	} else if d.Include != nil {
 		return d.Include.Apply(ctx)
 	} else if d.Copy != nil {
@@ -1624,7 +1631,7 @@ func (d Directive) Apply(ctx *Context) error {
 				return fmt.Errorf("copy command must have exactly two parts: source and destination")
 			}
 			parts = normalizeCopyParts(ctx, parts)
-			ctx.builder = ctx.builder.AddCopy(parts...)
+			ctx.builder = ctx.builder.AddCopy(d.Source, parts...)
 			return nil
 		case []string:
 			var parts []string
@@ -1641,7 +1648,7 @@ func (d Directive) Apply(ctx *Context) error {
 				parts = append(parts, s)
 			}
 			parts = normalizeCopyParts(ctx, parts)
-			ctx.builder = ctx.builder.AddCopy(parts...)
+			ctx.builder = ctx.builder.AddCopy(d.Source, parts...)
 			return nil
 		case []any:
 			var parts []string
@@ -1662,7 +1669,7 @@ func (d Directive) Apply(ctx *Context) error {
 				parts = append(parts, str)
 			}
 			parts = normalizeCopyParts(ctx, parts)
-			ctx.builder = ctx.builder.AddCopy(parts...)
+			ctx.builder = ctx.builder.AddCopy(d.Source, parts...)
 			return nil
 		default:
 			return fmt.Errorf("copy command must be a string or list of strings, got %T", copy)
@@ -1670,9 +1677,9 @@ func (d Directive) Apply(ctx *Context) error {
 	} else if d.Variables != nil {
 		return d.Variables.Apply(ctx)
 	} else if d.Boutique != nil {
-		return d.Boutique.Apply(ctx)
+		return d.Boutique.Apply(ctx, d.Source)
 	} else if d.Starlark != nil {
-		return d.Starlark.Apply(ctx)
+		return d.Starlark.Apply(ctx, d.Source)
 	} else {
 		return fmt.Errorf("directive not implemented")
 	}
@@ -1719,10 +1726,12 @@ func (b *BuildRecipe) Generate(ctx *Context) error {
 		return fmt.Errorf("base image must be a string, got %T", baseImg)
 	}
 
-	ctx.builder = ctx.builder.AddFromImage(s)
+	defaultSourceId := ir.SourceID("<default>")
+
+	ctx.builder = ctx.builder.AddFromImage(defaultSourceId, s)
 
 	// Always set the user to root initially to ensure we can install packages
-	ctx.builder = ctx.builder.SetCurrentUser("root")
+	ctx.builder = ctx.builder.SetCurrentUser(defaultSourceId, "root")
 
 	if b.AddDefaultTemplate == nil || *b.AddDefaultTemplate {
 		tpl, err := templates.Get("_header")
@@ -1743,10 +1752,10 @@ func (b *BuildRecipe) Generate(ctx *Context) error {
 		}
 
 		if len(result.Environment) > 0 {
-			ctx.builder = ctx.builder.AddEnvironment(result.Environment)
+			ctx.builder = ctx.builder.AddEnvironment(defaultSourceId, result.Environment)
 		}
 
-		ctx.builder = ctx.builder.AddRunCommand(result.Instructions)
+		ctx.builder = ctx.builder.AddRunCommand(defaultSourceId, result.Instructions)
 	}
 
 	if err := (GroupDirective{
@@ -1781,14 +1790,14 @@ func (b *BuildRecipe) Generate(ctx *Context) error {
 
 	if len(ctx.deployBins) > 0 {
 		path := strings.Join(ctx.deployBins, ":")
-		ctx.builder = ctx.builder.AddEnvironment(map[string]string{
+		ctx.builder = ctx.builder.AddEnvironment(defaultSourceId, map[string]string{
 			"DEPLOY_BINS": path,
 		})
 	}
 
 	if len(ctx.deployPath) > 0 {
 		path := strings.Join(ctx.deployPath, ":")
-		ctx.builder = ctx.builder.AddEnvironment(map[string]string{
+		ctx.builder = ctx.builder.AddEnvironment(defaultSourceId, map[string]string{
 			"DEPLOY_PATH": path,
 		})
 	}

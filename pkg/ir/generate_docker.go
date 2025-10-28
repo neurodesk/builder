@@ -19,7 +19,7 @@ func GenerateDockerfile(ir *Definition) (string, error) {
 
 	var out []docker.Directive
 	for _, d := range ir.Directives {
-		switch v := d.(type) {
+		switch v := d.Directive.(type) {
 		case FromImageDirective:
 			out = append(out, docker.From{Image: string(v)})
 		case EnvironmentDirective:

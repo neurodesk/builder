@@ -431,7 +431,7 @@ func (s templateTestSpec) SelectTests(filters map[string]struct{}, runAll bool) 
 	return selected, missing
 }
 
-func stageBuildFileForTemplate(cfg builderConfig, build *recipe.BuildFile) (*stageResult, error) {
+func stageBuildFileForTemplate(cfg builderConfig, build *recipe.BuildFile) (*dockerStageResult, error) {
 	irDef, plan, err := build.GenerateWithStaging(cfg.IncludeDirs)
 	if err != nil {
 		return nil, fmt.Errorf("generating build IR: %w", err)
@@ -464,7 +464,7 @@ func stageBuildFileForTemplate(cfg builderConfig, build *recipe.BuildFile) (*sta
 		return nil, err
 	}
 
-	res := &stageResult{ //nolint:exhaustruct
+	res := &dockerStageResult{ //nolint:exhaustruct
 		Name:           build.Name,
 		Version:        build.Version,
 		Tag:            build.Name + ":" + build.Version,
@@ -478,7 +478,7 @@ func stageBuildFileForTemplate(cfg builderConfig, build *recipe.BuildFile) (*sta
 	return res, nil
 }
 
-func ensureTemplateLogDir(stage *stageResult) (string, error) {
+func ensureTemplateLogDir(stage *dockerStageResult) (string, error) {
 	logDir := filepath.Join("local", "template_tests", stage.Name)
 	if err := os.MkdirAll(logDir, 0o755); err != nil {
 		return "", fmt.Errorf("creating log directory: %w", err)
@@ -486,7 +486,7 @@ func ensureTemplateLogDir(stage *stageResult) (string, error) {
 	return logDir, nil
 }
 
-func runDockerBuild(stage *stageResult) error {
+func runDockerBuild(stage *dockerStageResult) error {
 	logDir, err := ensureTemplateLogDir(stage)
 	if err != nil {
 		return err
@@ -531,7 +531,7 @@ func runDockerBuild(stage *stageResult) error {
 	return nil
 }
 
-func runTemplateTests(stage *stageResult, tests []templateTestCase) error {
+func runTemplateTests(stage *dockerStageResult, tests []templateTestCase) error {
 	logDir, err := ensureTemplateLogDir(stage)
 	if err != nil {
 		return err

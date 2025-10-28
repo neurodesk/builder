@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -272,13 +273,16 @@ func stageIntoBuildContext(cfg builderConfig, recipePath, dockerfile, buildDir s
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		return fmt.Errorf("creating cache dir: %w", err)
 	}
+
 	httpCacheDir := os.Getenv("BUILDER_HTTP_CACHE_DIR")
 	if httpCacheDir == "" {
 		httpCacheDir = filepath.Join("local", "httpcache")
 	}
+
 	if err := os.MkdirAll(httpCacheDir, 0o755); err != nil {
 		return fmt.Errorf("creating http cache dir: %w", err)
 	}
+
 	hc := netcache.New(httpCacheDir)
 	for _, f := range plan.Files {
 		dst := filepath.Join(cacheDir, filepath.FromSlash(f.Name))
@@ -436,7 +440,7 @@ func stageIntoBuildContext(cfg builderConfig, recipePath, dockerfile, buildDir s
 	return nil
 }
 
-type stageResult struct {
+type dockerStageResult struct {
 	Name           string   `json:"name"`
 	Version        string   `json:"version"`
 	Tag            string   `json:"tag"`
@@ -462,43 +466,74 @@ type recipeGenerationResult struct {
 	Errors     []string
 }
 
+type genericStageResult struct {
+	cfg        builderConfig
+	recipePath string
+	irDef      *ir.Definition
+	build      *recipe.BuildFile
+	plan       *recipe.StagingPlan
+	locals     []string
+}
+
 // helper: generate, render, write dockerfile, and stage files/COPYs
-func prepareStage(cfg builderConfig, recipeSpec string, locals []string) (*stageResult, error) {
+func prepareStage(cfg builderConfig, recipeSpec string, locals []string) (*genericStageResult, error) {
 	recipePath, err := resolveRecipePath(cfg, recipeSpec)
 	if err != nil {
 		return nil, err
 	}
+
 	build, err := recipe.LoadBuildFile(recipePath)
 	if err != nil {
 		return nil, fmt.Errorf("loading build file: %w", err)
 	}
+
 	// local keys for named contexts
 	keys, _ := parseLocalFlags(locals)
+
 	irDef, plan, err := build.GenerateWithStagingAndLocals(cfg.IncludeDirs, keys)
 	if err != nil {
 		return nil, fmt.Errorf("generating build IR: %w", err)
 	}
-	dockerfile, err := ir.GenerateDockerfile(irDef)
+
+	return &genericStageResult{
+		cfg:        cfg,
+		recipePath: recipePath,
+		irDef:      irDef,
+		build:      build,
+		plan:       plan,
+		locals:     keys,
+	}, nil
+}
+
+func prepareDockerStage(stage *genericStageResult) (*dockerStageResult, error) {
+	build := stage.build
+
+	dockerfile, err := ir.GenerateDockerfile(stage.irDef)
 	if err != nil {
 		return nil, fmt.Errorf("generating dockerfile: %w", err)
 	}
+
 	if strings.Contains(dockerfile, "\" + ") {
 		return nil, fmt.Errorf("detected unrendered string concatenation in generated Dockerfile; fix recipe/templates")
 	}
+
 	// Write Dockerfile
 	buildDir := filepath.Join("local", "build", build.Name)
 	if err := os.MkdirAll(buildDir, 0o755); err != nil {
 		return nil, fmt.Errorf("creating build directory: %w", err)
 	}
+
 	dockerfilePath := filepath.Join(buildDir, "Dockerfile")
 	if err := os.WriteFile(dockerfilePath, []byte(dockerfile), 0o644); err != nil {
 		return nil, fmt.Errorf("writing Dockerfile: %w", err)
 	}
+
 	// Stage files
-	if err := stageIntoBuildContext(cfg, recipePath, dockerfile, buildDir, plan); err != nil {
+	if err := stageIntoBuildContext(stage.cfg, stage.recipePath, dockerfile, buildDir, stage.plan); err != nil {
 		return nil, err
 	}
-	res := &stageResult{
+
+	return &dockerStageResult{
 		Name:           build.Name,
 		Version:        build.Version,
 		Tag:            build.Name + ":" + build.Version,
@@ -506,10 +541,9 @@ func prepareStage(cfg builderConfig, recipeSpec string, locals []string) (*stage
 		BuildDir:       buildDir,
 		DockerfilePath: dockerfilePath,
 		CacheDir:       filepath.Join(buildDir, "cache"),
-		LocalContext:   locals,
+		LocalContext:   stage.locals,
 		Dockerfile:     dockerfile,
-	}
-	return res, nil
+	}, nil
 }
 
 func compileRecipe(cfg builderConfig, recipeDir string) (*compiledRecipe, error) {
@@ -1129,6 +1163,10 @@ func shortenLabel(s string, max int) string {
 	return string(runes[:max-3]) + "..."
 }
 
+var (
+	buildMethod string
+)
+
 var buildCmd = cobra.Command{
 	Use:   "build [recipe]",
 	Short: "Generate Dockerfile and print buildctl command for the recipe",
@@ -1150,73 +1188,111 @@ var buildCmd = cobra.Command{
 		if lvals, _ := cmd.Flags().GetStringArray("local"); len(lvals) > 0 {
 			locals = append(locals, lvals...)
 		}
-		res, err := prepareStage(cfg, recipeName, locals)
-		if err != nil {
-			return err
-		}
-		buildDir := res.BuildDir
-		dockerfile := res.Dockerfile
-		dockerfilePath := res.DockerfilePath
-		cacheDir := res.CacheDir
-		// staging already done in prepareStage
-		// Staging is already done by prepareStage()
 
-		// Parse named local contexts from RUN --mount ... from=<key>
-		// Users can provide optional mappings via --local KEY=DIR flags.
-		// Collect unique from= keys in Dockerfile (best-effort, informational)
-		re := regexp.MustCompile(`from=([^,\s]+)`)
-		want := map[string]struct{}{}
-		for _, m := range re.FindAllStringSubmatch(dockerfile, -1) {
-			if len(m) >= 2 {
-				want[m[1]] = struct{}{}
+		switch buildMethod {
+		case "docker":
+			stage, err := prepareStage(cfg, recipeName, locals)
+			if err != nil {
+				return err
 			}
-		}
 
-		// Build with Docker BuildKit
-		if _, err := exec.LookPath("docker"); err != nil {
-			fmt.Printf("Dockerfile written to %s\n", dockerfilePath)
-			return fmt.Errorf("docker CLI not found in PATH; please install Docker and rerun")
-		}
-
-		// Assemble docker build command
-		// docker build -t name:version -f Dockerfile [--build-context key=dir ...] buildDir
-		dockerArgs := []string{"build", "-t", res.Name + ":" + res.Version, "-f", dockerfilePath}
-		// Provide cache= build context automatically
-		dockerArgs = append(dockerArgs, "--build-context", "cache="+cacheDir)
-		// Append user-provided build contexts for named mounts
-		for _, kv := range locals {
-			parts := strings.SplitN(kv, "=", 2)
-			if len(parts) != 2 {
-				fmt.Printf("WARN: ignoring invalid --local %q (want KEY=DIR)\n", kv)
-				continue
+			res, err := prepareDockerStage(stage)
+			if err != nil {
+				return err
 			}
-			dockerArgs = append(dockerArgs, "--build-context", kv)
-			delete(want, parts[0])
-		}
-		// Any remaining keys in 'want' are optional locals; recipes typically guard with has_local.
-		// We only emit an informational message to aid debugging.
-		if len(want) > 0 {
-			var keys []string
-			for k := range want {
-				keys = append(keys, k)
+
+			buildDir := res.BuildDir
+			dockerfile := res.Dockerfile
+			dockerfilePath := res.DockerfilePath
+			cacheDir := res.CacheDir
+
+			// Parse named local contexts from RUN --mount ... from=<key>
+			// Users can provide optional mappings via --local KEY=DIR flags.
+			// Collect unique from= keys in Dockerfile (best-effort, informational)
+			re := regexp.MustCompile(`from=([^,\s]+)`)
+			want := map[string]struct{}{}
+			for _, m := range re.FindAllStringSubmatch(dockerfile, -1) {
+				if len(m) >= 2 {
+					want[m[1]] = struct{}{}
+				}
 			}
-			fmt.Printf("Info: optional locals not supplied: %s (guard with has_local)\n", strings.Join(keys, ", "))
+
+			// Build with Docker BuildKit
+			if _, err := exec.LookPath("docker"); err != nil {
+				fmt.Printf("Dockerfile written to %s\n", dockerfilePath)
+				return fmt.Errorf("docker CLI not found in PATH; please install Docker and rerun")
+			}
+
+			// Assemble docker build command
+			// docker build -t name:version -f Dockerfile [--build-context key=dir ...] buildDir
+			dockerArgs := []string{"build", "-t", res.Name + ":" + res.Version, "-f", dockerfilePath}
+			// Provide cache= build context automatically
+			dockerArgs = append(dockerArgs, "--build-context", "cache="+cacheDir)
+			// Append user-provided build contexts for named mounts
+			for _, kv := range locals {
+				parts := strings.SplitN(kv, "=", 2)
+				if len(parts) != 2 {
+					fmt.Printf("WARN: ignoring invalid --local %q (want KEY=DIR)\n", kv)
+					continue
+				}
+				dockerArgs = append(dockerArgs, "--build-context", kv)
+				delete(want, parts[0])
+			}
+			// Any remaining keys in 'want' are optional locals; recipes typically guard with has_local.
+			// We only emit an informational message to aid debugging.
+			if len(want) > 0 {
+				var keys []string
+				for k := range want {
+					keys = append(keys, k)
+				}
+				fmt.Printf("Info: optional locals not supplied: %s (guard with has_local)\n", strings.Join(keys, ", "))
+			}
+			dockerArgs = append(dockerArgs, buildDir)
+
+			// Ensure DOCKER_BUILDKIT is enabled
+			cmdRun := exec.Command("docker", dockerArgs...)
+			cmdRun.Env = append(os.Environ(), "DOCKER_BUILDKIT=1")
+			cmdRun.Stdout = os.Stdout
+			cmdRun.Stderr = os.Stderr
+
+			fmt.Printf("Running: DOCKER_BUILDKIT=1 docker %s\n", strings.Join(dockerArgs, " "))
+			if err := cmdRun.Run(); err != nil {
+				return fmt.Errorf("docker build failed: %w", err)
+			}
+
+			fmt.Printf("Built image %s:%s\n", res.Name, res.Version)
+			return nil
+		case "llb":
+			// Build with buildctl and LLB
+			if _, err := exec.LookPath("buildctl"); err != nil {
+				return fmt.Errorf("buildctl not found in PATH; please install BuildKit and rerun")
+			}
+
+			stage, err := prepareStage(cfg, recipeName, locals)
+			if err != nil {
+				return err
+			}
+
+			llbGen, err := ir.GenerateLLBDefinition(stage.irDef)
+			if err != nil {
+				return fmt.Errorf("generating LLB definition: %w", err)
+			}
+
+			// generate LLB definition and pipe into buildctl build
+			cmd := exec.Command("buildctl", "build", "--progress", "rawjson")
+			cmd.Stdin = bytes.NewReader(llbGen)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+
+			fmt.Printf("Running: buildctl build (LLB input via stdin)\n")
+
+			if err := cmd.Run(); err != nil {
+				return fmt.Errorf("buildctl build failed: %w", err)
+			}
+			return nil
+		default:
+			return fmt.Errorf("unsupported build method %q", buildMethod)
 		}
-		dockerArgs = append(dockerArgs, buildDir)
-
-		// Ensure DOCKER_BUILDKIT is enabled
-		cmdRun := exec.Command("docker", dockerArgs...)
-		cmdRun.Env = append(os.Environ(), "DOCKER_BUILDKIT=1")
-		cmdRun.Stdout = os.Stdout
-		cmdRun.Stderr = os.Stderr
-
-		fmt.Printf("Running: DOCKER_BUILDKIT=1 docker %s\n", strings.Join(dockerArgs, " "))
-		if err := cmdRun.Run(); err != nil {
-			return fmt.Errorf("docker build failed: %w", err)
-		}
-
-		fmt.Printf("Built image %s:%s\n", res.Name, res.Version)
-		return nil
 	},
 }
 
@@ -1238,6 +1314,7 @@ func init() {
 
 	// Build command flags: --local KEY=DIR can be repeated to supply named contexts
 	buildCmd.Flags().StringArray("local", []string{}, "Supply a named local context as KEY=DIR for RUN --mount from=KEY")
+	buildCmd.Flags().StringVar(&buildMethod, "method", "docker", "Build method to use (docker,llb)")
 	rootCmd.AddCommand(&buildCmd)
 
 	// Stage command (no build), supports --local as well

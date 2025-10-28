@@ -1808,12 +1808,21 @@ type IncludeFile struct {
 	Directives []Directive `yaml:"directives,omitempty"`
 }
 
+type AutoUpdateMethod string
+
+type AutoUpdateInfo struct {
+	Method AutoUpdateMethod `yaml:"method"`
+	Repo   string           `yaml:"repo"`
+}
+
 type BuildFile struct {
 	Name          string                `yaml:"name"`
 	Version       string                `yaml:"version"`
 	Epoch         int                   `yaml:"epoch,omitempty"`
 	Architectures []CPUArchitecture     `yaml:"architectures"`
 	Options       map[string]OptionInfo `yaml:"options,omitempty"`
+
+	AutoUpdate *AutoUpdateInfo `yaml:"auto_update,omitempty"`
 
 	Build BuildRecipe `yaml:"build"`
 

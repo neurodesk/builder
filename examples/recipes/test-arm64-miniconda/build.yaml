@@ -5,12 +5,13 @@ architectures:
   - x86_64
 
 variables:
-  conda_version: "py39_4.12.0"
-  conda_download_url:
+  miniconda_version: "py39_4.12.0"
+  miniconda_install_path: /opt/miniconda-{{ context.miniconda_version }}
+  miniconda_installer_url:
     try:
-      - value: "https://repo.anaconda.com/miniconda/Miniconda3-{{ context.conda_version }}-Linux-x86_64.sh"
+      - value: "https://repo.anaconda.com/miniconda/Miniconda3-{{ context.miniconda_version }}-Linux-x86_64.sh"
         condition: arch=="x86_64"
-      - value: "https://repo.anaconda.com/miniconda/Miniconda3-{{ context.conda_version }}-Linux-aarch64.sh"
+      - value: "https://repo.anaconda.com/miniconda/Miniconda3-{{ context.miniconda_version }}-Linux-aarch64.sh"
         condition: arch=="aarch64"
 
 build:
@@ -18,13 +19,7 @@ build:
   base-image: ubuntu:22.04
   pkg-manager: apt
   directives:
-    - template:
-        name: miniconda
-        method: binaries
-        version: "{{ local.conda_version }}"
-        installer_url: "{{ local.conda_download_url }}"
-        install_path: /opt/miniconda-{{ local.conda_version }}
-        mamba: "false"
+    - include: modern/miniconda.yaml
     - run:
         - conda --version
         - python --version

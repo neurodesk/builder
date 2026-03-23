@@ -1,0 +1,13 @@
+builder: neurodocker
+directives:
+- environment:
+    PATH: '{{ self.install_path }}:$PATH'
+- run:
+  - '{{ self.install_dependencies() }}'
+  - mkdir -p {{ self.install_path }}
+- workdir: '{{ self.install_path }}'
+- run:
+  - curl -fsSL -o dcm2niix.zip {{ self.urls[self.version] }}
+  - unzip dcm2niix.zip
+  - rm dcm2niix.zip
+  - chmod +x dcm2niix

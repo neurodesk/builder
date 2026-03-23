@@ -1,0 +1,30 @@
+builder: neurodocker
+directives:
+- environment:
+    PATH: '{{ self.install_path }}:$PATH'
+    AFNI_PLUGINPATH: '{{ self.install_path }}'
+- run:
+  - '{{ self.install_dependencies() }}'
+  - gsl_path="$(find / -name 'libgsl.so.??' || printf '')"
+  - |
+    if [ -n "$gsl_path" ]; then \
+      ln -sfv "$gsl_path" "$(dirname $gsl_path)/libgsl.so.0"; \
+    fi
+  - ldconfig
+  - mkdir -p {{ self.install_path }}
+  - echo "Downloading AFNI ..."
+  - |
+    curl -fL {{ self.urls[self.version] }} \
+    | tar -xz -C {{ self.install_path }} --strip-components 1
+- condition: self.install_python3.lower() in ["true", "1", "y"]
+  run:
+  - '{{ self.install(["python3"]) }}'
+  - pip3 install matplotlib
+- condition: self.install_r_pkgs.lower() in ["true", "1", "y"] and self.pkg_manager == "apt"
+  run:
+  - '{{ self.install(["r-base", "r-base-dev", "libnlopt-dev"]) }}'
+  - rPkgsInstall -pkgs ALL
+- condition: self.install_r_pkgs.lower() in ["true", "1", "y"] and self.pkg_manager == "yum"
+  run:
+  - '{{ self.install(["R-devel"]) }}'
+  - rPkgsInstall -pkgs ALL

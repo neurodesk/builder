@@ -1,0 +1,20 @@
+builder: neurodocker
+directives:
+- environment:
+    FORCE_SPMMCR: '1'
+    SPM_HTML_BROWSER: '0'
+    MCR_INHIBIT_CTF_LOCK: '1'
+    SPMROOT: '{{ self.install_path }}'
+    PATH: '{{ self.install_path }}:$PATH'
+- run:
+  - '{{ self.install_dependencies() }}'
+  - echo "Downloading standalone CAT12 ..."
+  - curl -fL -o /tmp/cat12.zip {{ self.urls[self.version] }}
+  - unzip -q /tmp/cat12.zip -d /tmp
+  - rm -rf /tmp/cat12.zip
+  - mkdir -p {{ self.install_path }}
+  - mv /tmp/*{{ self.version }}*/* {{ self.install_path }}/
+  - chmod -R 777 {{ self.install_path }}
+  - '{{ self.install_path }}/spm12 function exit'
+  - rm {{ self.install_path }}/spm12_mcr/home/gaser/gaser/spm/spm12/toolbox/cat12/cat_long_main.m
+  - cp {{ self.install_path }}/spm12_mcr/home/gaser/gaser/spm/spm12/toolbox/cat12/cat_long_main.txt {{ self.install_path }}/spm12_mcr/home/gaser/gaser/spm/spm12/toolbox/cat12/cat_long_main.m

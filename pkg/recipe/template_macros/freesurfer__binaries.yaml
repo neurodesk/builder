@@ -1,0 +1,38 @@
+builder: neurodocker
+directives:
+- environment:
+    OS: Linux
+    PATH: '{{ self.install_path }}/bin:{{ self.install_path }}/fsfast/bin:{{ self.install_path }}/tktools:{{ self.install_path }}/mni/bin:$PATH'
+    FREESURFER_HOME: '{{ self.install_path }}'
+    FREESURFER: '{{ self.install_path }}'
+    SUBJECTS_DIR: '{{ self.install_path }}/subjects'
+    LOCAL_DIR: '{{ self.install_path }}/local'
+    FSFAST_HOME: '{{ self.install_path }}/fsfast'
+    FMRI_ANALYSIS_DIR: '{{ self.install_path }}/fsfast'
+    FUNCTIONALS_DIR: '{{ self.install_path }}/sessions'
+    FS_OVERRIDE: '0'
+    FIX_VERTEX_AREA: ''
+    FSF_OUTPUT_FORMAT: nii.gz# mni env requirements
+    MINC_BIN_DIR: '{{ self.install_path }}/mni/bin'
+    MINC_LIB_DIR: '{{ self.install_path }}/mni/lib'
+    MNI_DIR: '{{ self.install_path }}/mni'
+    MNI_DATAPATH: '{{ self.install_path }}/mni/data'
+    MNI_PERL5LIB: '{{ self.install_path }}/mni/share/perl5'
+    PERL5LIB: '{{ self.install_path }}/mni/share/perl5'
+- variables:
+    download_url: '{{ self.urls[self.version] }}'
+- run:
+  - '{{ self.install_dependencies() }}'
+  - echo "Downloading FreeSurfer ..."
+  - mkdir -p {{ self.install_path }}
+  - |
+    curl -fL {{ download_url }} \
+    | tar -xz -C {{ self.install_path }} --owner root --group root --no-same-owner --strip-components 1 {% if self.exclude_paths -%}\
+    {%- for exclude_path in self.exclude_paths.split() %}
+      {% if not loop.last -%}
+      --exclude='{{ exclude_path }}' \
+      {%- else -%}
+      --exclude='{{ exclude_path }}'
+      {%- endif -%}
+    {%- endfor %}
+    {%- endif %}

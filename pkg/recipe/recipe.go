@@ -234,6 +234,9 @@ func (c *Context) evaluateValue(value any) (any, error) {
 			"parallel_jobs": jinja2.IntValue(c.parallelJobs()),
 			"arch":          jinja2.StringValue(string(c.Arch)),
 		}
+		for k, v := range c.variables {
+			ctx[k] = v
+		}
 		// Top-level helpers to match Python builder methods
 		ctx["has_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
 			if len(args) != 1 {
@@ -271,6 +274,9 @@ func (c *Context) evaluateValue(value any) (any, error) {
 			"context":       c,
 			"parallel_jobs": jinja2.IntValue(c.parallelJobs()),
 			"arch":          jinja2.StringValue(string(c.Arch)),
+		}
+		for k, v := range c.variables {
+			ctx[k] = v
 		}
 		ctx["has_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
 			if len(args) != 1 {
@@ -550,8 +556,9 @@ type Copyright struct {
 type Category string
 
 type DeployInfo struct {
-	Bins []jinja2.TemplateString `yaml:"bins,omitempty"`
-	Path []jinja2.TemplateString `yaml:"path,omitempty"`
+	Bins   []jinja2.TemplateString `yaml:"bins,omitempty"`
+	Path   []jinja2.TemplateString `yaml:"path,omitempty"`
+	Webapp any                     `yaml:"webapp,omitempty"`
 }
 
 type FileInfo struct {
@@ -672,6 +679,9 @@ func (r RunDirective) Apply(ctx *Context, src ir.SourceID) error {
 			"context":       ctx,
 			"parallel_jobs": jinja2.IntValue(ctx.parallelJobs()),
 			"arch":          jinja2.StringValue(string(ctx.Arch)),
+		}
+		for k, v := range ctx.variables {
+			jctx[k] = v
 		}
 		jctx["has_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
 			if len(args) != 1 {
@@ -1057,57 +1067,100 @@ func (t TemplateDirective) Validate(ctx Context) error {
 		return err
 	}
 
-	tpl, err := templates.Get(t.Name)
-	if err != nil {
-		return fmt.Errorf("template %q not found", t.Name)
+	switch currentTemplateBackend() {
+	case TemplateBackendLegacy:
+		tpl, err := templates.Get(t.Name)
+		if err != nil {
+			return fmt.Errorf("template %q not found", t.Name)
+		}
+		_ = tpl
+		return nil
+	case TemplateBackendMacro:
+		params := templates.Params(func(k string) (any, bool, error) {
+			val, ok := t.Params[k]
+			return val, ok, nil
+		})
+		legacyTemplate, err := templates.Get(t.Name)
+		if err != nil {
+			return fmt.Errorf("template %q not found", t.Name)
+		}
+		method, err := params.GetString("method", "binaries")
+		if err != nil {
+			return fmt.Errorf("getting method parameter: %w", err)
+		}
+		if _, err := legacyTemplate.GetMethodTemplate(method); err != nil {
+			return err
+		}
+		if _, err := loadTemplateMacro(t.Name, method); err != nil {
+			return err
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported template backend %q", currentTemplateBackend())
 	}
-
-	_ = tpl
-
-	return nil
 }
 
 func (t TemplateDirective) Apply(ctx *Context, src ir.SourceID) error {
-	tpl, err := templates.Get(t.Name)
-	if err != nil {
-		return fmt.Errorf("template %q not found", t.Name)
-	}
-
-	result, err := tpl.Execute(templates.Context{
-		PackageManager: ctx.PackageManager,
-	}, func(k string) (any, bool, error) {
+	params := templates.Params(func(k string) (any, bool, error) {
 		if val, ok := t.Params[k]; ok {
 			rss, err := ctx.evaluateValue(val)
 			if err != nil {
 				return nil, false, fmt.Errorf("evaluating template param %q: %w", k, err)
 			}
 
+			switch v := rss.(type) {
+			case bool:
+				if v {
+					return "true", true, nil
+				}
+				return "false", true, nil
+			case int, int32, int64, float32, float64:
+				return fmt.Sprint(v), true, nil
+			}
+
 			return rss, true, nil
 		}
 		return nil, false, nil
 	})
-	if err != nil {
-		return fmt.Errorf("executing template %q: %w", t.Name, err)
-	}
-
-	if len(result.Environment) > 0 {
-		env := map[string]jinja2.TemplateString{}
-		for k, v := range result.Environment {
-			env[k] = jinja2.TemplateString(v)
+	switch currentTemplateBackend() {
+	case TemplateBackendLegacy:
+		tpl, err := templates.Get(t.Name)
+		if err != nil {
+			return fmt.Errorf("template %q not found", t.Name)
 		}
 
-		if err := EnvironmentDirective(env).Apply(ctx, src); err != nil {
-			return fmt.Errorf("applying template %q environment: %w", t.Name, err)
+		result, err := tpl.Execute(templates.Context{
+			PackageManager: ctx.PackageManager,
+		}, params)
+		if err != nil {
+			return fmt.Errorf("executing template %q: %w", t.Name, err)
 		}
-	}
 
-	if err := RunDirective([]jinja2.TemplateString{
-		jinja2.TemplateString(result.Instructions),
-	}).Apply(ctx, src); err != nil {
-		return fmt.Errorf("applying template %q run: %w", t.Name, err)
-	}
+		if len(result.Environment) > 0 {
+			env := map[string]jinja2.TemplateString{}
+			for k, v := range result.Environment {
+				env[k] = jinja2.TemplateString(v)
+			}
 
-	return nil
+			if err := EnvironmentDirective(env).Apply(ctx, src); err != nil {
+				return fmt.Errorf("applying template %q environment: %w", t.Name, err)
+			}
+		}
+
+		if err := RunDirective([]jinja2.TemplateString{
+			jinja2.TemplateString(result.Instructions),
+		}).Apply(ctx, src); err != nil {
+			return fmt.Errorf("applying template %q run: %w", t.Name, err)
+		}
+		return nil
+	case TemplateBackendMacro:
+		if err := applyTemplateMacro(ctx, src, t.Name, params); err != nil {
+			return fmt.Errorf("executing template %q: %w", t.Name, err)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported template backend %q", currentTemplateBackend())
+	}
 }
 
 type IncludeDirective string
@@ -1503,6 +1556,9 @@ func (d Directive) Apply(ctx *Context) error {
 			"parallel_jobs": jinja2.IntValue(ctx.parallelJobs()),
 			"arch":          jinja2.StringValue(string(ctx.Arch)),
 		}
+		for k, v := range ctx.variables {
+			condCtx[k] = v
+		}
 		// Provide top-level helpers for convenience in conditions
 		condCtx["has_local"] = jinja2.CallableValue{Fn: func(args []jinja2.Value) (jinja2.Value, error) {
 			if len(args) != 1 {
@@ -1734,28 +1790,42 @@ func (b *BuildRecipe) Generate(ctx *Context) error {
 	ctx.builder = ctx.builder.SetCurrentUser(defaultSourceId, "root")
 
 	if b.AddDefaultTemplate == nil || *b.AddDefaultTemplate {
-		tpl, err := templates.Get("_header")
-		if err != nil {
-			return fmt.Errorf("loading default header template: %w", err)
-		}
-
-		result, err := tpl.Execute(templates.Context{
-			PackageManager: ctx.PackageManager,
-		}, func(k string) (any, bool, error) {
-			if k == "method" {
-				return "source", true, nil
+		switch currentTemplateBackend() {
+		case TemplateBackendLegacy:
+			tpl, err := templates.Get("_header")
+			if err != nil {
+				return fmt.Errorf("loading default header template: %w", err)
 			}
-			return nil, false, nil
-		})
-		if err != nil {
-			return fmt.Errorf("executing default header template: %w", err)
-		}
 
-		if len(result.Environment) > 0 {
-			ctx.builder = ctx.builder.AddEnvironment(defaultSourceId, result.Environment)
-		}
+			result, err := tpl.Execute(templates.Context{
+				PackageManager: ctx.PackageManager,
+			}, func(k string) (any, bool, error) {
+				if k == "method" {
+					return "source", true, nil
+				}
+				return nil, false, nil
+			})
+			if err != nil {
+				return fmt.Errorf("executing default header template: %w", err)
+			}
 
-		ctx.builder = ctx.builder.AddRunCommand(defaultSourceId, result.Instructions)
+			if len(result.Environment) > 0 {
+				ctx.builder = ctx.builder.AddEnvironment(defaultSourceId, result.Environment)
+			}
+
+			ctx.builder = ctx.builder.AddRunCommand(defaultSourceId, result.Instructions)
+		case TemplateBackendMacro:
+			if err := applyTemplateMacro(ctx, defaultSourceId, "_header", func(k string) (any, bool, error) {
+				if k == "method" {
+					return "source", true, nil
+				}
+				return nil, false, nil
+			}); err != nil {
+				return fmt.Errorf("executing default header template: %w", err)
+			}
+		default:
+			return fmt.Errorf("unsupported template backend %q", currentTemplateBackend())
+		}
 	}
 
 	if err := (GroupDirective{
@@ -1850,6 +1920,7 @@ type BuildFile struct {
 	Variables map[string]any `yaml:"variables,omitempty"`
 	Deploy    DeployInfo     `yaml:"deploy,omitempty"`
 	Files     []FileInfo     `yaml:"files,omitempty"`
+	Tests     any            `yaml:"tests,omitempty"`
 
 	// Forward-compat: allow apptainer_args in recipes but ignore for now.
 	ApptainerArgs any `yaml:"apptainer_args,omitempty"`

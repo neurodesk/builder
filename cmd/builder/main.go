@@ -39,9 +39,10 @@ var embeddedIndexHTML []byte
 var webAddr string
 
 type builderConfig struct {
-	RecipeRoots []string `yaml:"recipe_roots"`
-	IncludeDirs []string `yaml:"include_dirs"`
-	TemplateDir string   `yaml:"template_dir,omitempty"`
+	RecipeRoots     []string `yaml:"recipe_roots"`
+	IncludeDirs     []string `yaml:"include_dirs"`
+	TemplateDir     string   `yaml:"template_dir,omitempty"`
+	TemplateBackend string   `yaml:"template_backend,omitempty"`
 }
 
 func (b *builderConfig) getRecipeByName(name string) (*recipe.BuildFile, error) {
@@ -122,6 +123,9 @@ func loadBuilderConfig() (builderConfig, error) {
 	}
 	if cfg.TemplateDir != "" {
 		templates.SetTemplateDir(cfg.TemplateDir)
+	}
+	if err := recipe.SetTemplateBackend(cfg.TemplateBackend); err != nil {
+		return cfg, fmt.Errorf("configuring template backend: %w", err)
 	}
 	return cfg, nil
 }

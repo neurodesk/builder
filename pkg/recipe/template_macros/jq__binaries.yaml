@@ -1,0 +1,6 @@
+builder: neurodocker
+directives:
+- run:
+  - '{{ self.install_dependencies() }}'
+  - curl -fsSL --output /usr/local/bin/jq {{ self.urls[self.version]}}
+  - chmod +x /usr/local/bin/jq

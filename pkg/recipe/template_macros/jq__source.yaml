@@ -1,0 +1,13 @@
+builder: neurodocker
+directives:
+- run:
+  - mkdir jq
+- workdir: jq
+- run:
+  - |
+    curl -fsSL https://github.com/stedolan/jq/releases/download/jq-{{self.version}}/jq-{{self.version}}.tar.gz \
+    | tar xz --strip-components 1
+  - '{% if self.version == "1.6" -%} autoreconf -fi {% endif %}'
+  - ./configure --disable-maintainer-mode
+  - make
+  - make install

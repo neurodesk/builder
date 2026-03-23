@@ -1,0 +1,21 @@
+builder: neurodocker
+directives:
+- environment:
+    PATH: '{{ self.install_path }}/bin:$PATH'
+- run:
+  - '{{ self.install_dependencies() }}'
+  - git clone {{ self.repo }} /tmp/dcm2niix
+- workdir: /tmp/dcm2niix
+- run:
+  - |
+    {% if self.version != "master" and self.version != "latest" -%}
+    git fetch --tags
+    git checkout {{ self.version }}
+    {% endif -%}
+  - mkdir /tmp/dcm2niix/build
+- workdir: /tmp/dcm2niix/build
+- run:
+  - cmake {{ self.cmake_opts }} -DCMAKE_INSTALL_PREFIX:PATH={{ self.install_path }} ..
+  - make {{ self.make_opts }}
+  - make install
+  - rm -rf /tmp/dcm2niix

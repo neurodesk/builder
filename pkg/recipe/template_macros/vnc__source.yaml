@@ -1,0 +1,8 @@
+builder: neurodocker
+directives:
+- run:
+  - '{{ self.install_dependencies() }}'
+  - echo 'Configuring VNC password ...'
+  - mkdir -p ~/.vnc
+  - echo {{ self.passwd }} | vncpasswd -f > ~/.vnc/passwd
+  - chmod 0600 ~/.vnc/passwd

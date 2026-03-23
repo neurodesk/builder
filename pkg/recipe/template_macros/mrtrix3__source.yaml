@@ -1,0 +1,18 @@
+builder: neurodocker
+directives:
+- environment:
+    PATH: '{{ self.install_path }}/bin:$PATH'
+    LD_LIBRARY_PATH: '{{ self.install_path }}/lib:$PATH'
+- run:
+  - '{{ self.install_dependencies() }}'
+  - mkdir -p {{ self.install_path }}
+  - git clone {{ self.repo }} {{ self.install_path }}
+- workdir: '{{ self.install_path }}'
+- run:
+  - |
+    {% if self.version != "master" and self.version != "latest" -%}
+    git checkout {{ self.version }}
+    {% endif -%}
+  - python3 configure -nogui
+  - echo "Compiling MRtrix3 ..."
+  - NUMBER_OF_PROCESSORS="{{ self.build_processes }}" python3 build

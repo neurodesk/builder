@@ -1,0 +1,13 @@
+builder: neurodocker
+directives:
+- environment:
+    PATH: '{{ self.install_path }}:$PATH'
+- run:
+  - '{{ self.install_dependencies() }}'
+  - echo "Downloading MRIcron ..."
+  - mkdir -p {{ self.install_path }}
+  - curl -fL -O {{ self.urls[self.version] }}
+  - unzip "*cron*.zip"
+  - rm -f "*cron*.zip"
+  - mv mricron/* {{ self.install_path }}
+  - rmdir mricron

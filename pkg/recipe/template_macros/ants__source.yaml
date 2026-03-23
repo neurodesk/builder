@@ -1,0 +1,33 @@
+builder: neurodocker
+directives:
+- environment:
+    ANTSPATH: '{{ self.install_path }}/bin'
+    PATH: '{{ self.install_path }}/bin:{{ self.install_path }}/Scripts:$PATH'
+    LD_LIBRARY_PATH: '{{ self.install_path }}/lib:$LD_LIBRARY_PATH'
+- run:
+  - '{{ self.install_dependencies() }}'
+  - mkdir -p /tmp/ants/build
+  - git clone {{ self.repo }} /tmp/ants/source
+- workdir: /tmp/ants/source
+- run:
+  - |
+    {% if self.version != "master" and self.version != "latest" -%}
+    git fetch --tags
+    git -c advice.detachedHead=false checkout v{{ self.version }}
+    {% endif -%}
+- workdir: /tmp/ants/build
+- run:
+  - cmake {{ self.cmake_opts }} /tmp/ants/source
+  - make {{ self.make_opts }}
+  - mkdir -p {{ self.install_path }}
+  - |
+    # Recent versions of ants create ANTS-build.
+    if [ -d ANTS-build ]; then \
+      cd ANTS-build \
+      && make install \
+      && mv ../../source/Scripts/ {{ self.install_path }}; \
+    else \
+      mv bin lib {{ self.install_path }}/ \
+      mv ../Scripts/* {{ self.install_path }} ; \
+    fi
+  - rm -rf /tmp/ants

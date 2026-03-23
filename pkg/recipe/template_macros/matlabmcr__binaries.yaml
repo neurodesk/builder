@@ -1,0 +1,36 @@
+builder: neurodocker
+directives:
+- environment:
+    LD_LIBRARY_PATH: |
+      {% set versionTovXX = {"2023b": "v915", "2023a": "v914", "2022b": "v913", "2022a": "v912", "2021b": "v911", "2021a": "v910", "2020b": "v99", "2020a": "v98", "2019b": "v97", "2019a": "v96", "2018b": "v95", "2018a": "v94", "2017b": "v93", "2017a": "v92", "2016b": "v91", "2016a": "v901", "2015b": "v90", "2015aSP1": "v851", "2015a": "v85", "2014b": "v84", "2014a": "v83", "2013b": "v82", "2013a": "v81", "2012b": "v80", "2012a": "v717"} -%}
+      $LD_LIBRARY_PATH:/usr/lib/x86_64-linux-gnu:{{ self.install_path }}/{{ versionTovXX[self.version] }}/runtime/glnxa64:{{ self.install_path }}/{{ versionTovXX[self.version] }}/bin/glnxa64:{{ self.install_path }}/{{ versionTovXX[self.version] }}/sys/os/glnxa64:{{ self.install_path }}/{{ versionTovXX[self.version] }}/extern/bin/glnxa64
+    MATLABCMD: '{{ self.install_path }}/{{ self.version }}/toolbox/matlab'
+    XAPPLRESDIR: |
+      {% set versionTovXX = {"2023b": "v915", "2023a": "v914", "2022b": "v913", "2022a": "v912", "2021b": "v911", "2021a": "v910", "2020b": "v99", "2020a": "v98", "2019b": "v97", "2019a": "v96", "2018b": "v95", "2018a": "v94", "2017b": "v93", "2017a": "v92", "2016b": "v91", "2016a": "v901", "2015b": "v90", "2015aSP1": "v851", "2015a": "v85", "2014b": "v84", "2014a": "v83", "2013b": "v82", "2013a": "v81", "2012b": "v80", "2012a": "v717"} -%}
+      /opt/{{ self.install_path }}/{{ versionTovXX[self.version] }}/x11/app-defaults
+    MCRROOT: '{{ self.install_path }}/{{ self.version }}'
+- variables:
+    download_url: '{{ self.urls[self.version] }}'
+    installer_bin: /tmp/MCRInstaller.bin
+    installer_zip: /tmp/mcr.zip
+    installer_dir: /tmp/mcrtmp
+- condition: self.version == "2010a"
+  run:
+  - export TMPDIR="$(mktemp -d)"
+  - '{{ self.install_dependencies() }}'
+  - echo "Downloading MATLAB Compiler Runtime ..."
+  - curl {{ self.curl_opts }} -o "$TMPDIR{{ installer_bin }}" {{ download_url }}
+  - chmod +x "$TMPDIR{{ installer_bin }}"
+  - '"$TMPDIR{{ installer_bin }}" -silent -P installLocation="{{ self.install_path }}"'
+  - rm -rf "$TMPDIR"
+  - unset TMPDIR
+- condition: self.version != "2010a"
+  run:
+  - export TMPDIR="$(mktemp -d)"
+  - '{{ self.install_dependencies() }}'
+  - echo "Downloading MATLAB Compiler Runtime ..."
+  - curl {{ self.curl_opts }} -o "$TMPDIR{{ installer_zip }}" {{ download_url }}
+  - unzip -q "$TMPDIR{{ installer_zip }}" -d "$TMPDIR{{ installer_dir }}"
+  - '"$TMPDIR{{ installer_dir }}/install" -destinationFolder {{ self.install_path }} -mode silent -agreeToLicense yes'
+  - rm -rf "$TMPDIR"
+  - unset TMPDIR

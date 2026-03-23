@@ -1,0 +1,20 @@
+builder: neurodocker
+directives:
+- environment:
+    ANTSPATH: '{{ self.install_path }}/'
+    PATH: '{{ self.install_path }}:$PATH'
+- run:
+  - '{{ self.install_dependencies() }}'
+  - echo "Downloading ANTs ..."
+- condition: self.version in ["2.4.1", "2.4.2", "2.4.3"]
+  run:
+  - curl -fsSL -o ants.zip {{ self.urls[self.version] }}
+  - unzip ants.zip -d /opt
+  - mv {{ self.install_path }}/bin/* {{ self.install_path }}
+  - rm ants.zip
+- condition: self.version != "2.4.1" and self.version not in ["2.4.2", "2.4.3"]
+  run:
+  - mkdir -p {{ self.install_path }}
+  - |
+    curl -fsSL {{ self.urls[self.version] }} \
+    | tar -xz -C {{ self.install_path }} --strip-components 1

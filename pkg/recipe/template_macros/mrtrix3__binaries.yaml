@@ -1,0 +1,12 @@
+builder: neurodocker
+directives:
+- environment:
+    PATH: '{{ self.install_path }}/bin:$PATH'
+    LD_LIBRARY_PATH: '{{ self.install_path }}/lib:$PATH'
+- run:
+  - '{{ self.install_dependencies() }}'
+  - echo "Downloading MRtrix3 ..."
+  - mkdir -p {{ self.install_path }}
+  - |
+    curl -fsSL {{ self.urls[self.version] }} \
+    | tar -xj -C {{ self.install_path }}

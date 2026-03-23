@@ -1,0 +1,44 @@
+builder: neurodocker
+directives:
+- environment:
+    PATH: '{{ self.install_path }}:$PATH'
+    AFNI_PLUGINPATH: '{{ self.install_path }}'
+- run:
+  - '{{ self.install_dependencies() }}'
+  - git clone {{ self.repo }} {{ self.install_path }}
+- condition: self.install_python3.lower() in ["true", "1", "y"]
+  run:
+  - '{{ self.install(["python3"]) }}'
+- workdir: '{{ self.install_path }}'
+- run:
+  - |
+    {% if self.version != "master" and self.version != "latest" -%}
+    git fetch --tags
+    git checkout {{ self.version }}
+    {% endif -%}
+- workdir: '{{ self.install_path }}/src'
+- run:
+  - cp Makefile.linux_openmp_64 Makefile
+  - perl -p -i -e 's/^LGIFTI.*/LGIFTI    = -lexpat/' Makefile
+  - perl -p -i -e 's/^USE_LOCAL_X_TREE/#USE_LOCAL_X_TREE/' Makefile
+  - perl -p -i -e 's/XLIBS = \$\(XROOT\)\/lib64\/libXm.a -lXt/XLIBS = \$\(XROOT\)\/lib64\/libXm.a \$\(XROOT\)\/lib\/x86_64-linux-gnu\/libXm.a -lXt/' Makefile
+  - perl -p -i -e 's/^# XLIBS =/XLIBS =/' Makefile
+  - perl -p -i -e 's/^CCOLD.*/CCOLD  = \$\(CC\)/' Makefile
+  - perl -p -i -e 's/(^LFLAGS.*)/$1 -L\/usr\/lib\/x86_64-linux-gnu/' Makefile
+  - perl -p -i -e 's/(^PLFLAGS.*)/$1 -L\/usr\/lib -L\/usr\/lib\/x86_64-linux-gnu/' Makefile
+  - perl -p -i -e 's/-lXpm -lXext/-lXpm -lfontconfig -lXext/' Makefile
+  - perl -p -i -e 's/(^SUMA_INCLUDE_PATH.*)/$1 -I\/usr\/lib\/x86_64-linux-gnu\/glib-2.0\/include/' Makefile
+  - |
+    # If we do not symlink, gcc complains that it cannot find these libraries.
+    true
+  - ln -s /usr/lib/x86_64-linux-gnu/libXmu.so.6 /usr/lib/x86_64-linux-gnu/libXmu.so
+  - ln -s /usr/lib/x86_64-linux-gnu/libXp.so.6 /usr/lib/x86_64-linux-gnu/libXp.so
+  - make INSTALLDIR="{{ self.install_path }}" vastness
+- condition: self.install_r_pkgs.lower() in ["true", "1", "y"] and self.pkg_manager == "apt"
+  run:
+  - '{{ self.install(["r-base", "r-base-dev", "libnlopt-dev"]) }}'
+  - rPkgsInstall -pkgs ALL
+- condition: self.install_r_pkgs.lower() in ["true", "1", "y"] and self.pkg_manager == "yum"
+  run:
+  - '{{ self.install(["R-devel"]) }}'
+  - rPkgsInstall -pkgs ALL

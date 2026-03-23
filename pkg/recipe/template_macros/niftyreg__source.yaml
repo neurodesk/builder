@@ -1,0 +1,23 @@
+builder: neurodocker
+directives:
+- environment:
+    PATH: '{{ self.install_path }}/bin:$PATH'
+    LD_LIBRARY_PATH: '{{ self.install_path }}/lib:$LD_LIBRARY_PATH'
+- run:
+  - '{{ self.install_dependencies() }}'
+  - mkdir -p /tmp/niftyreg/build
+  - git clone {{ self.repo }} /tmp/niftyreg/source
+- workdir: /tmp/niftyreg/source
+- run:
+  - |
+    {% if self.version != "master" and self.version != "latest" -%}
+    git fetch --tags
+    git checkout {{ self.version }}
+    {% endif -%}
+- workdir: /tmp/niftyreg/build
+- run:
+  - cmake {{ self.cmake_opts }} /tmp/niftyreg/source
+  - make {{ self.make_opts }}
+  - make install
+  - ldconfig
+  - rm -rf /tmp/niftyreg

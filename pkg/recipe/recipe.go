@@ -91,6 +91,7 @@ var (
 )
 
 type Context struct {
+	Name               string
 	PackageManager     common.PackageManager
 	Version            string
 	OriginalVersion    string
@@ -115,6 +116,8 @@ type Context struct {
 // OnLookup implements jinja2.LookupHook.
 func (c Context) OnLookup(key string) (jinja2.Value, bool) {
 	switch key {
+	case "name":
+		return jinja2.FromGo(c.Name), true
 	case "version":
 		return jinja2.FromGo(c.Version), true
 	case "original_version":
@@ -397,7 +400,7 @@ func (c *Context) evaluateValue(value any) (any, error) {
 			out[k] = rv
 		}
 		return out, nil
-	case bool:
+	case bool, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
 		return val, nil
 	default:
 		return nil, fmt.Errorf("unsupported value type: %T", val)
@@ -566,6 +569,7 @@ type FileInfo struct {
 	Executable bool                  `yaml:"executable,omitempty"`
 	Retry      *int                  `yaml:"retry,omitempty"`
 	Insecure   *bool                 `yaml:"insecure,omitempty"`
+	Refresh    *bool                 `yaml:"refresh,omitempty"`
 
 	// Only one of the following should be set.
 	Filename jinja2.TemplateString `yaml:"filename,omitempty"` // Path to a file to include.
@@ -1977,6 +1981,7 @@ func (b *BuildFile) GenerateWithStagingAndLocals(includeDirs []string, locals []
 		ir.New(),
 		nil,
 	)
+	ctx.Name = b.Name
 
 	if len(locals) > 0 {
 		ctx.locals = make(map[string]struct{}, len(locals))

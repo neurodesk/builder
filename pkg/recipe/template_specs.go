@@ -1,4 +1,4 @@
-package templates
+package recipe
 
 import (
 	"embed"
@@ -15,13 +15,14 @@ import (
 	"go.yaml.in/yaml/v4"
 )
 
-type Context struct {
+type templateContext struct {
 	PackageManager common.PackageManager
+	Arch           string
 }
 
-type Params func(k string) (any, bool, error)
+type templateParams func(k string) (any, bool, error)
 
-func (p Params) GetString(key string, defValue string) (string, error) {
+func (p templateParams) GetString(key string, defValue string) (string, error) {
 	if val, ok, err := p(key); ok {
 		if strVal, ok := val.(string); ok {
 			return strVal, nil
@@ -34,9 +35,9 @@ func (p Params) GetString(key string, defValue string) (string, error) {
 }
 
 type templateSelf struct {
-	context  Context
-	params   Params
-	template *RecipeTemplate
+	context  templateContext
+	params   templateParams
+	template *recipeTemplateSpec
 }
 
 func (t *templateSelf) install(mgr common.PackageManager, args []string) (string, error) {
@@ -137,6 +138,8 @@ func (t *templateSelf) OnLookup(key string) (jinja2.Value, bool) {
 		return ret, true
 	case "pkg_manager":
 		return jinja2.StringValue(string(t.context.PackageManager)), true
+	case "arch":
+		return jinja2.StringValue(t.context.Arch), true
 	case "install":
 		return jinja2.CallableValue{
 			Fn: func(args []jinja2.Value) (jinja2.Value, error) {
@@ -195,18 +198,18 @@ var (
 	_ jinja2.LookupHook = &templateSelf{}
 )
 
-type TemplateResult struct {
+type templateResult struct {
 	Instructions string
 	Environment  map[string]string
 }
 
-type Depends struct {
+type templateDepends struct {
 	Apt  []string `yaml:"apt,omitempty"`
 	Yum  []string `yaml:"yum,omitempty"`
 	Debs []string `yaml:"debs,omitempty"`
 }
 
-func (d *Depends) Validate() error {
+func (d *templateDepends) Validate() error {
 	return v.All(
 		v.Map(d.Apt, func(item string, key string) error {
 			return v.All(
@@ -229,12 +232,12 @@ func (d *Depends) Validate() error {
 	)
 }
 
-type Arguments struct {
+type templateArguments struct {
 	Optional map[string]jinja2.TemplateString `yaml:"optional,omitempty"`
 	Required []string                         `yaml:"required,omitempty"`
 }
 
-func (t *Arguments) Validate() error {
+func (t *templateArguments) Validate() error {
 	return v.All(
 		v.MapDict(t.Optional, func(key string, value jinja2.TemplateString) error {
 			return v.All(
@@ -247,15 +250,15 @@ func (t *Arguments) Validate() error {
 	)
 }
 
-type RecipeTemplate struct {
-	Arguments    Arguments                        `yaml:"arguments,omitempty"`
-	Dependencies Depends                          `yaml:"dependencies,omitempty"`
+type recipeTemplateSpec struct {
+	Arguments    templateArguments                `yaml:"arguments,omitempty"`
+	Dependencies templateDepends                  `yaml:"dependencies,omitempty"`
 	Urls         map[string]jinja2.TemplateString `yaml:"urls,omitempty"`
 	Env          map[string]jinja2.TemplateString `yaml:"env,omitempty"`
 	Instructions jinja2.TemplateString            `yaml:"instructions,omitempty"`
 }
 
-func (t *RecipeTemplate) Validate() error {
+func (t *recipeTemplateSpec) Validate() error {
 	if t == nil {
 		return nil
 	}
@@ -280,7 +283,7 @@ func (t *RecipeTemplate) Validate() error {
 	)
 }
 
-func (t *RecipeTemplate) Execute(name string, context Context, params Params) (*TemplateResult, error) {
+func (t *recipeTemplateSpec) Execute(name string, context templateContext, params templateParams) (*templateResult, error) {
 	key := "self"
 
 	if name == "_header" {
@@ -300,7 +303,7 @@ func (t *RecipeTemplate) Execute(name string, context Context, params Params) (*
 		return nil, fmt.Errorf("rendering instructions: %w", err)
 	}
 
-	ret := &TemplateResult{
+	ret := &templateResult{
 		Instructions: result,
 		Environment:  map[string]string{},
 	}
@@ -316,17 +319,17 @@ func (t *RecipeTemplate) Execute(name string, context Context, params Params) (*
 	return ret, nil
 }
 
-type Template struct {
+type templateSpec struct {
 	Name string `yaml:"name"`
 	URL  string `yaml:"url"`
 
 	Alert string `yaml:"alert,omitempty"`
 
-	Source   *RecipeTemplate `yaml:"source,omitempty"`
-	Binaries *RecipeTemplate `yaml:"binaries,omitempty"`
+	Source   *recipeTemplateSpec `yaml:"source,omitempty"`
+	Binaries *recipeTemplateSpec `yaml:"binaries,omitempty"`
 }
 
-func (t Template) GetMethodTemplate(method string) (*RecipeTemplate, error) {
+func (t templateSpec) GetMethodTemplate(method string) (*recipeTemplateSpec, error) {
 	switch method {
 	case "source":
 		if t.Source == nil {
@@ -343,7 +346,7 @@ func (t Template) GetMethodTemplate(method string) (*RecipeTemplate, error) {
 	}
 }
 
-func (t Template) Validate() error {
+func (t templateSpec) Validate() error {
 	return v.All(
 		v.NotEmpty(t.Name, "name"),
 		v.NotEmpty(t.URL, "url"),
@@ -352,7 +355,7 @@ func (t Template) Validate() error {
 	)
 }
 
-func (t Template) Execute(ctx Context, params Params) (*TemplateResult, error) {
+func (t templateSpec) Execute(ctx templateContext, params templateParams) (*templateResult, error) {
 	method, err := params.GetString("method", "binaries")
 	if err != nil {
 		return nil, fmt.Errorf("getting method parameter: %w", err)
@@ -366,55 +369,57 @@ func (t Template) Execute(ctx Context, params Params) (*TemplateResult, error) {
 	return tpl.Execute(t.Name, ctx, params)
 }
 
-//go:embed *.yaml
-var Files embed.FS
+//go:embed template_specs/*.yaml
+var templateSpecFiles embed.FS
 
-var templates = map[string]Template{}
-var templateDir string
+var embeddedTemplateSpecs = map[string]templateSpec{}
+var templateSpecDir string
 
-func loadTemplateFromDir(name, dir string) (Template, error) {
+func loadTemplateSpecFromDir(name, dir string) (templateSpec, error) {
 	templatePath := filepath.Join(dir, name+".yaml")
 
 	content, err := os.ReadFile(templatePath)
 	if err != nil {
-		return Template{}, err
+		return templateSpec{}, err
 	}
 
-	var tpl Template
+	var tpl templateSpec
 	dec := yaml.NewDecoder(strings.NewReader(string(content)))
 	dec.KnownFields(true)
 	if err := dec.Decode(&tpl); err != nil {
-		return Template{}, fmt.Errorf("failed to decode template %q: %w", name, err)
+		return templateSpec{}, fmt.Errorf("failed to decode template %q: %w", name, err)
 	}
 
 	if err := tpl.Validate(); err != nil {
-		return Template{}, fmt.Errorf("invalid template %q: %w", name, err)
+		return templateSpec{}, fmt.Errorf("invalid template %q: %w", name, err)
 	}
 
 	return tpl, nil
 }
 
-func SetTemplateDir(dir string) {
-	templateDir = dir
+func SetTemplateSpecDir(dir string) {
+	templateSpecDir = dir
 }
 
-func Get(name string) (Template, error) {
-	// First check if there's an override in the template directory
-	if templateDir != "" {
-		if tpl, err := loadTemplateFromDir(name, templateDir); err == nil {
+func getTemplateSpec(name string) (templateSpec, error) {
+	if templateSpecDir != "" {
+		if tpl, err := loadTemplateSpecFromDir(name, templateSpecDir); err == nil {
 			return tpl, nil
 		}
 	}
 
-	// Fall back to built-in templates
-	if tpl, ok := templates[name]; ok {
+	if tpl, ok := embeddedTemplateSpecs[name]; ok {
 		return tpl, nil
 	}
-	return Template{}, fmt.Errorf("template %q not found", name)
+	return templateSpec{}, fmt.Errorf("template %q not found", name)
+}
+
+func ReadEmbeddedTemplateTestSpecs() ([]byte, error) {
+	return templateSpecFiles.ReadFile(filepath.Join("template_specs", "test_all.yaml"))
 }
 
 func init() {
-	entries, err := Files.ReadDir(".")
+	entries, err := templateSpecFiles.ReadDir("template_specs")
 	if err != nil {
 		panic(err)
 	}
@@ -424,14 +429,13 @@ func init() {
 		}
 		name := entry.Name()
 		if name == "test_all.yaml" {
-			// test_all.yaml is consumed by the builder CLI command and is not a template
 			continue
 		}
-		content, err := Files.ReadFile(name)
+		content, err := templateSpecFiles.ReadFile(filepath.Join("template_specs", name))
 		if err != nil {
 			panic(err)
 		}
-		var tpl Template
+		var tpl templateSpec
 		dec := yaml.NewDecoder(strings.NewReader(string(content)))
 		dec.KnownFields(true)
 		if err := dec.Decode(&tpl); err != nil {
@@ -440,6 +444,6 @@ func init() {
 		if err := tpl.Validate(); err != nil {
 			panic(fmt.Errorf("invalid template %q: %w", name, err))
 		}
-		templates[strings.TrimSuffix(name, ".yaml")] = tpl
+		embeddedTemplateSpecs[strings.TrimSuffix(name, ".yaml")] = tpl
 	}
 }

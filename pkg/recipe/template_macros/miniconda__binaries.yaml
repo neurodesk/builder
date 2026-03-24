@@ -6,7 +6,7 @@ directives:
 - variables:
     conda_opts: '{{ self.conda_opts|default("-q") }}'
     installer_path: /tmp/miniconda.sh
-    installer_url: '{{ self.urls["*"] }}'
+    installer_url: 'https://repo.anaconda.com/miniconda/Miniconda3-{{ self.installer_version|default(self.version) }}-Linux-{{ self.arch }}.sh'
 - condition: self.installed.lower() not in ["true", "y", "1"]
   run:
   - '{{ self.install_dependencies() }}'

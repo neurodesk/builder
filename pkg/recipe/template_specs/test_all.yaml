@@ -144,6 +144,19 @@
     - name: conda-version
       command: conda --version
 
+- name: miniconda-binaries-arm64
+  template: miniconda
+  arguments:
+    method: binaries
+    version: latest
+  architecture: aarch64
+  base_image: ubuntu:22.04
+  package_manager: apt
+  image_version: "0.0.0"
+  tests:
+    - name: conda-version
+      command: conda --version
+
 # - name: mricron-binaries
 #   template: mricron
 #   arguments:

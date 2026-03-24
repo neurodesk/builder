@@ -45,11 +45,11 @@ func findNeurocontainersRepo(t *testing.T) string {
 	return ""
 }
 
-func dockerfileForBackend(t *testing.T, recipePath, includeDir string, backend string) string {
+func dockerfileForBackend(t *testing.T, recipePath, includeDir string) string {
 	t.Helper()
 
-	if err := SetTemplateBackend(backend); err != nil {
-		t.Fatalf("setting template backend %q: %v", backend, err)
+	if err := SetTemplateBackend(string(TemplateBackendMacro)); err != nil {
+		t.Fatalf("setting template backend %q: %v", TemplateBackendMacro, err)
 	}
 
 	build, err := LoadBuildFile(recipePath)
@@ -59,41 +59,35 @@ func dockerfileForBackend(t *testing.T, recipePath, includeDir string, backend s
 
 	def, _, err := build.GenerateWithStaging([]string{includeDir})
 	if err != nil {
-		t.Fatalf("generating recipe %s with backend %s: %v", recipePath, backend, err)
+		t.Fatalf("generating recipe %s with macro backend: %v", recipePath, err)
 	}
 
 	df, err := ir.GenerateDockerfile(def)
 	if err != nil {
-		t.Fatalf("rendering dockerfile for %s with backend %s: %v", recipePath, backend, err)
+		t.Fatalf("rendering dockerfile for %s with macro backend: %v", recipePath, err)
 	}
 	return df
 }
 
-func assertDockerfileParses(t *testing.T, recipeName, backend, dockerfile string) {
+func assertDockerfileParses(t *testing.T, recipeName, dockerfile string) {
 	t.Helper()
 
 	if dockerfile == "" {
-		t.Fatalf("empty dockerfile for %s with backend %s", recipeName, backend)
+		t.Fatalf("empty dockerfile for %s", recipeName)
 	}
 
 	res, err := parser.Parse(bytes.NewBufferString(dockerfile))
 	if err != nil {
-		t.Fatalf("parsing dockerfile for %s with backend %s: %v", recipeName, backend, err)
+		t.Fatalf("parsing dockerfile for %s: %v", recipeName, err)
 	}
 	if len(res.AST.Children) == 0 {
-		t.Fatalf("dockerfile for %s with backend %s has no instructions", recipeName, backend)
+		t.Fatalf("dockerfile for %s has no instructions", recipeName)
 	}
 }
 
-func TestTemplateBackendsGenerateValidDockerfilesAgainstNeurocontainers(t *testing.T) {
+func TestMacroTemplatesGenerateValidDockerfilesAgainstNeurocontainers(t *testing.T) {
 	repo := findNeurocontainersRepo(t)
 	recipesDir := filepath.Join(repo, "recipes")
-
-	defer func() {
-		if err := SetTemplateBackend(string(TemplateBackendLegacy)); err != nil {
-			t.Fatalf("restoring legacy template backend: %v", err)
-		}
-	}()
 
 	var recipePaths []string
 	if err := filepath.WalkDir(recipesDir, func(path string, d os.DirEntry, err error) error {
@@ -118,10 +112,8 @@ func TestTemplateBackendsGenerateValidDockerfilesAgainstNeurocontainers(t *testi
 	for _, recipePath := range recipePaths {
 		name := filepath.Base(recipePath)
 		t.Run(name, func(t *testing.T) {
-			legacy := dockerfileForBackend(t, recipePath, repo, string(TemplateBackendLegacy))
-			macro := dockerfileForBackend(t, recipePath, repo, string(TemplateBackendMacro))
-			assertDockerfileParses(t, name, string(TemplateBackendLegacy), legacy)
-			assertDockerfileParses(t, name, string(TemplateBackendMacro), macro)
+			dockerfile := dockerfileForBackend(t, recipePath, repo)
+			assertDockerfileParses(t, name, dockerfile)
 		})
 	}
 }

@@ -157,13 +157,12 @@ The `sf-make` command:
 
 - `pkg/jinja2/` - Jinja2-compatible template engine
 - `pkg/starlark/` - Starlark scripting support and value conversion
-- `pkg/recipe/` - Build recipe system with directive validation
+- `pkg/recipe/` - Build recipe system, directive validation, and template macros
 - `pkg/ir/` - Intermediate representation for build instructions
-- `pkg/templates/` - Traditional neurodocker-style templates
 
 ## Migration from Neurodocker
 
-The Starlark scripting system is designed to replace traditional neurodocker templates while providing much more flexibility and power. See the [Starlark Usage Guide](examples/starlark_usage.md) for migration examples.
+The builder now uses recipe directives and macro-backed templates under `pkg/recipe/` rather than the older standalone template package. See the [Starlark Usage Guide](examples/starlark_usage.md) for migration examples.
 
 ## Contributing
 

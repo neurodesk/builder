@@ -16,7 +16,7 @@ directives:
       echo 'export USER="${USER:=`whoami`}"' >> "$ND_ENTRYPOINT"
       echo 'if [ -n "$1" ]; then "$@"; else /usr/bin/env bash; fi' >> "$ND_ENTRYPOINT";
     fi
-  - chmod -R 777 /neurodocker && chmod a+s /neurodocker
+    chmod -R 777 /neurodocker && chmod a+s /neurodocker
 - condition: _header.pkg_manager == "apt"
   run:
   - sed -i -e 's/# {{ _header._env['LC_ALL'] }} UTF-8/{{ _header._env['LC_ALL'] }} UTF-8/' /etc/locale.gen

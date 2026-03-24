@@ -6,22 +6,21 @@ import (
 	"github.com/neurodesk/builder/pkg/common"
 	"github.com/neurodesk/builder/pkg/ir"
 	"github.com/neurodesk/builder/pkg/jinja2"
-	"github.com/neurodesk/builder/pkg/templates"
 )
 
 func TestEvaluateValueStringCanReferenceInjectedVariable(t *testing.T) {
 	ctx := newContext(common.PkgManagerApt, "1.0.0", nil, ir.New(), nil)
 	ctx.variables["self"] = &macroTemplateSelf{
-		context: templates.Context{
+		context: templateContext{
 			PackageManager: common.PkgManagerApt,
 		},
-		params: templates.Params(func(k string) (any, bool, error) {
+		params: templateParams(func(k string) (any, bool, error) {
 			if k == "version" {
 				return "latest", true, nil
 			}
 			return nil, false, nil
 		}),
-		template: &templates.RecipeTemplate{
+		template: &recipeTemplateSpec{
 			Urls: map[string]jinja2.TemplateString{},
 		},
 	}

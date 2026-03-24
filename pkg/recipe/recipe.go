@@ -13,7 +13,6 @@ import (
 	"github.com/neurodesk/builder/pkg/ir"
 	"github.com/neurodesk/builder/pkg/jinja2"
 	starlarkpkg "github.com/neurodesk/builder/pkg/starlark"
-	"github.com/neurodesk/builder/pkg/templates"
 	v "github.com/neurodesk/builder/pkg/validator"
 	"go.yaml.in/yaml/v4"
 )
@@ -1071,41 +1070,29 @@ func (t TemplateDirective) Validate(ctx Context) error {
 		return err
 	}
 
-	switch currentTemplateBackend() {
-	case TemplateBackendLegacy:
-		tpl, err := templates.Get(t.Name)
-		if err != nil {
-			return fmt.Errorf("template %q not found", t.Name)
-		}
-		_ = tpl
-		return nil
-	case TemplateBackendMacro:
-		params := templates.Params(func(k string) (any, bool, error) {
-			val, ok := t.Params[k]
-			return val, ok, nil
-		})
-		legacyTemplate, err := templates.Get(t.Name)
-		if err != nil {
-			return fmt.Errorf("template %q not found", t.Name)
-		}
-		method, err := params.GetString("method", "binaries")
-		if err != nil {
-			return fmt.Errorf("getting method parameter: %w", err)
-		}
-		if _, err := legacyTemplate.GetMethodTemplate(method); err != nil {
-			return err
-		}
-		if _, err := loadTemplateMacro(t.Name, method); err != nil {
-			return err
-		}
-		return nil
-	default:
-		return fmt.Errorf("unsupported template backend %q", currentTemplateBackend())
+	params := templateParams(func(k string) (any, bool, error) {
+		val, ok := t.Params[k]
+		return val, ok, nil
+	})
+	templateSpec, err := getTemplateSpec(t.Name)
+	if err != nil {
+		return fmt.Errorf("template %q not found", t.Name)
 	}
+	method, err := params.GetString("method", "binaries")
+	if err != nil {
+		return fmt.Errorf("getting method parameter: %w", err)
+	}
+	if _, err := templateSpec.GetMethodTemplate(method); err != nil {
+		return err
+	}
+	if _, err := loadTemplateMacro(t.Name, method); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (t TemplateDirective) Apply(ctx *Context, src ir.SourceID) error {
-	params := templates.Params(func(k string) (any, bool, error) {
+	params := templateParams(func(k string) (any, bool, error) {
 		if val, ok := t.Params[k]; ok {
 			rss, err := ctx.evaluateValue(val)
 			if err != nil {
@@ -1126,45 +1113,10 @@ func (t TemplateDirective) Apply(ctx *Context, src ir.SourceID) error {
 		}
 		return nil, false, nil
 	})
-	switch currentTemplateBackend() {
-	case TemplateBackendLegacy:
-		tpl, err := templates.Get(t.Name)
-		if err != nil {
-			return fmt.Errorf("template %q not found", t.Name)
-		}
-
-		result, err := tpl.Execute(templates.Context{
-			PackageManager: ctx.PackageManager,
-		}, params)
-		if err != nil {
-			return fmt.Errorf("executing template %q: %w", t.Name, err)
-		}
-
-		if len(result.Environment) > 0 {
-			env := map[string]jinja2.TemplateString{}
-			for k, v := range result.Environment {
-				env[k] = jinja2.TemplateString(v)
-			}
-
-			if err := EnvironmentDirective(env).Apply(ctx, src); err != nil {
-				return fmt.Errorf("applying template %q environment: %w", t.Name, err)
-			}
-		}
-
-		if err := RunDirective([]jinja2.TemplateString{
-			jinja2.TemplateString(result.Instructions),
-		}).Apply(ctx, src); err != nil {
-			return fmt.Errorf("applying template %q run: %w", t.Name, err)
-		}
-		return nil
-	case TemplateBackendMacro:
-		if err := applyTemplateMacro(ctx, src, t.Name, params); err != nil {
-			return fmt.Errorf("executing template %q: %w", t.Name, err)
-		}
-		return nil
-	default:
-		return fmt.Errorf("unsupported template backend %q", currentTemplateBackend())
+	if err := applyTemplateMacro(ctx, src, t.Name, params); err != nil {
+		return fmt.Errorf("executing template %q: %w", t.Name, err)
 	}
+	return nil
 }
 
 type IncludeDirective string
@@ -1794,41 +1746,13 @@ func (b *BuildRecipe) Generate(ctx *Context) error {
 	ctx.builder = ctx.builder.SetCurrentUser(defaultSourceId, "root")
 
 	if b.AddDefaultTemplate == nil || *b.AddDefaultTemplate {
-		switch currentTemplateBackend() {
-		case TemplateBackendLegacy:
-			tpl, err := templates.Get("_header")
-			if err != nil {
-				return fmt.Errorf("loading default header template: %w", err)
+		if err := applyTemplateMacro(ctx, defaultSourceId, "_header", func(k string) (any, bool, error) {
+			if k == "method" {
+				return "source", true, nil
 			}
-
-			result, err := tpl.Execute(templates.Context{
-				PackageManager: ctx.PackageManager,
-			}, func(k string) (any, bool, error) {
-				if k == "method" {
-					return "source", true, nil
-				}
-				return nil, false, nil
-			})
-			if err != nil {
-				return fmt.Errorf("executing default header template: %w", err)
-			}
-
-			if len(result.Environment) > 0 {
-				ctx.builder = ctx.builder.AddEnvironment(defaultSourceId, result.Environment)
-			}
-
-			ctx.builder = ctx.builder.AddRunCommand(defaultSourceId, result.Instructions)
-		case TemplateBackendMacro:
-			if err := applyTemplateMacro(ctx, defaultSourceId, "_header", func(k string) (any, bool, error) {
-				if k == "method" {
-					return "source", true, nil
-				}
-				return nil, false, nil
-			}); err != nil {
-				return fmt.Errorf("executing default header template: %w", err)
-			}
-		default:
-			return fmt.Errorf("unsupported template backend %q", currentTemplateBackend())
+			return nil, false, nil
+		}); err != nil {
+			return fmt.Errorf("executing default header template: %w", err)
 		}
 	}
 

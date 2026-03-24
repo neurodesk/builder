@@ -9,25 +9,20 @@ import (
 	"github.com/neurodesk/builder/pkg/common"
 	"github.com/neurodesk/builder/pkg/ir"
 	"github.com/neurodesk/builder/pkg/jinja2"
-	"github.com/neurodesk/builder/pkg/templates"
 	"go.yaml.in/yaml/v4"
 )
 
 type TemplateBackend string
 
 const (
-	TemplateBackendLegacy TemplateBackend = "legacy"
-	TemplateBackendMacro  TemplateBackend = "macro"
+	TemplateBackendMacro TemplateBackend = "macro"
 )
 
-var templateBackend = TemplateBackendLegacy
+var templateBackend = TemplateBackendMacro
 
 func SetTemplateBackend(backend string) error {
 	switch TemplateBackend(backend) {
-	case "", TemplateBackendLegacy:
-		templateBackend = TemplateBackendLegacy
-		return nil
-	case TemplateBackendMacro:
+	case "", TemplateBackendMacro:
 		templateBackend = TemplateBackendMacro
 		return nil
 	default:
@@ -87,9 +82,9 @@ func loadTemplateMacro(name, method string) (templateMacroFile, error) {
 }
 
 type macroTemplateSelf struct {
-	context  templates.Context
-	params   templates.Params
-	template *templates.RecipeTemplate
+	context  templateContext
+	params   templateParams
+	template *recipeTemplateSpec
 }
 
 func (t *macroTemplateSelf) install(mgr common.PackageManager, args []string) (string, error) {
@@ -177,6 +172,8 @@ func (t *macroTemplateSelf) OnLookup(key string) (jinja2.Value, bool) {
 		return ret, true
 	case "pkg_manager":
 		return jinja2.StringValue(string(t.context.PackageManager)), true
+	case "arch":
+		return jinja2.StringValue(t.context.Arch), true
 	case "install":
 		return jinja2.CallableValue{
 			Fn: func(args []jinja2.Value) (jinja2.Value, error) {
@@ -217,10 +214,10 @@ func (t *macroTemplateSelf) String() string { return "<self>" }
 
 func (t *macroTemplateSelf) Truth() bool { return true }
 
-func applyTemplateMacro(ctx *Context, src ir.SourceID, name string, params templates.Params) error {
-	legacyTemplate, err := templates.Get(name)
+func applyTemplateMacro(ctx *Context, src ir.SourceID, name string, params templateParams) error {
+	templateSpec, err := getTemplateSpec(name)
 	if err != nil {
-		return fmt.Errorf("loading legacy template metadata for %q: %w", name, err)
+		return fmt.Errorf("loading template metadata for %q: %w", name, err)
 	}
 
 	method, err := params.GetString("method", "binaries")
@@ -228,7 +225,7 @@ func applyTemplateMacro(ctx *Context, src ir.SourceID, name string, params templ
 		return fmt.Errorf("getting method parameter: %w", err)
 	}
 
-	methodTemplate, err := legacyTemplate.GetMethodTemplate(method)
+	methodTemplate, err := templateSpec.GetMethodTemplate(method)
 	if err != nil {
 		return fmt.Errorf("getting method template: %w", err)
 	}
@@ -244,8 +241,9 @@ func applyTemplateMacro(ctx *Context, src ir.SourceID, name string, params templ
 		lookupKey = "_header"
 	}
 	child.variables[lookupKey] = &macroTemplateSelf{
-		context: templates.Context{
+		context: templateContext{
 			PackageManager: ctx.PackageManager,
+			Arch:           string(ctx.Arch),
 		},
 		params:   params,
 		template: methodTemplate,

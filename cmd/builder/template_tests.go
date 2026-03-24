@@ -16,7 +16,6 @@ import (
 	"github.com/neurodesk/builder/pkg/common"
 	"github.com/neurodesk/builder/pkg/ir"
 	"github.com/neurodesk/builder/pkg/recipe"
-	"github.com/neurodesk/builder/pkg/templates"
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v4"
 )
@@ -132,6 +131,7 @@ type templateTestSpec struct {
 	Arguments      map[string]any     `yaml:"arguments"`
 	BaseImage      string             `yaml:"base_image"`
 	PackageManager string             `yaml:"package_manager"`
+	Architecture   string             `yaml:"architecture"`
 	ImageVersion   string             `yaml:"image_version"`
 	Tests          []templateTestCase `yaml:"tests"`
 
@@ -250,6 +250,16 @@ func (s templateTestSpec) ToBuildFile() (*recipe.BuildFile, error) {
 		version = "0.0.0"
 	}
 
+	arch := recipe.CPUArchAMD64
+	switch strings.TrimSpace(s.Architecture) {
+	case "", string(recipe.CPUArchAMD64):
+		arch = recipe.CPUArchAMD64
+	case string(recipe.CPUArchARM64):
+		arch = recipe.CPUArchARM64
+	default:
+		return nil, fmt.Errorf("unsupported template test architecture %q", s.Architecture)
+	}
+
 	params := map[string]any{}
 	for k, v := range s.Arguments {
 		params[k] = v
@@ -258,7 +268,7 @@ func (s templateTestSpec) ToBuildFile() (*recipe.BuildFile, error) {
 	build := &recipe.BuildFile{
 		Name:          s.resolvedName,
 		Version:       version,
-		Architectures: []recipe.CPUArchitecture{recipe.CPUArchAMD64},
+		Architectures: []recipe.CPUArchitecture{arch},
 		Build: recipe.BuildRecipe{
 			Kind:           recipe.BuildKindNeuroDocker,
 			BaseImage:      baseImage,
@@ -305,7 +315,7 @@ func loadTemplateTestSpecs(templateDir string) ([]templateTestSpec, error) {
 	}
 
 	if len(data) == 0 {
-		embedded, err := templates.Files.ReadFile("test_all.yaml")
+		embedded, err := recipe.ReadEmbeddedTemplateTestSpecs()
 		if err != nil {
 			return nil, fmt.Errorf("reading embedded test definitions: %w", err)
 		}

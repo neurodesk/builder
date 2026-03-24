@@ -4,8 +4,8 @@ name: miniconda
 url: https://docs.conda.io/projects/miniconda/en/latest/
 binaries:
   urls:
-    latest: https://repo.continuum.io/miniconda/Miniconda3-{{ self.version }}-Linux-x86_64.sh
-    "*": https://repo.continuum.io/miniconda/Miniconda3-{{ self.version }}-Linux-x86_64.sh
+    latest: https://repo.anaconda.com/miniconda/Miniconda3-{{ self.installer_version }}-Linux-{{ self.arch }}.sh
+    "*": https://repo.anaconda.com/miniconda/Miniconda3-{{ self.installer_version }}-Linux-{{ self.arch }}.sh
   env:
     CONDA_DIR: "{{ self.install_path }}"
     PATH: "{{ self.install_path }}/bin:$PATH"
@@ -22,6 +22,7 @@ binaries:
       - version
     optional:
       install_path: /opt/miniconda-{{ self.version }}
+      installer_version: "{{ self.version }}"
       # We do not use a boolean type here because all keywords to the templates are
       # expected to be strings.
       installed: "false"

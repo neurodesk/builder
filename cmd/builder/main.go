@@ -26,7 +26,6 @@ import (
 	"github.com/neurodesk/builder/pkg/ir"
 	"github.com/neurodesk/builder/pkg/netcache"
 	"github.com/neurodesk/builder/pkg/recipe"
-	"github.com/neurodesk/builder/pkg/templates"
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v4"
 )
@@ -115,14 +114,14 @@ var generateDockerfileCmd = cobra.Command{
 	},
 }
 
-// helper: load config and apply template dir
+// helper: load config and apply template config
 func loadBuilderConfig() (builderConfig, error) {
 	var cfg builderConfig
 	if err := cfg.loadConfig(rootBuilderConfig); err != nil {
 		return cfg, fmt.Errorf("loading config: %w", err)
 	}
 	if cfg.TemplateDir != "" {
-		templates.SetTemplateDir(cfg.TemplateDir)
+		recipe.SetTemplateSpecDir(cfg.TemplateDir)
 	}
 	if err := recipe.SetTemplateBackend(cfg.TemplateBackend); err != nil {
 		return cfg, fmt.Errorf("configuring template backend: %w", err)

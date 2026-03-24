@@ -1,0 +1,273 @@
+# ARM64 Template Audit
+
+Last updated: 2026-03-24
+
+This document tracks:
+
+- current arm64 status of built-in macro-backed templates in `pkg/recipe/template_macros`
+- which Neurocontainers recipes use those templates
+- which recipes use non-Ubuntu base images, so we can prioritize arm64 image-pull checks
+- builder-side fixes already landed to improve arm64 support
+
+The recipe inventory below was scanned from:
+
+- `/home/joshua/dev/projects/neurocontainers/recipes`
+
+## Current Template Status
+
+Status meanings:
+
+- `Works`: confirmed by building a minimal `aarch64` recipe and running a smoke check
+- `Fails`: confirmed by build failure or runtime architecture mismatch on arm64
+- `Unknown`: not yet closed out with a clean final result
+
+| Template | Method | Arm64 Status | Notes |
+|---|---|---:|---|
+| `vnc` | `source` | Works | Builds and VNC password file generation works |
+| `dcm2niix` | `source` | Works | Builds from source and runs on arm64 |
+| `miniconda` | `binaries` | Works | Macro-backed template now selects the correct arm64 installer URL and a clean minimal `aarch64` smoke build completes with `conda --version` |
+| `jq` | `binaries` | Fails | Downloads `jq-linux64`; runtime `Exec format error` |
+| `bids_validator` | `binaries` | Fails | `npm install` needs native build tooling; currently fails on `make` missing |
+| `neurodebian` | `binaries` | Fails | Broken key import: `gpg: no valid OpenPGP data found` |
+| `ndfreeze` | `source` | Fails | Build stalls/fails during `nd_freeze 2024-01-01` apt refresh |
+| `dcm2niix` | `binaries` | Fails | Binary payload is wrong architecture; runtime `Exec format error` |
+| `convert3d` | `binaries` | Fails | Downloads x86_64 tarball; runtime `Exec format error` |
+| `matlabmcr` | `binaries` | Fails by design | Upstream is x86_64-only |
+| `ants` | `source` | Unknown | Still needs a clean final arm64 run |
+| `mrtrix3` | `source` | Unknown | Still needs a clean final arm64 run |
+| `niftyreg` | `source` | Unknown | Still needs a clean final arm64 run |
+| `fsl` | `binaries` | Unknown | Still needs a clean final arm64 run |
+| `afni` | `binaries` | Likely fails | Template contains x86_64-specific payloads/debs |
+| `afni` | `source` | Likely fails | Template contains x86_64-specific library paths and symlinks |
+| `ants` | `binaries` | Likely fails | Template points at X64 release artifacts |
+| `cat12` | `binaries` | Likely fails | MATLAB runtime based |
+| `freesurfer` | `binaries` | Likely fails | Release artifacts are x86_64 |
+| `minc` | `binaries` | Likely fails | Uses x86_64 Debian package artifact |
+| `mricron` | `binaries` | Likely fails | Legacy binary release likely x86_64-only |
+| `mrtrix3` | `binaries` | Likely fails | Release artifact appears x86_64-oriented |
+| `petpvc` | `binaries` | Likely fails | Legacy binary tarball likely x86_64-only |
+| `spm12` | `binaries` | Likely fails | MATLAB runtime based |
+
+## Highest-Priority Template Work
+
+Priority is based on confirmed failure plus recipe usage count.
+
+| Template | Method | Unique Recipes Using It |
+|---|---|---:|
+| `miniconda` | `binaries` | 39 |
+| `matlabmcr` | `binaries` | 16 |
+| `fsl` | `binaries` | 8 |
+| `freesurfer` | `binaries` | 7 |
+| `ants` | `binaries` + `source` | 7 total |
+| `mrtrix3` | `binaries` + `source` | 6 total |
+| `dcm2niix` | `binaries` + `source` | 5 total |
+| `convert3d` | `binaries` | 2 |
+| `spm12` | `binaries` | 2 |
+| `bids_validator` | `binaries` | 1 |
+| `afni` | `binaries` | 1 |
+| `minc` | `binaries` | 1 |
+
+Recommended fix order:
+
+1. `fsl/binaries`
+2. `matlabmcr/binaries`
+3. `freesurfer/binaries`
+4. `ants/binaries`
+5. `dcm2niix/binaries`
+6. `mrtrix3/binaries`
+7. `convert3d/binaries`
+
+## Builder Changes Landed
+
+These changes are now in this repo and should be used as the new baseline for arm64 work.
+
+### `miniconda/binaries`
+
+- The live template system is now the macro-backed implementation under `pkg/recipe/`.
+- Template context exposes `self.arch`, so macro-backed templates can branch on architecture.
+- `pkg/recipe/template_specs/miniconda.yaml` now uses `repo.anaconda.com` and `Linux-{{ self.arch }}` instead of hardcoding `x86_64`.
+- `miniconda` supports an optional `installer_version` argument.
+  This keeps modern recipes simple:
+  `version: latest`
+  while still allowing legacy artifact names such as:
+  `version: 4.12.0`
+  `installer_version: py37_4.12.0`
+- `cmd/builder/template-tests` now supports `architecture: aarch64`.
+- A dedicated arm64 template test entry now exists in `pkg/recipe/template_specs/test_all.yaml`.
+- Focused unit tests were added for:
+  - arm64 URL rendering
+  - legacy installer filename override rendering
+
+Notes:
+
+- A generated arm64 Dockerfile correctly renders:
+  `https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh`
+- A clean minimal arm64 container build completed and `conda --version` returned:
+  `conda 26.1.1`
+- Upstream availability is version-dependent.
+  Confirmed present:
+  - `Miniconda3-py37_4.12.0-Linux-aarch64.sh`
+  - `Miniconda3-py38_22.11.1-1-Linux-aarch64.sh`
+  - `Miniconda3-py310_25.5.1-0-Linux-aarch64.sh`
+  Confirmed absent:
+  - `Miniconda3-4.7.12-Linux-aarch64.sh`
+
+## Template Usage By Method
+
+| Template | Method | Unique Recipe Count |
+|---|---|---:|
+| `miniconda` | `binaries` | 39 |
+| `matlabmcr` | `binaries` | 16 |
+| `fsl` | `binaries` | 8 |
+| `freesurfer` | `binaries` | 7 |
+| `ants` | `binaries` | 4 |
+| `ants` | `source` | 3 |
+| `dcm2niix` | `binaries` | 3 |
+| `mrtrix3` | `binaries` | 3 |
+| `mrtrix3` | `source` | 3 |
+| `convert3d` | `binaries` | 2 |
+| `dcm2niix` | `source` | 2 |
+| `spm12` | `binaries` | 2 |
+| `afni` | `binaries` | 1 |
+| `bids_validator` | `binaries` | 1 |
+| `minc` | `binaries` | 1 |
+
+## Recipes Using Confirmed-Broken Templates
+
+### `miniconda/binaries` (39 recipes; builder template fixed, but some recipe versions may still need `installer_version`)
+
+`amico`, `bidscoin`, `bidstools`, `blastct`, `brainlesion`, `cat12`, `clinica`, `clinicadl`, `code`, `condaenvs`, `connectomemapper3`, `dafne`, `deeplabcut`, `deepretinotopy`, `deepsif`, `eharmonize`, `esilpd`, `fitlins`, `fsqc`, `gouhfi`, `hcpasl`, `hdbet`, `megnet`, `mne`, `mrsimetabolicconnectome`, `neurocommand`, `nipype`, `palmettobug`, `pcntoolkit`, `pydeface`, `segmentator`, `slicer`, `soopct`, `spm12`, `spmpython`, `topaz`, `totalsegmentator`, `tractseg`, `vesselvio`
+
+### `dcm2niix/binaries` (3 recipes)
+
+`bidscoin`, `clinica`, `clinicadl`
+
+### `convert3d/binaries` (2 recipes)
+
+`braid`, `convert3d`
+
+### `bids_validator/binaries` (1 recipe)
+
+`bidscoin`
+
+### `neurodebian/binaries`
+
+No current recipes in `neurocontainers/recipes` directly use this built-in template.
+
+### `ndfreeze/source`
+
+No current recipes in `neurocontainers/recipes` directly use this built-in template.
+
+## Recipes Already Using Working Source Templates
+
+These are the best candidates for arm64 enablement once their remaining dependencies are verified.
+
+### `dcm2niix/source` (2 recipes)
+
+`bidstools`, `dicomtools`
+
+### `mrtrix3/source` (3 recipes, still needs clean final close-out)
+
+`braid`, `mrtrix3`, `mrtrix3tissue`
+
+### `ants/source` (3 recipes, still needs clean final close-out)
+
+`ants`, `braid`, `nighres`
+
+## Non-Ubuntu Base Images
+
+These recipes do not use an `ubuntu:*` base image and should be considered separately for arm64 pull testing.
+
+The reusable checker for this is:
+
+- `scripts/check_arm64_base_images.py`
+
+It scans recipe roots from `builder.config.yaml`, finds non-Ubuntu bases, and attempts:
+
+- `docker pull --platform linux/arm64 <image>`
+
+### Non-Ubuntu Recipes That Also Use Templates
+
+| Recipe | Base Image | Template Usage | Arm64 Pull Check |
+|---|---|---|---|
+| `code` | `debian:bookworm` | `miniconda/binaries` | `ok` |
+| `connectomeworkbench` | `neurodebian:bookworm-non-free` | `freesurfer/binaries` | `ok` |
+| `convert3d` | `debian:bookworm` | `convert3d/binaries` | `ok` |
+| `deepretinotopy` | `ghcr.io/neurodesk/freesurfer_7.3.2:20230216` | `miniconda/binaries` | `ok` |
+| `deepsif` | `debian:11` | `miniconda/binaries` | `timeout` after 45s |
+| `esilpd` | `debian:11` | `miniconda/binaries` | `timeout` after 45s |
+| `mrtrix3tissue` | `ghcr.io/neurodesk/caid/fsl_6.0.3:20200905` | `mrtrix3/source` | `amd64 only` |
+| `pydeface` | `vnmd/fsl_6.0.3:20200905` | `miniconda/binaries` | `amd64 only` |
+
+Interpretation:
+
+- `ok` means the image is directly pullable as `linux/arm64`.
+- `timeout` does not prove failure.
+  It only means the pull did not finish within the short probe window used for this audit pass.
+- `amd64 only` means manifest/config inspection showed the image is not arm64-native.
+
+### Non-Ubuntu Base Image Frequency
+
+| Count | Base Image |
+|---|---|
+| 4 | `centos:7` |
+| 3 | `neurodebian:bookworm-non-free` |
+| 3 | `pytorch/pytorch:2.4.1-cuda11.8-cudnn9-runtime` |
+| 2 | `debian:11` |
+| 2 | `debian:bookworm` |
+| 1 | `bids/aa:v0.2.0` |
+| 1 | `bids/baracus:v1.1.4` |
+| 1 | `bids/brainsuite:v21a` |
+| 1 | `bids/giga_connectome:0.6.0` |
+| 1 | `bids/hcppipelines:v4.3.0-3` |
+| 1 | `bids/mrtrix3_connectome:0.5.3` |
+| 1 | `bids/pymvpa:v2.0.2` |
+| 1 | `bids/spm:v0.0.20` |
+| 1 | `bradley987/bidsme:1.9.3` |
+| 1 | `dcanumn/osprey-bids:v4.2.1` |
+| 1 | `deepmi/fastsurfer:cpu-v{{ context.version }}` |
+| 1 | `dmri/neurodock:v1.0.0` |
+| 1 | `docker.io/nvidia/cuda:12.0.0-devel-ubuntu22.04` |
+| 1 | `docker.io/tensorflow/tensorflow:1.15.0-gpu-py3` |
+| 1 | `dorianps/lesymap:20220701` |
+| 1 | `dorianps/linda` |
+| 1 | `exploreasl/xasl:1.11.0` |
+| 1 | `fcpindi/c-pac:release-v1.8.7.post1.dev3` |
+| 1 | `fedora:35` |
+| 1 | `freesurfer/synthstrip:1.6` |
+| 1 | `freesurfer/synthstrip:1.8` |
+| 1 | `ghcr.io/farwa-abbas/nftsim:1.0.2` |
+| 1 | `ghcr.io/metaphorme/vina-all:release` |
+| 1 | `ghcr.io/neurodesk/caid/fsl_6.0.3:20200905` |
+| 1 | `ghcr.io/neurodesk/freesurfer_7.3.2:20230216` |
+| 1 | `ghcr.io/spm/spm-docker:docker-matlab-{{ context.version }}` |
+| 1 | `ghcr.io/tinyrange/tinyrange:v{{ context.version }}` |
+| 1 | `halfpipe/halfpipe:1.2.3` |
+| 1 | `jamovi/jamovi:2.3.17` |
+| 1 | `jerync/oshyx_0.4:20220614` |
+| 1 | `kytk/batch-heudiconv` |
+| 1 | `micalab/micapipe:v0.2.3` |
+| 1 | `moby/buildkit:latest` |
+| 1 | `neurodebian:bullseye` |
+| 1 | `neurodebian:nd20.04-non-free` |
+| 1 | `nipreps/fmriprep:{{ context.version }}` |
+| 1 | `nipreps/mriqc:24.0.2` |
+| 1 | `nipreps/nibabies:24.0.0` |
+| 1 | `nipy/heudiconv:1.3.1` |
+| 1 | `pennlinc/aslprep:0.7.5` |
+| 1 | `pennlinc/qsiprep:{{ context.version }}` |
+| 1 | `pennlinc/qsirecon:{{ context.version }}` |
+| 1 | `pennlinc/xcp_d:0.10.7` |
+| 1 | `python:3.12.0-slim` |
+| 1 | `quay.io/jupyter/minimal-notebook` |
+| 1 | `rootproject/root:6.22.02-centos7` |
+| 1 | `sljhlab/openads:1.0.0-gpu` |
+| 1 | `unfmontreal/dcm2bids:{{ context.version }}` |
+| 1 | `vnmd/fsl_6.0.3:20200905` |
+
+## Suggested Next Steps
+
+1. Finish clean arm64 verification for `ants/source`, `mrtrix3/source`, `niftyreg/source`, and `fsl/binaries`.
+2. Treat `matlabmcr/binaries` as x86_64-only unless upstream changes.
+3. Decide whether `dcm2niix/binaries` and `convert3d/binaries` should gain arm64-specific URLs or whether recipes should migrate to source builds.
+4. Use `scripts/check_arm64_base_images.py` for the full non-Ubuntu arm64 pull sweep, then fold the results back into this document.

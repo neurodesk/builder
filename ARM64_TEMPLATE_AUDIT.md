@@ -206,6 +206,102 @@ Interpretation:
   It only means the pull did not finish within the short probe window used for this audit pass.
 - `amd64 only` means manifest/config inspection showed the image is not arm64-native.
 
+## Custom Base Images
+
+Definition used here:
+
+- a `custom` base image is any recipe `base-image` that is not one of the plain distro/root images `ubuntu`, `debian`, `centos`, `fedora`, `rockylinux`, or `python`
+
+Classification method:
+
+- manifest/config inspection using `docker buildx imagetools inspect`
+- `unresolved` means the recipe tag still contains `{{ ... }}`
+- `inspect_failed` means the registry could not be classified in this pass, usually due to Docker Hub rate limiting, a missing tag, or an unsupported legacy manifest format
+
+### Custom Image Summary
+
+| Status | Unique Images |
+|---|---:|
+| `amd64_only` | 26 |
+| `arm64+amd64` | 3 |
+| `unresolved` | 7 |
+| `inspect_failed` | 13 |
+
+### Custom Images With Native Arm64 Support
+
+| Image | Architectures | Recipes |
+|---|---|---|
+| `docker.io/nvidia/cuda:12.0.0-devel-ubuntu22.04` | `amd64`, `arm64` | `bart` |
+| `moby/buildkit:latest` | `amd64`, `arm/v7`, `arm64`, `ppc64le`, `riscv64`, `s390x` | `builder` |
+| `quay.io/jupyter/minimal-notebook` | `amd64`, `arm64` | `irkernel` |
+
+### Custom Images Confirmed `amd64_only`
+
+| Image | Recipes |
+|---|---|
+| `bids/baracus:v1.1.4` | `bidsappbaracus` |
+| `bids/brainsuite:v21a` | `bidsappbrainsuite` |
+| `bids/giga_connectome:0.6.0` | `gigaconnectome` |
+| `bids/hcppipelines:v4.3.0-3` | `bidsapphcppipelines` |
+| `bids/mrtrix3_connectome:0.5.3` | `bidsappmrtrix3connectome` |
+| `bids/pymvpa:v2.0.2` | `bidsapppymvpa` |
+| `bids/spm:v0.0.20` | `bidsappspm` |
+| `bradley987/bidsme:1.9.3` | `bidsme` |
+| `dcanumn/osprey-bids:v4.2.1` | `ospreybids` |
+| `dmri/neurodock:v1.0.0` | `neurodock` |
+| `docker.io/tensorflow/tensorflow:1.15.0-gpu-py3` | `delphi` |
+| `dorianps/lesymap:20220701` | `lesymap` |
+| `dorianps/linda` | `linda` |
+| `exploreasl/xasl:1.11.0` | `exploreasl` |
+| `fcpindi/c-pac:release-v1.8.7.post1.dev3` | `cpac` |
+| `freesurfer/synthstrip:1.6` | `quickshear` |
+| `freesurfer/synthstrip:1.8` | `syncro` |
+| `ghcr.io/farwa-abbas/nftsim:1.0.2` | `nftsim` |
+| `ghcr.io/metaphorme/vina-all:release` | `vina` |
+| `ghcr.io/neurodesk/caid/fsl_6.0.3:20200905` | `mrtrix3tissue` |
+| `ghcr.io/neurodesk/freesurfer_7.3.2:20230216` | `deepretinotopy` |
+| `halfpipe/halfpipe:1.2.3` | `halfpipe` |
+| `jerync/oshyx_0.4:20220614` | `oshyx` |
+| `pennlinc/aslprep:0.7.5` | `aslprep` |
+| `pennlinc/xcp_d:0.10.7` | `xcpd` |
+| `pytorch/pytorch:2.4.1-cuda11.8-cudnn9-runtime` | `musclemap`, `spinalcordtoolbox`, `vesselboost` |
+
+Notes:
+
+- `vnmd/fsl_6.0.3:20200905` is also `amd64` only.
+  That was confirmed separately by pulling the image config and inspecting `.Architecture`.
+- `ghcr.io/neurodesk/caid/fsl_6.0.3:20200905` and `vnmd/fsl_6.0.3:20200905` resolve to the same digest and are both `amd64`.
+
+### Custom Images With Unresolved Templated Tags
+
+| Image | Recipes |
+|---|---|
+| `deepmi/fastsurfer:cpu-v{{ context.version }}` | `fastsurfer` |
+| `ghcr.io/spm/spm-docker:docker-matlab-{{ context.version }}` | `spm25` |
+| `ghcr.io/tinyrange/tinyrange:v{{ context.version }}` | `tinyrange` |
+| `nipreps/fmriprep:{{ context.version }}` | `fmriprep` |
+| `pennlinc/qsiprep:{{ context.version }}` | `qsiprep` |
+| `pennlinc/qsirecon:{{ context.version }}` | `qsirecon` |
+| `unfmontreal/dcm2bids:{{ context.version }}` | `dcm2bids` |
+
+### Custom Images Not Classified Cleanly In This Pass
+
+| Image | Reason | Recipes |
+|---|---|---|
+| `bids/aa:v0.2.0` | legacy schema v1 manifest unsupported by `imagetools` | `bidsappaa` |
+| `jamovi/jamovi:2.3.17` | tag not found | `jamovi` |
+| `sljhlab/openads:1.0.0-gpu` | tag not found | `openads` |
+| `kytk/batch-heudiconv` | Docker Hub `429 Too Many Requests` | `batchheudiconv` |
+| `micalab/micapipe:v0.2.3` | Docker Hub `429 Too Many Requests` | `micapipe` |
+| `neurodebian:bookworm-non-free` | Docker Hub `429 Too Many Requests` | `connectomeworkbench`, `datalad`, `template` |
+| `neurodebian:bullseye` | Docker Hub `429 Too Many Requests` | `sigviewer` |
+| `neurodebian:nd20.04-non-free` | Docker Hub `429 Too Many Requests` | `ezbids` |
+| `nipreps/mriqc:24.0.2` | Docker Hub `429 Too Many Requests` | `mriqc` |
+| `nipreps/nibabies:24.0.0` | Docker Hub `429 Too Many Requests` | `nibabies` |
+| `nipy/heudiconv:1.3.1` | Docker Hub `429 Too Many Requests` | `heudiconv` |
+| `rootproject/root:6.22.02-centos7` | Docker Hub `429 Too Many Requests` | `root` |
+| `vnmd/fsl_6.0.3:20200905` | Docker Hub `429 Too Many Requests` during manifest scan, but separately confirmed `amd64` only | `pydeface` |
+
 ### Non-Ubuntu Base Image Frequency
 
 | Count | Base Image |

@@ -234,6 +234,21 @@ These changes are now in this repo and should be used as the new baseline for ar
   - several atlas/template path assertions also fail because the expected packaged files are not present in this runtime image
 - Scope note: this closes a recipe YAML/fulltest masking issue for `dsistudio`; it does not make the recipe arm64-ready.
 
+### Recipe-level full test check: `qupath`
+
+- On 2026-03-26, `./test.sh qupath` was run against the existing local `qupath:0.6.0` image on an `aarch64` host without rebuilding the Docker image.
+- Initial result: `3/120` tests passed, but the failure pattern was mostly noise.
+- Cause:
+  - the existing image's `QuPath` launcher is not runnable on this arm64 host and fails immediately with `Permission denied`
+  - `neurocontainers/recipes/qupath/fulltest.yaml` had no early launcher preflight, so the suite continued into dozens of follow-on CLI/script tests that all failed for the same root cause
+- Fix landed in recipe YAML only: add a setup-time `QuPath --version` preflight in `neurocontainers/recipes/qupath/fulltest.yaml` so the suite fails fast when the launcher itself cannot start.
+- Verified rerun result:
+  - the same `./test.sh qupath` invocation now fails immediately in setup with a single clear launcher failure (`Setup failed (exit 126)`)
+  - the rerun reports `0/0` test cases instead of flooding the output with redundant downstream command failures
+- Current remaining blocker after this fix:
+  - the existing `qupath:0.6.0` image is still not runnable on arm64 because the `QuPath` launcher returns `Permission denied`
+- Scope note: this closes a recipe YAML/fulltest signal-quality issue for `qupath`; it does not make the recipe arm64-ready.
+
 ### Template-level build check: `bids_validator/binaries`
 
 - On 2026-03-26, `./build.sh bidscoin` on an `aarch64` host failed in the shared `bids_validator` template before `npm install` started.

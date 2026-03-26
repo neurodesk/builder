@@ -1,0 +1,3 @@
+[submodule "neurocontainers"]
+	path = neurocontainers
+	url = https://github.com/neurodesk/neurocontainers.git

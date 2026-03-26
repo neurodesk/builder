@@ -1,6 +1,6 @@
 # ARM64 Template Audit
 
-Last updated: 2026-03-24
+Last updated: 2026-03-26
 
 This document tracks:
 
@@ -80,6 +80,15 @@ Recommended fix order:
 ## Builder Changes Landed
 
 These changes are now in this repo and should be used as the new baseline for arm64 work.
+
+### Recipe-level build check: `xnat`
+
+- On 2026-03-26, `./build.sh xnat` on an `aarch64` host initially failed before the Docker build started with:
+  `detected unrendered string concatenation in generated Dockerfile; fix recipe/templates`
+- Cause: `neurocontainers/recipes/xnat/build.yaml` used `get_file("xnat-web-" + context.version + ".war")`, which the current builder intentionally rejects.
+- Fix landed: stage the WAR as a stable local filename (`xnat-web.war`) and reference it with `get_file("xnat-web.war")`.
+- Result after the fix: the same build progressed into the real Docker build and package-install steps on arm64 instead of failing during recipe/render processing.
+- Scope note: `xnat` still declares `architectures: [x86_64]`, so this was a builder compatibility fix, not evidence that the recipe is arm64-ready.
 
 ### `miniconda/binaries`
 

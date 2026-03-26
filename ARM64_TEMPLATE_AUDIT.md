@@ -319,6 +319,23 @@ These changes are now in this repo and should be used as the new baseline for ar
   - this indicates the packaged executables in the existing image are still incompatible with arm64
 - Scope note: this closes a recipe YAML/fulltest signal-quality issue for `mritools`; it does not make the recipe arm64-ready.
 
+### Recipe-level full test check: `laynii`
+
+- On 2026-03-26, `./test.sh laynii` was run against the existing local `laynii:2.2.1` image on an `aarch64` host without rebuilding the Docker image.
+- Initial result: `3/59` tests passed, but the failure pattern was mostly noise.
+- Cause:
+  - the existing image's LayNii executables are not runnable on this arm64 host, so the suite reported dozens of follow-on `exit 126` failures from the same startup problem
+  - `neurocontainers/recipes/laynii/fulltest.yaml` had no early launcher preflight, so it continued into 56 derivative failures after the first command break
+- Fix landed in recipe YAML only: add a setup-time `LN_INFO -help` preflight in `neurocontainers/recipes/laynii/fulltest.yaml` so the suite fails immediately when the packaged executables cannot start.
+- Verified rerun result:
+  - the same `./test.sh laynii` invocation now fails immediately in setup with a single launcher failure (`Setup failed (exit 126)`)
+  - the rerun reports `0/0` test cases instead of a misleading `3/59` result with 56 downstream failures
+- Current remaining blocker after this fix:
+  - a direct runtime probe with `docker run --rm laynii:2.2.1 /bin/sh -lc 'LN_INFO -help 2>&1 | head -20'` fails immediately on arm64 with:
+    `/bin/sh: 1: LN_INFO: Exec format error`
+  - this indicates the packaged LayNii binaries in the existing image are still incompatible with arm64
+- Scope note: this closes a recipe YAML/fulltest signal-quality issue for `laynii`; it does not make the recipe arm64-ready.
+
 ### Template-level build check: `bids_validator/binaries`
 
 - On 2026-03-26, `./build.sh bidscoin` on an `aarch64` host failed in the shared `bids_validator` template before `npm install` started.

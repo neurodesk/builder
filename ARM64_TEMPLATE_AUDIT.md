@@ -118,6 +118,21 @@ These changes are now in this repo and should be used as the new baseline for ar
 - Result after the fix: the same build progressed into the real Docker build and package-install steps on arm64 instead of failing during recipe/render processing.
 - Scope note: `xnat` still declares `architectures: [x86_64]`, so this was a builder compatibility fix, not evidence that the recipe is arm64-ready.
 
+### Recipe-level build check: `mipav`
+
+- On 2026-03-26, `./build.sh mipav` was run on an `aarch64` host.
+- Initial failure:
+  `sh: 0: cannot open /.neurocontainer-cache/mipav_unix_+ context.version +.sh: No such file`
+- Cause: `neurocontainers/recipes/mipav/build.yaml` used `get_file("mipav_unix_"+ context.version +".sh")`, which the current builder passed through literally into the generated Dockerfile.
+- Fix landed: stage the installer as a stable local filename (`mipav_unix.sh`) and reference it with `get_file("mipav_unix.sh")`.
+- Verified rerun result:
+  - the same `./build.sh mipav` invocation now gets past the recipe/render issue and starts the bundled installer on arm64
+  - the build then fails later with:
+    `/.neurocontainer-cache/mipav_unix.sh: ... /tmp/mipav_unix.sh.10.dir/jre/bin/java: Exec format error`
+- Current remaining blocker after this fix:
+  - the upstream MIPAV installer bundles an x86_64 JRE, so the install step is not arm64-compatible
+- Scope note: `mipav` still declares `architectures: [x86_64]`; this closes one recipe-side builder compatibility issue but does not make the recipe arm64-ready.
+
 ### Recipe-level full test check: `xnat`
 
 - On 2026-03-26, `./test.sh xnat` was run against the existing local `xnat:1.9.2.1` image without rebuilding it.

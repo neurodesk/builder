@@ -81,6 +81,15 @@ Recommended fix order:
 
 These changes are now in this repo and should be used as the new baseline for arm64 work.
 
+### Local wrapper compatibility: `build.sh`
+
+- On 2026-03-26, `./build.sh bidscoin` on an `aarch64` host failed immediately before any recipe build work with:
+  `unknown flag: --ignore-architectures`
+- Cause: the local wrapper script had been changed to pass `build --ignore-architectures`, but the current `cmd/builder` CLI does not define that flag.
+- Fix landed: restore `build.sh` to call `builder build "$RECIPE"` without the unsupported option.
+- Result after the fix: the same `./build.sh bidscoin` invocation progressed into the real Docker build on arm64 and reached Dockerfile step `7/19` (`apt-get ... install`) instead of failing in argument parsing.
+- Scope note: this closes a local wrapper regression, not an arm64 template or recipe readiness check for `bidscoin`.
+
 ### Recipe-level build check: `xnat`
 
 - On 2026-03-26, `./build.sh xnat` on an `aarch64` host initially failed before the Docker build started with:

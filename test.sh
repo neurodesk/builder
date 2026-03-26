@@ -4,15 +4,17 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: ./test.sh <recipe>
+Usage: ./test.sh [recipe]
 
-Require an existing local Docker image for the recipe, convert it to
-`sifs/<name>_<version>.simg` from the Docker daemon, and run the
-NeuroContainers tester against it.
+Without arguments, run the niimath full test suite as a smoke test.
+
+With a recipe argument, require an existing local Docker image for the
+recipe, convert it to `sifs/<name>_<version>.simg` from the Docker daemon,
+and run the recipe's `fulltest.yaml` locally against that `.simg`.
 EOF
 }
 
-if [[ $# -ne 1 ]]; then
+if [[ $# -gt 1 ]]; then
   usage >&2
   exit 2
 fi
@@ -20,7 +22,6 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-RECIPE="$1"
 CONFIG_FILE="${BUILDER_CONFIG:-$SCRIPT_DIR/builder.config.yaml}"
 RECIPE_ROOT_DEFAULT="$SCRIPT_DIR/neurocontainers/recipes"
 RESULTS_DIR="${TEST_RESULTS_DIR:-$SCRIPT_DIR/local/test-results}"
@@ -29,6 +30,8 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
   echo "Config file not found: $CONFIG_FILE" >&2
   exit 1
 fi
+
+RECIPE="${1:-niimath}"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "docker is required to read the built image from the Docker daemon" >&2
@@ -66,6 +69,12 @@ if [[ ! -f "$BUILD_FILE" ]]; then
   exit 1
 fi
 
+FULLTEST_FILE="$RECIPE_DIR/fulltest.yaml"
+if [[ ! -f "$FULLTEST_FILE" ]]; then
+  echo "Recipe full test file not found: $FULLTEST_FILE" >&2
+  exit 1
+fi
+
 NAME="$(sed -n 's/^name:[[:space:]]*//p' "$BUILD_FILE" | head -n 1 | tr -d '"' | tr -d "'")"
 VERSION="$(sed -n 's/^version:[[:space:]]*//p' "$BUILD_FILE" | head -n 1 | sed 's/[[:space:]]*#.*$//' | tr -d '"' | tr -d "'")"
 
@@ -74,10 +83,14 @@ if [[ -z "$NAME" || -z "$VERSION" ]]; then
   exit 1
 fi
 
+FULLTEST_PATH_ARG="recipes/${NAME}/fulltest.yaml"
+
 mkdir -p "$SCRIPT_DIR/sifs" "$RESULTS_DIR"
 
 IMAGE_TAG="${NAME}:${VERSION}"
 SIMG_PATH="$SCRIPT_DIR/sifs/${NAME}_${VERSION}.simg"
+RESULTS_JSON="$RESULTS_DIR/${NAME}-fulltest.json"
+RESULTS_LOG="$RESULTS_DIR/${NAME}-fulltest.log"
 
 if ! docker image inspect "$IMAGE_TAG" >/dev/null 2>&1; then
   echo "Docker image $IMAGE_TAG is not built. Run ./build.sh $RECIPE first." >&2
@@ -85,42 +98,15 @@ if ! docker image inspect "$IMAGE_TAG" >/dev/null 2>&1; then
 fi
 
 "$APPTAINER_BIN" build --force "$SIMG_PATH" "docker-daemon://$IMAGE_TAG"
+if command -v uv >/dev/null 2>&1; then
+  RUNNER=(uv run "$SCRIPT_DIR/neurocontainers/builder/run_tests.py")
+else
+  RUNNER=(python3 "$SCRIPT_DIR/neurocontainers/builder/run_tests.py")
+fi
 
-PYTHONPATH="$SCRIPT_DIR/neurocontainers${PYTHONPATH:+:$PYTHONPATH}" \
-python3 - "$NAME" "$VERSION" "$RESULTS_DIR" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-from workflows.test_runner import ContainerTestRunner, TestRequest
-
-recipe = sys.argv[1]
-version = sys.argv[2]
-output_dir = Path(sys.argv[3])
-
-runner = ContainerTestRunner(repo_root=Path.cwd() / "neurocontainers")
-outcome = runner.run(
-    TestRequest(
-        recipe=recipe,
-        version=version,
-        runtime="apptainer",
-        location="local",
-        output_dir=output_dir,
-        verbose=True,
-    )
-)
-
-print(json.dumps(
-    {
-        "recipe": outcome.recipe,
-        "version": outcome.version,
-        "status": outcome.status,
-        "results_path": str(outcome.results_path),
-        "report_path": str(outcome.report_path) if outcome.report_path else None,
-    },
-    indent=2,
-))
-
-if outcome.status != "passed":
-    raise SystemExit(1)
-PY
+cd "$SCRIPT_DIR/neurocontainers"
+exec "${RUNNER[@]}" \
+  "$FULLTEST_PATH_ARG" \
+  -c "$SCRIPT_DIR/sifs" \
+  -o "$RESULTS_JSON" \
+  --log "$RESULTS_LOG"

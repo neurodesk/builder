@@ -99,6 +99,19 @@ These changes are now in this repo and should be used as the new baseline for ar
 - Result after the fix: the same build progressed into the real Docker build and package-install steps on arm64 instead of failing during recipe/render processing.
 - Scope note: `xnat` still declares `architectures: [x86_64]`, so this was a builder compatibility fix, not evidence that the recipe is arm64-ready.
 
+### Recipe-level full test check: `xnat`
+
+- On 2026-03-26, `./test.sh xnat` was run against the existing local `xnat:1.9.2.1` image without rebuilding it.
+- Initial result: `94/98` tests passed. The four failures were in `neurocontainers/recipes/xnat/fulltest.yaml`, not the container itself:
+  `Build YAML exists`, `Build YAML version`, `Build YAML name`, and `README exists`.
+- Cause: the full test incorrectly assumed source-tree artifacts (`/build.yaml`, `/README.md`) would exist inside the runtime container image.
+- Fix landed: replace those checks with assertions against shipped XNAT artifacts that actually exist in the container:
+  `/opt/xnat-webapp/META-INF/MANIFEST.MF`,
+  `/opt/xnat-webapp/resources/samples/xnat-conf.properties`,
+  and `/opt/xnat-webapp/scripts/generated/xnat_projectData.js`.
+- Verified rerun result: the same `./test.sh xnat` invocation then passed cleanly with `98/98` tests passing in `27.7s`.
+- Scope note: this closes a recipe YAML/fulltest mismatch for `xnat`; it does not change the recipe's declared architecture support.
+
 ### `miniconda/binaries`
 
 - The live template system is now the macro-backed implementation under `pkg/recipe/`.

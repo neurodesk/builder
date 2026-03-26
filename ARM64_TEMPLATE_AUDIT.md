@@ -393,6 +393,23 @@ These changes are now in this repo and should be used as the new baseline for ar
   - this indicates the packaged MINC binaries in the existing image are still incompatible with arm64
 - Scope note: this closes a recipe YAML/fulltest signal-quality issue for `minc`; it does not make the recipe arm64-ready.
 
+### Recipe-level full test check: `romeo`
+
+- On 2026-03-26, `./test.sh romeo` was run against the existing local `romeo:3.2.8` image on an `aarch64` host without rebuilding the Docker image.
+- Initial result: `11/104` tests passed, but the failure pattern was mostly noise.
+- Cause:
+  - the existing image's `romeo` launcher is not runnable on this arm64 host, so the suite reported a large number of follow-on `exit 126` failures from the same startup problem
+  - `neurocontainers/recipes/romeo/fulltest.yaml` had no early launcher preflight, so it continued into 93 derivative failures after the first command break
+- Fix landed in recipe YAML only: add a setup-time `romeo --version` preflight in `neurocontainers/recipes/romeo/fulltest.yaml` so the suite fails immediately when the packaged executables cannot start.
+- Verified rerun result:
+  - the same `./test.sh romeo` invocation now fails immediately in setup with a single launcher failure (`Setup failed (exit 126)`)
+  - the rerun reports `0/0` test cases instead of the earlier misleading `11/104` result with 93 downstream failures
+- Current remaining blocker after this fix:
+  - a direct runtime probe with `docker run --rm romeo:3.2.8 /bin/sh -lc 'romeo --version 2>&1 | head -20'` fails immediately on arm64 with:
+    `/bin/sh: 1: romeo: Exec format error`
+  - this indicates the packaged ROMEO binary in the existing image is still incompatible with arm64
+- Scope note: this closes a recipe YAML/fulltest signal-quality issue for `romeo`; it does not make the recipe arm64-ready.
+
 ### Template-level build check: `bids_validator/binaries`
 
 - On 2026-03-26, `./build.sh bidscoin` on an `aarch64` host failed in the shared `bids_validator` template before `npm install` started.

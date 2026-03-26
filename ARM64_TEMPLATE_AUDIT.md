@@ -194,6 +194,25 @@ These changes are now in this repo and should be used as the new baseline for ar
   - a follow-up runtime smoke check with `docker run --rm brainlifecli:1.7.0 sh -lc 'command -v bl && bl --help | head -n 5'` confirmed the `bl` entrypoint is present at `/usr/bin/bl` and starts normally
 - Scope note: this is a successful recipe-level arm64 build and smoke-check result for `brainlifecli`; no recipe changes were required.
 
+### Recipe-level build check: `bidstools`
+
+- On 2026-03-26, `./build.sh bidstools` was run on an `aarch64` host.
+- Initial failure:
+  `conda: not found`
+- Cause:
+  - `neurocontainers/recipes/bidstools/build.yaml` only declared `architectures: [x86_64]`
+  - because of that, the `miniconda` template rendered the x86_64 installer on an arm64 host, and the later `conda update` step failed because a usable arm64 `conda` was never installed
+- Fix landed in recipe YAML:
+  - add `aarch64` as a declared recipe architecture in `neurocontainers/recipes/bidstools/build.yaml`
+- Verified rerun result:
+  - the regenerated Dockerfile now stages `https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh` instead of the x86_64 installer
+  - rerunning `./build.sh bidstools` no longer failed at `conda: not found`; it progressed into the Miniconda bootstrap and reached:
+    `PREFIX=/opt/miniconda-latest`
+    `Installing base environment...`
+- Current status after this fix:
+  - I interrupted the long rerun during the Miniconda/base-environment setup, so there is not yet a finalized `bidstools:1.0.4` image from the rerun
+- Scope note: this closes one concrete arm64 build issue for `bidstools` by making the recipe render the correct Miniconda installer for arm64 hosts.
+
 ### Recipe-level full test check: `xnat`
 
 - On 2026-03-26, `./test.sh xnat` was run against the existing local `xnat:1.9.2.1` image without rebuilding it.

@@ -213,6 +213,25 @@ These changes are now in this repo and should be used as the new baseline for ar
   - I interrupted the long rerun during the Miniconda/base-environment setup, so there is not yet a finalized `bidstools:1.0.4` image from the rerun
 - Scope note: this closes one concrete arm64 build issue for `bidstools` by making the recipe render the correct Miniconda installer for arm64 hosts.
 
+### Recipe-level build check: `gingerale`
+
+- On 2026-03-26, `./build.sh gingerale` was run on an `aarch64` host.
+- Initial failure:
+  `fetching "https://www.brainmap.org/ale/GingerALE.jar": ... x509: certificate signed by unknown authority`
+- Cause:
+  - `neurocontainers/recipes/gingerale/build.yaml` pointed at an HTTPS endpoint whose certificate chain is not trusted in this builder environment
+- Fix landed in recipe YAML:
+  - switch the staged JAR URL from `https://www.brainmap.org/ale/GingerALE.jar` to the working `http://www.brainmap.org/ale/GingerALE.jar` endpoint
+- Verified rerun result:
+  - the Docker build completed successfully and produced `gingerale:3.0.2`
+  - `docker image inspect gingerale:3.0.2 --format '{{.Architecture}} {{.Os}}'` reported:
+    `arm64 linux`
+  - a follow-up runtime probe confirmed the launcher script exists at `/opt/gingerale/gingerale`
+  - invoking the JAR directly now reaches Java startup and fails with the expected headless AWT message rather than a build-time fetch error:
+    `java.awt.HeadlessException`
+    `No X11 DISPLAY variable was set`
+- Scope note: this closes one recipe-side build/fetch issue for `gingerale`; the built image is arm64, and the remaining runtime limitation from the smoke check is GUI/headless related rather than an arm64 packaging failure.
+
 ### Recipe-level full test check: `xnat`
 
 - On 2026-03-26, `./test.sh xnat` was run against the existing local `xnat:1.9.2.1` image without rebuilding it.

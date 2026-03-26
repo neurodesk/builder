@@ -131,6 +131,18 @@ These changes are now in this repo and should be used as the new baseline for ar
 - Verified rerun result: the same `./test.sh xnat` invocation then passed cleanly with `98/98` tests passing in `27.7s`.
 - Scope note: this closes a recipe YAML/fulltest mismatch for `xnat`; it does not change the recipe's declared architecture support.
 
+### Recipe-level full test check: `sigviewer`
+
+- On 2026-03-26, `./test.sh sigviewer` was run against the existing local `sigviewer:0.6.4` image on an `aarch64` host without rebuilding the Docker image.
+- Initial result: `29/34` tests passed. All five failures were in `neurocontainers/recipes/sigviewer/fulltest.yaml`, not the container runtime itself:
+  `Libbiosig present`, `README available`, `Module load message`, `Example usage documented`, and `Documentation link present`.
+- Cause:
+  - the full test hardcoded `/usr/lib/x86_64-linux-gnu/libbiosig.so*`, which is wrong on arm64 where the package installs under `/usr/lib/aarch64-linux-gnu/`
+  - the full test also assumed `/README.md` would be present in the runtime image, but this image only ships the Debian-packaged docs at `/usr/share/doc/sigviewer/README.md.gz`
+- Fix landed in recipe YAML only: make the libbiosig path architecture-agnostic and replace the `/README.md` assertions with checks against the packaged `README.md.gz`.
+- Verified rerun result: the same `./test.sh sigviewer` invocation then passed cleanly with `34/34` tests passing in `42.4s`.
+- Scope note: this closes a recipe YAML/fulltest mismatch for `sigviewer` without rebuilding the image; it does not change the recipe's declared `architectures: [x86_64]`.
+
 ### Template-level build check: `bids_validator/binaries`
 
 - On 2026-03-26, `./build.sh bidscoin` on an `aarch64` host failed in the shared `bids_validator` template before `npm install` started.

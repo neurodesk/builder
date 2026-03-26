@@ -162,6 +162,28 @@ These changes are now in this repo and should be used as the new baseline for ar
     `arm64 linux`
 - Scope note: this is a successful recipe-level arm64 build and smoke-check result for `niftyreg`; no recipe changes were required.
 
+### Recipe-level build check: `apptainer`
+
+- On 2026-03-26, `./build.sh apptainer` was run on an `aarch64` host.
+- Initial failure:
+  `apptainer:amd64` could not be installed in the arm64 image because the recipe staged the upstream amd64 `.deb` and `apt` then reported unmet `:amd64` dependencies.
+- Cause:
+  - `neurocontainers/recipes/apptainer/build.yaml` only declared `architectures: [x86_64]`
+  - the build path only supported the upstream amd64 Debian package
+- Fix landed in recipe YAML:
+  - add `aarch64` as a declared recipe architecture
+  - keep the existing amd64 `.deb` install path for `x86_64`
+  - add an arm64 source-build path using the upstream release tarball, arm64 Go toolchain, and required build dependencies
+  - remove top-level arch-specific URL variables that failed IR rendering on arm64
+  - run `./mconfig --without-suid` so source configuration works in this container environment
+- Verified rerun result:
+  - the same `./build.sh apptainer` invocation now gets past the wrong-architecture package failure, completes source configuration, and runs through the upstream arm64 compile/install path
+  - the rerun reached the recipe validation step `apptainer --version` successfully and then entered Docker layer export
+- Current status after this fix:
+  - no new hard arm64 build failure was hit after the packaging fix
+  - I interrupted the build during Docker's final image export, and `docker image inspect apptainer:1.4.4` confirms no local image was finalized from that interrupted run
+- Scope note: this closes one concrete recipe-side arm64 build issue for `apptainer` by replacing the invalid amd64 package path with an arm64-capable source build path.
+
 ### Recipe-level full test check: `xnat`
 
 - On 2026-03-26, `./test.sh xnat` was run against the existing local `xnat:1.9.2.1` image without rebuilding it.
@@ -549,7 +571,7 @@ Notes:
 
 ## Suggested Next Steps
 
-1. Finish clean arm64 verification for `ants/source`, `mrtrix3/source`, `niftyreg/source`, and `fsl/binaries`.
+1. Finish clean arm64 verification for `ants/source`, `mrtrix3/source`, and `fsl/binaries`.
 2. Treat `matlabmcr/binaries` as x86_64-only unless upstream changes.
 3. Decide whether `dcm2niix/binaries` and `convert3d/binaries` should gain arm64-specific URLs or whether recipes should migrate to source builds.
 4. Use `scripts/check_arm64_base_images.py` for the full non-Ubuntu arm64 pull sweep, then fold the results back into this document.

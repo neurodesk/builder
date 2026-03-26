@@ -232,6 +232,27 @@ These changes are now in this repo and should be used as the new baseline for ar
     `No X11 DISPLAY variable was set`
 - Scope note: this closes one recipe-side build/fetch issue for `gingerale`; the built image is arm64, and the remaining runtime limitation from the smoke check is GUI/headless related rather than an arm64 packaging failure.
 
+### Recipe-level build check: `blastct`
+
+- On 2026-03-26, `./build.sh blastct` was run on an `aarch64` host.
+- Initial failure:
+  `conda: not found`
+- Cause:
+  - `neurocontainers/recipes/blastct/build.yaml` only declared `architectures: [x86_64]`
+  - because of that, the `miniconda` template rendered the x86_64 installer on an arm64 host, and the later `conda config` step failed because a usable arm64 `conda` was never installed
+- Fix landed in recipe YAML:
+  - add `aarch64` as a declared recipe architecture in `neurocontainers/recipes/blastct/build.yaml`
+- Verified rerun result:
+  - the regenerated Dockerfile now stages `https://repo.anaconda.com/miniconda/Miniconda3-py311_25.5.1-0-Linux-aarch64.sh` instead of the x86_64 installer
+  - rerunning `./build.sh blastct` no longer failed at `conda: not found`; it progressed through Miniconda bootstrap and past the first `conda config` step
+  - the rerun then failed later at:
+    `CondaValueError: 'base' is a reserved environment name`
+    from `conda create -y -q --name base`
+- Current status after this fix:
+  - the original arm64 Miniconda/render issue is fixed
+  - `blastct` still has a separate recipe problem to resolve before the image can complete on arm64, because the recipe asks modern Conda to create a new environment named `base`
+- Scope note: this closes one concrete arm64 build/render issue for `blastct` by making the recipe render the correct Miniconda installer for arm64 hosts; the remaining failure is a separate Conda-environment logic issue.
+
 ### Recipe-level full test check: `xnat`
 
 - On 2026-03-26, `./test.sh xnat` was run against the existing local `xnat:1.9.2.1` image without rebuilding it.

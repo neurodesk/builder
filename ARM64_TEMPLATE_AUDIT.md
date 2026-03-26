@@ -90,6 +90,25 @@ These changes are now in this repo and should be used as the new baseline for ar
 - Result after the fix: the same `./build.sh bidscoin` invocation progressed into the real Docker build on arm64 and reached Dockerfile step `7/19` (`apt-get ... install`) instead of failing in argument parsing.
 - Scope note: this closes a local wrapper regression, not an arm64 template or recipe readiness check for `bidscoin`.
 
+### Builder architecture selection: multi-arch recipe rendering
+
+- On 2026-03-26, `./build.sh bidscoin` was rerun on an `aarch64` host after the wrapper fix.
+- The generated Dockerfile still rendered the `miniconda` installer as:
+  `https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh`
+  even though the host Docker engine was `arm64` and the recipe declares both:
+  `architectures: [x86_64, aarch64]`
+- Cause: `pkg/recipe/recipe.go` defaulted the template/render context architecture to the first declared recipe architecture instead of preferring the current host architecture when it was supported by the recipe.
+- Fix landed:
+  - map the current host `GOARCH` into builder architecture names (`amd64 -> x86_64`, `arm64 -> aarch64`)
+  - prefer that host architecture during build generation when the recipe explicitly declares it
+  - add a regression test covering a dual-architecture recipe that lists the non-host architecture first
+- Verified result after the fix:
+  - `go test ./pkg/recipe/...` passes
+  - regenerating `./build.sh bidscoin` on the same `aarch64` host now emits:
+    `https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh`
+    in `local/build/bidscoin/Dockerfile`
+- Scope note: this closes one builder-side architecture-selection regression. The `bidscoin` build still has a later arm64 blocker in the shared `bids_validator` / Node install path, so this is not a full recipe close-out.
+
 ### Recipe-level build check: `xnat`
 
 - On 2026-03-26, `./build.sh xnat` on an `aarch64` host initially failed before the Docker build started with:

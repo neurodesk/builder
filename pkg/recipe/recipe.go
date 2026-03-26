@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -538,6 +539,17 @@ const (
 	CPUArchAMD64 CPUArchitecture = "x86_64"
 	CPUArchARM64 CPUArchitecture = "aarch64"
 )
+
+func currentHostArchitecture() (CPUArchitecture, bool) {
+	switch runtime.GOARCH {
+	case "amd64":
+		return CPUArchAMD64, true
+	case "arm64":
+		return CPUArchARM64, true
+	default:
+		return "", false
+	}
+}
 
 type StructuredReadme struct {
 	Description   string `yaml:"description,omitempty"`
@@ -1917,8 +1929,19 @@ func (b *BuildFile) GenerateWithStagingAndLocals(includeDirs []string, locals []
 		}
 	}
 
-	// Default architecture: first declared, or x86_64 if unspecified
-	if len(b.Architectures) > 0 {
+	// Prefer the current host architecture when the recipe explicitly supports it.
+	// This keeps generated template URLs aligned with the actual build platform.
+	if hostArch, ok := currentHostArchitecture(); ok {
+		for _, arch := range b.Architectures {
+			if arch == hostArch {
+				ctx.Arch = hostArch
+				break
+			}
+		}
+	}
+
+	// Otherwise fall back to the first declared architecture, or the context default.
+	if ctx.Arch == "" && len(b.Architectures) > 0 {
 		ctx.Arch = b.Architectures[0]
 	}
 

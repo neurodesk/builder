@@ -184,6 +184,20 @@ These changes are now in this repo and should be used as the new baseline for ar
   - `neurocontainers/recipes/dcm2niix/build.yaml` downloads `dcm2niix_lnx.zip`, and the staged binary in the existing image is not executable on arm64
 - Scope note: this closes a recipe YAML/fulltest masking issue for `dcm2niix`; it does not make the binary recipe arm64-ready.
 
+### Recipe-level full test check: `hnncore`
+
+- On 2026-03-26, `./test.sh hnncore` was run against the existing local `hnncore:0.3` image on an `aarch64` host without rebuilding the Docker image.
+- Initial result: `66/68` tests passed. The two failures were in `neurocontainers/recipes/hnncore/fulltest.yaml`, not the container runtime broadly:
+  `hnn-core version check` and `Create CellResponse object`.
+- Cause:
+  - the full test expected `hnn_core.__version__` to report `0.3`, but the shipped package in the existing image reports `0.5.0`
+  - the full test used an outdated `CellResponse` constructor shape; the installed API requires `cell_type_names` as the first argument
+- Fix landed in recipe YAML only:
+  - update the expected HNN-core version string to `0.5.0`
+  - update the `CellResponse` instantiation in `neurocontainers/recipes/hnncore/fulltest.yaml` to pass `cell_type_names` and keyword arguments matching the installed API
+- Verified rerun result: the same `./test.sh hnncore` invocation then passed cleanly with `68/68` tests passing in `107.0s`.
+- Scope note: this closes a recipe YAML/fulltest mismatch for `hnncore` without rebuilding the image; it does not change the recipe's declared `architectures: [x86_64]`.
+
 ### Template-level build check: `bids_validator/binaries`
 
 - On 2026-03-26, `./build.sh bidscoin` on an `aarch64` host failed in the shared `bids_validator` template before `npm install` started.

@@ -158,6 +158,22 @@ These changes are now in this repo and should be used as the new baseline for ar
 - Verified rerun result: the same `./test.sh sigviewer` invocation then passed cleanly with `34/34` tests passing in `42.4s`.
 - Scope note: this closes a recipe YAML/fulltest mismatch for `sigviewer` without rebuilding the image; it does not change the recipe's declared `architectures: [x86_64]`.
 
+### Recipe-level full test check: `dcm2niix`
+
+- On 2026-03-26, `./test.sh dcm2niix` was run against the existing local `dcm2niix:v1.0.20240202` image on an `aarch64` host without rebuilding the Docker image.
+- Initial result: `43/105` tests passed, but that result was misleading.
+- Cause:
+  - `neurocontainers/recipes/dcm2niix/fulltest.yaml` appended `|| true` to many `dcm2niix` commands, which masked command failures and turned an unusable arm64 runtime into false-positive test passes
+  - direct execution confirmed the real runtime error in the existing image:
+    `/bin/sh: 1: dcm2niix: Exec format error`
+- Fix landed in recipe YAML only: remove the `|| true` fallbacks from `neurocontainers/recipes/dcm2niix/fulltest.yaml` so command exit codes propagate normally during the full test run.
+- Verified rerun result:
+  - the same `./test.sh dcm2niix` invocation now fails cleanly with `0/105` tests passing in `25.2s`
+  - the rerun consistently surfaces the underlying runtime problem instead of masking it behind shell fallbacks
+- Current remaining blocker after this fix:
+  - `neurocontainers/recipes/dcm2niix/build.yaml` downloads `dcm2niix_lnx.zip`, and the staged binary in the existing image is not executable on arm64
+- Scope note: this closes a recipe YAML/fulltest masking issue for `dcm2niix`; it does not make the binary recipe arm64-ready.
+
 ### Template-level build check: `bids_validator/binaries`
 
 - On 2026-03-26, `./build.sh bidscoin` on an `aarch64` host failed in the shared `bids_validator` template before `npm install` started.

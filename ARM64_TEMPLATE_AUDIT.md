@@ -281,6 +281,25 @@ These changes are now in this repo and should be used as the new baseline for ar
   - the existing `qupath:0.6.0` image is still not runnable on arm64 because the `QuPath` launcher returns `Permission denied`
 - Scope note: this closes a recipe YAML/fulltest signal-quality issue for `qupath`; it does not make the recipe arm64-ready.
 
+### Recipe-level full test check: `mritools`
+
+- On 2026-03-26, `./test.sh mritools` was run against the existing local `mritools:3.3.0` image on an `aarch64` host without rebuilding the Docker image.
+- Initial result: `6/54` tests passed, but the failure pattern was mostly noise.
+- Cause:
+  - the existing image's `romeo`, `clearswi`, `mcpc3ds`, and `julia` launchers are not runnable on this arm64 host, so the suite reported dozens of follow-on `exit 126` failures from the same root cause
+  - `neurocontainers/recipes/mritools/fulltest.yaml` had no early launcher preflight, so it continued into 48 derivative command failures after the first startup break
+- Fix landed in recipe YAML only: add a setup-time `romeo --version` preflight in `neurocontainers/recipes/mritools/fulltest.yaml` so the suite fails immediately when the packaged executables cannot start.
+- Verified rerun result:
+  - the same `./test.sh mritools` invocation now fails immediately in setup with a single launcher failure (`Setup failed (exit 126)`)
+  - the rerun reports `0/0` test cases instead of a misleading `6/54` result with 48 downstream failures
+- Current remaining blocker after this fix:
+  - a direct runtime probe with `apptainer exec sifs/mritools_3.3.0.simg romeo --version` still fails immediately on arm64 and prints:
+    `/opt/mritools-3.3.0/bin/romeo: 1: ... ELF ... not found`
+    followed by
+    `Syntax error: "(" unexpected`
+  - this indicates the packaged executables in the existing image are still incompatible with arm64
+- Scope note: this closes a recipe YAML/fulltest signal-quality issue for `mritools`; it does not make the recipe arm64-ready.
+
 ### Template-level build check: `bids_validator/binaries`
 
 - On 2026-03-26, `./build.sh bidscoin` on an `aarch64` host failed in the shared `bids_validator` template before `npm install` started.

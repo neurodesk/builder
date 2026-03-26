@@ -133,6 +133,16 @@ These changes are now in this repo and should be used as the new baseline for ar
   - the upstream MIPAV installer bundles an x86_64 JRE, so the install step is not arm64-compatible
 - Scope note: `mipav` still declares `architectures: [x86_64]`; this closes one recipe-side builder compatibility issue but does not make the recipe arm64-ready.
 
+### Recipe-level build check: `niimath`
+
+- On 2026-03-26, `./build.sh niimath` was run on an `aarch64` host.
+- Result:
+  - the Docker build completed successfully and produced `niimath:1.0.20250804`
+  - a follow-up runtime smoke check with `docker run --rm niimath:1.0.20250804 /usr/bin/niimath` returned the expected usage text
+  - `docker run --rm niimath:1.0.20250804 file /usr/bin/niimath` reported:
+    `ELF 64-bit LSB executable, ARM aarch64`
+- Scope note: this is a successful recipe-level arm64 build and smoke-check result for `niimath`; no recipe changes were required.
+
 ### Recipe-level full test check: `xnat`
 
 - On 2026-03-26, `./test.sh xnat` was run against the existing local `xnat:1.9.2.1` image without rebuilding it.

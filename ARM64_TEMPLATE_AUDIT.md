@@ -143,6 +143,15 @@ These changes are now in this repo and should be used as the new baseline for ar
     `ELF 64-bit LSB executable, ARM aarch64`
 - Scope note: this is a successful recipe-level arm64 build and smoke-check result for `niimath`; no recipe changes were required.
 
+### Recipe-level build check: `builder`
+
+- On 2026-03-26, `./build.sh builder` was run on an `aarch64` host.
+- Result:
+  - the Docker build completed successfully and produced `builder:0.2`
+  - `docker image inspect builder:0.2 --format '{{.Architecture}} {{.Os}}'` reported:
+    `arm64 linux`
+- Scope note: this is a successful recipe-level arm64 build result for `builder`; no recipe changes were required.
+
 ### Recipe-level full test check: `xnat`
 
 - On 2026-03-26, `./test.sh xnat` was run against the existing local `xnat:1.9.2.1` image without rebuilding it.

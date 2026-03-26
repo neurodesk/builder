@@ -184,6 +184,16 @@ These changes are now in this repo and should be used as the new baseline for ar
   - I interrupted the build during Docker's final image export, and `docker image inspect apptainer:1.4.4` confirms no local image was finalized from that interrupted run
 - Scope note: this closes one concrete recipe-side arm64 build issue for `apptainer` by replacing the invalid amd64 package path with an arm64-capable source build path.
 
+### Recipe-level build check: `brainlifecli`
+
+- On 2026-03-26, `./build.sh brainlifecli` was run on an `aarch64` host.
+- Result:
+  - the Docker build completed successfully and produced `brainlifecli:1.7.0`
+  - `docker image inspect brainlifecli:1.7.0 --format '{{.Architecture}} {{.Os}}'` reported:
+    `arm64 linux`
+  - a follow-up runtime smoke check with `docker run --rm brainlifecli:1.7.0 sh -lc 'command -v bl && bl --help | head -n 5'` confirmed the `bl` entrypoint is present at `/usr/bin/bl` and starts normally
+- Scope note: this is a successful recipe-level arm64 build and smoke-check result for `brainlifecli`; no recipe changes were required.
+
 ### Recipe-level full test check: `xnat`
 
 - On 2026-03-26, `./test.sh xnat` was run against the existing local `xnat:1.9.2.1` image without rebuilding it.

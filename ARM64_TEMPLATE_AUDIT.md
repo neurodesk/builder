@@ -355,6 +355,23 @@ These changes are now in this repo and should be used as the new baseline for ar
   - this indicates the packaged LayNii binaries in the existing image are still incompatible with arm64
 - Scope note: this closes a recipe YAML/fulltest signal-quality issue for `laynii`; it does not make the recipe arm64-ready.
 
+### Recipe-level full test check: `minc`
+
+- On 2026-03-26, `./test.sh minc` was run against the existing local `minc:1.9.18` image on an `aarch64` host without rebuilding the Docker image.
+- Initial result: `0/111` tests passed, but the failure pattern was mostly noise.
+- Cause:
+  - the existing image's MINC executables are not runnable on this arm64 host, so the suite reported one startup failure and then a long chain of dependent skips and follow-on failures
+  - `neurocontainers/recipes/minc/fulltest.yaml` had no early launcher preflight, so the report expanded a single runtime incompatibility into 111 failed cases
+- Fix landed in recipe YAML only: add a setup-time `mincinfo -version` preflight in `neurocontainers/recipes/minc/fulltest.yaml` so the suite fails immediately when the packaged executables cannot start.
+- Verified rerun result:
+  - the same `./test.sh minc` invocation now fails immediately in setup with a single launcher failure (`Setup failed (exit 126)`)
+  - the rerun reports `0/0` test cases instead of the earlier misleading `0/111` failure cascade
+- Current remaining blocker after this fix:
+  - a direct runtime probe with `docker run --rm minc:1.9.18 /bin/sh -lc 'mincinfo -version 2>&1 | head -5'` fails immediately on arm64 with:
+    `/bin/sh: 1: mincinfo: Exec format error`
+  - this indicates the packaged MINC binaries in the existing image are still incompatible with arm64
+- Scope note: this closes a recipe YAML/fulltest signal-quality issue for `minc`; it does not make the recipe arm64-ready.
+
 ### Template-level build check: `bids_validator/binaries`
 
 - On 2026-03-26, `./build.sh bidscoin` on an `aarch64` host failed in the shared `bids_validator` template before `npm install` started.

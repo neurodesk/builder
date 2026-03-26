@@ -27,7 +27,7 @@ Status meanings:
 | `dcm2niix` | `source` | Works | Builds from source and runs on arm64 |
 | `miniconda` | `binaries` | Works | Macro-backed template now selects the correct arm64 installer URL and a clean minimal `aarch64` smoke build completes with `conda --version` |
 | `jq` | `binaries` | Fails | Downloads `jq-linux64`; runtime `Exec format error` |
-| `bids_validator` | `binaries` | Fails | `npm install` needs native build tooling; currently fails on `make` missing |
+| `bids_validator` | `binaries` | Fails | Macro regression fixed; arm64 now reaches `npm install`, but native addon build still fails (`make` missing on Ubuntu 22.04 template test, `distutils` missing on Ubuntu 24.04 via `bidscoin`) |
 | `neurodebian` | `binaries` | Fails | Broken key import: `gpg: no valid OpenPGP data found` |
 | `ndfreeze` | `source` | Fails | Build stalls/fails during `nd_freeze 2024-01-01` apt refresh |
 | `dcm2niix` | `binaries` | Fails | Binary payload is wrong architecture; runtime `Exec format error` |
@@ -111,6 +111,24 @@ These changes are now in this repo and should be used as the new baseline for ar
   and `/opt/xnat-webapp/scripts/generated/xnat_projectData.js`.
 - Verified rerun result: the same `./test.sh xnat` invocation then passed cleanly with `98/98` tests passing in `27.7s`.
 - Scope note: this closes a recipe YAML/fulltest mismatch for `xnat`; it does not change the recipe's declared architecture support.
+
+### Template-level build check: `bids_validator/binaries`
+
+- On 2026-03-26, `./build.sh bidscoin` on an `aarch64` host failed in the shared `bids_validator` template before `npm install` started.
+- Initial failure:
+  `E: Unable to locate package node_install_package`
+- Cause: `pkg/recipe/template_macros/bids_validator__binaries.yaml` referenced `node_install_package` as a bare symbol inside `self.install(...)`, so the macro backend rendered the placeholder name literally into the Dockerfile.
+- Follow-on issue uncovered while fixing the same step: the macro emitted a shell block that the builder joined with `&&`, producing `/bin/sh: Syntax error: "&&" unexpected` after the `fi`.
+- Fix landed:
+  - inline the package names directly inside the apt/yum branches instead of passing the unresolved placeholder through `self.install(...)`
+  - keep the node version checks and `npm install` inside the same run block so the generated shell stays valid
+- Verified results after the fix:
+  - `go run ./cmd/builder template-tests bids-validator-binaries --build --run-tests` now gets past NodeSource setup, installs `nodejs`, prints `node --version` / `npm --version`, and reaches the real `npm install -g bids-validator@1.13.0`
+  - the original `./build.sh bidscoin` run also gets past the same template regression and reaches the same `npm install` stage on arm64
+- Current remaining blockers after this fix:
+  - Ubuntu 22.04 template test path fails in `node-gyp` with `Error: not found: make`
+  - Ubuntu 24.04 `bidscoin` path fails later in `node-gyp` with `ModuleNotFoundError: No module named 'distutils'`
+- Scope note: this closes one builder/template regression in `bids_validator`; the template still is not arm64-ready end to end.
 
 ### `miniconda/binaries`
 

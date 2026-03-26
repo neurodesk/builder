@@ -4,12 +4,10 @@ directives:
   variables:
     node_setup_script_name: nsolid_setup_deb.sh
     node_setup_script_url: https://deb.nodesource.com/nsolid_setup_deb.sh
-    node_install_package: nodejs
 - condition: self.pkg_manager == "yum"
   variables:
     node_setup_script_name: nsolid_setup_rpm.sh
     node_setup_script_url: https://rpm.nodesource.com/nsolid_setup_rpm.sh
-    node_install_package: nodejs --setopt=nodesource-nodejs.module_hotfixes=1
 - run:
   - |
     if command -v node >/dev/null 2>&1; then
@@ -19,8 +17,12 @@ directives:
       curl -fsSL -o {{ node_setup_script_name }} {{ node_setup_script_url }}
       chmod 500 {{ node_setup_script_name }}
       ./{{ node_setup_script_name }} {{ self.node_version }}
-      {{ self.install([node_install_package]) }}
+      {% if self.pkg_manager == "apt" -%}
+      {{ self.install(["nodejs"]) }}
+      {% elif self.pkg_manager == "yum" -%}
+      {{ self.install(["nodejs --setopt=nodesource-nodejs.module_hotfixes=1"]) }}
+      {% endif -%}
     fi
-  - node --version
-  - npm --version
-  - npm install -g bids-validator@{{ self.version }}
+    node --version
+    npm --version
+    npm install -g bids-validator@{{ self.version }}

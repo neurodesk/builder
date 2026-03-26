@@ -35,7 +35,7 @@ Status meanings:
 | `matlabmcr` | `binaries` | Fails by design | Upstream is x86_64-only |
 | `ants` | `source` | Unknown | Still needs a clean final arm64 run |
 | `mrtrix3` | `source` | Unknown | Still needs a clean final arm64 run |
-| `niftyreg` | `source` | Unknown | Still needs a clean final arm64 run |
+| `niftyreg` | `source` | Works | `./build.sh niftyreg` completes on arm64 and `reg_aladin -h` runs in the built image |
 | `fsl` | `binaries` | Unknown | Still needs a clean final arm64 run |
 | `afni` | `binaries` | Likely fails | Template contains x86_64-specific payloads/debs |
 | `afni` | `source` | Likely fails | Template contains x86_64-specific library paths and symlinks |
@@ -151,6 +151,16 @@ These changes are now in this repo and should be used as the new baseline for ar
   - `docker image inspect builder:0.2 --format '{{.Architecture}} {{.Os}}'` reported:
     `arm64 linux`
 - Scope note: this is a successful recipe-level arm64 build result for `builder`; no recipe changes were required.
+
+### Recipe-level build check: `niftyreg`
+
+- On 2026-03-26, `./build.sh niftyreg` was run on an `aarch64` host.
+- Result:
+  - the Docker build completed successfully and produced `niftyreg:1.4.0`
+  - a follow-up runtime smoke check with `docker run --rm niftyreg:1.4.0 bash -lc 'command -v reg_aladin && reg_aladin -h | head -n 5'` confirmed the binary is present and starts normally
+  - `docker image inspect niftyreg:1.4.0 --format '{{.Architecture}} {{.Os}}'` reported:
+    `arm64 linux`
+- Scope note: this is a successful recipe-level arm64 build and smoke-check result for `niftyreg`; no recipe changes were required.
 
 ### Recipe-level full test check: `xnat`
 

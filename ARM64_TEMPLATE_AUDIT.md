@@ -207,6 +207,23 @@ These changes are now in this repo and should be used as the new baseline for ar
 - Verified rerun result: the same `./test.sh hnncore` invocation then passed cleanly with `68/68` tests passing in `107.0s`.
 - Scope note: this closes a recipe YAML/fulltest mismatch for `hnncore` without rebuilding the image; it does not change the recipe's declared `architectures: [x86_64]`.
 
+### Recipe-level full test check: `dsistudio`
+
+- On 2026-03-26, `./test.sh dsistudio` was run against the existing local `dsistudio:2024.06.12` image on an `aarch64` host without rebuilding the Docker image.
+- Initial result: `24/83` tests passed, but that result was misleading.
+- Cause:
+  - `neurocontainers/recipes/dsistudio/fulltest.yaml` appended `|| true` to many `dsi_studio` commands, which masked command failures and made an unusable arm64 runtime look partially healthy
+  - direct execution of the installed binary confirmed the underlying runtime problem:
+    `/bin/sh: 1: dsi_studio: Exec format error`
+- Fix landed in recipe YAML only: remove the `|| true` fallbacks from `neurocontainers/recipes/dsistudio/fulltest.yaml` so DSI Studio command exit codes propagate normally during the full test run.
+- Verified rerun result:
+  - the same `./test.sh dsistudio` invocation now fails with `6/83` tests passing in `22.8s`
+  - the rerun consistently surfaces the real DSI Studio runtime failure (`126` / `Exec format error`) instead of converting it into false-positive passes
+- Current remaining blockers after this fix:
+  - the existing image's `dsi_studio` binary is not executable on arm64
+  - several atlas/template path assertions also fail because the expected packaged files are not present in this runtime image
+- Scope note: this closes a recipe YAML/fulltest masking issue for `dsistudio`; it does not make the recipe arm64-ready.
+
 ### Template-level build check: `bids_validator/binaries`
 
 - On 2026-03-26, `./build.sh bidscoin` on an `aarch64` host failed in the shared `bids_validator` template before `npm install` started.

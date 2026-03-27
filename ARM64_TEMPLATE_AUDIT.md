@@ -1639,6 +1639,13 @@ These changes are now in this repo and should be used as the new baseline for ar
   - rerunning `./test.sh fitlins` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `5/5` tests in `5.2s`
 - Scope note: this follow-up strengthens the no-rebuild fulltest to validate the current Python runtime version in the existing image.
 
+- Follow-up on 2026-03-28:
+  - the same `neurocontainers/recipes/fitlins/fulltest.yaml` suite still used a weak launcher check, only asserting that `command -v fitlins` returned a path
+  - the recipe YAML was tightened to validate the shipped CLI behavior instead, by checking the help text from:
+    `fitlins --help`
+  - rerunning `./test.sh fitlins` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `5/5` tests in `10.8s`
+- Scope note: this follow-up strengthens the no-rebuild `fitlins` fulltest to validate the actual installed launcher behavior, not just that the executable exists on `PATH`.
+
 ### Recipe-level full test check: `fsqc`
 
 - On 2026-03-28, `./test.sh fsqc` was run against the existing local `fsqc:2.1.4` image on an `aarch64` host without rebuilding the Docker image.

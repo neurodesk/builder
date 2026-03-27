@@ -985,6 +985,12 @@ These changes are now in this repo and should be used as the new baseline for ar
     `/opt/itksnap-4.2.2/bin/c3d: cannot execute binary file: Exec format error`
 - Scope note: this closes a recipe YAML/fulltest signal-quality issue for `itksnap`; it does not make the packaged ITK-SNAP toolchain arm64-ready.
 
+- Follow-up on 2026-03-28:
+  - `neurocontainers/recipes/itksnap/fulltest.yaml` still pointed at the old dated SIF name `itksnap_4.4.0_20260117.simg`, while the current `./test.sh` path generates `sifs/itksnap_4.4.0.simg`
+  - the recipe YAML was updated to use `container: itksnap_4.4.0.simg`
+  - rerunning `./test.sh itksnap` against the existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` produced the same immediate setup failure: `c3d launcher failed during setup (exit 126)` with `0/0` tests run
+- Scope note: this follow-up closes the stale fulltest metadata for the current no-rebuild wrapper path; it does not change the existing arm64 runtime incompatibility.
+
 ### Recipe-level full test check: `mricrogl`
 
 - On 2026-03-27, `./test.sh mricrogl` was run against an existing local MRIcroGL image on an `aarch64` host without rebuilding the Docker image.

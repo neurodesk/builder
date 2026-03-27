@@ -726,7 +726,16 @@ These changes are now in this repo and should be used as the new baseline for ar
   - that rerun progressed through Miniconda bootstrap, `conda install -n base conda-libmamba-solver`, and `conda init bash`
   - the remaining failure is now later and narrower, in the template-managed environment creation step:
     `CondaValueError: 'base' is a reserved environment name`
-- Scope note: this pass closes one concrete recipe-side Miniconda architecture blocker for `fitlins` on arm64 and moves the build into the current Conda env-creation issue in this recipe path. A final successful arm64 image was not produced in this pass.
+- Second fix landed in recipe YAML:
+  - set the Miniconda template env in `neurocontainers/recipes/fitlins/build.yaml` to `env_name: fitlins` with `env_exists: "false"`
+- Verified rerun result after second fix:
+  - the next rerun progressed through Miniconda bootstrap, `conda create --name fitlins`, and cleanup of the new template-managed environment
+  - the remaining failure is now later and narrower, in the recipe's own pinned package install step:
+    `conda install mkl=2021.4 mkl-service=2.4 numpy=1.21 scipy=1.8 networkx=2.7 scikit-learn=1.0 scikit-image matplotlib=3.5 seaborn=0.11 pytables=3.6 pandas=1.3 pytest nbformat nb_conda traits=6.2`
+  - the concrete solver error reported by the rerun is:
+    `LibMambaUnsatisfiableError`
+    `package scipy-1.8.1-py39hc77f23a_3 is excluded by strict repo priority`
+- Scope note: this pass closes two concrete recipe-side Miniconda blockers for `fitlins` on arm64 and moves the build into the recipe's pinned Conda dependency set under strict channel priority. A final successful arm64 image was not produced in this pass.
 
 ### Recipe-level full test check: `eharmonize`
 

@@ -1357,6 +1357,17 @@ These changes are now in this repo and should be used as the new baseline for ar
   - no recipe YAML change was required for this image path
 - Scope note: the existing local `lipsia` image passes its current no-rebuild runtime suite on this arm64 host.
 
+### Recipe-level full test check: `fitlins`
+
+- On 2026-03-28, `./test.sh fitlins` was run against the existing local `fitlins:0.11.0` image on an `aarch64` host without rebuilding the Docker image.
+- Initial failure:
+  - the recipe had no `neurocontainers/recipes/fitlins/fulltest.yaml`, so there was no no-rebuild runtime suite for the existing local image path
+- Fix landed in recipe YAML only:
+  - add a minimal `neurocontainers/recipes/fitlins/fulltest.yaml` that verifies the Miniconda Python runtime, `fitlins` import/version, the `fitlins` launcher on `PATH`, `pip show fitlins`, and the installed module path under `/opt/miniconda/lib/python3.9/site-packages`
+- Verified rerun result:
+  - with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp`, rerunning `./test.sh fitlins` on the same existing image passed `5/5` tests in `5.5s`
+- Scope note: this adds and validates a minimal no-rebuild runtime suite for the existing arm64 `fitlins:0.11.0` image path.
+
 ### Template-level build check: `bids_validator/binaries`
 
 - On 2026-03-26, `./build.sh bidscoin` on an `aarch64` host failed in the shared `bids_validator` template before `npm install` started.

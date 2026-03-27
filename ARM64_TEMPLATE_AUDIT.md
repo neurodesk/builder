@@ -651,6 +651,19 @@ These changes are now in this repo and should be used as the new baseline for ar
     `python -m pip install --no-cache-dir topaz-em==0.2.5`
   - I stopped that rerun while the heavy dependency install was still active, after it had already started downloading the real arm64 package set including `topaz_em-0.2.5`, `torch-2.11.0-cp310-cp310-manylinux_2_28_aarch64.whl`, `numpy-2.2.6-cp310-cp310-...`, and `scikit_learn-1.7.2-cp310-cp310-...`
 - Scope note: this pass closes four concrete recipe-side blockers for `topaz` on arm64 and moves the build into the intended Python 3.10 env-local package installation path. A final successful arm64 image was not produced in this pass.
+- Revalidation note:
+  - a fresh rerun of `BUILDKIT_PROGRESS=plain ./build.sh topaz` on the same `aarch64` host reached the same env-local install path again:
+    `source activate topaz`
+    `python -m pip install --no-cache-dir topaz-em==0.2.5`
+  - the old solver blockers remain closed: the rerun did not revisit the previous `python=3.6` / `cudatoolkit=10.2` `LibMambaUnsatisfiableError`
+  - before I stopped the rerun, the active downloads were the expected large upstream wheel set for that path, including:
+    `topaz_em-0.2.5`
+    `torch-2.11.0-cp310-cp310-manylinux_2_28_aarch64.whl`
+    `nvidia_cudnn_cu13-9.19.0.56`
+    `nvidia_cusparselt_cu13-0.8.0`
+    `nvidia_nccl_cu13-2.28.9`
+    `triton-3.6.0`
+  - there is still no finalized `topaz:0.2.5` image from this path because the rerun was stopped while the heavy pip dependency install was still active
 
 ### Recipe-level build check: `vesselvio`
 

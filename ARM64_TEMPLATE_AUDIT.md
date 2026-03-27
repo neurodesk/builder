@@ -250,8 +250,26 @@ These changes are now in this repo and should be used as the new baseline for ar
     from `conda create -y -q --name base`
 - Current status after this fix:
   - the original arm64 Miniconda/render issue is fixed
-  - `blastct` still has a separate recipe problem to resolve before the image can complete on arm64, because the recipe asks modern Conda to create a new environment named `base`
-- Scope note: this closes one concrete arm64 build/render issue for `blastct` by making the recipe render the correct Miniconda installer for arm64 hosts; the remaining failure is a separate Conda-environment logic issue.
+  - `blastct` still had a separate recipe problem to resolve before the image could complete on arm64, because the recipe asked modern Conda to create a new environment named `base`
+- On 2026-03-27, `./build.sh blastct` was rerun on the same `aarch64` host.
+- Initial failure on that rerun:
+  `CondaValueError: 'base' is a reserved environment name`
+- Cause:
+  - `neurocontainers/recipes/blastct/build.yaml` still rendered the Miniconda template with the default `env_name: base`
+  - the template then emitted `conda create -y -q --name base`, which Conda rejects on current releases
+- Fix landed in recipe YAML:
+  - set `env_name: blastct`
+  - set `env_exists: "false"` so the template creates that named environment explicitly
+  - run the recipe's GitHub package install with `conda run -n blastct ...` so it targets the same environment
+- Verified rerun result:
+  - the regenerated Dockerfile now emits `conda create -y -q --name blastct` instead of `--name base`
+  - rerunning `./build.sh blastct` no longer fails at the reserved-`base` Conda step; it progresses through environment creation on arm64
+  - the same rerun then fails later during pip dependency installation with:
+    `ERROR: Could not find a version that satisfies the requirement SimpleITK==1.2.4`
+- Current remaining blocker after this fix:
+  - the reserved-`base` Conda environment issue is fixed
+  - `blastct` still has a later dependency-resolution problem on arm64 and Python 3.11 because the recipe pins `SimpleITK==1.2.4`, which is not available for the current build environment
+- Scope note: this closes one concrete Conda-environment build issue for `blastct` on arm64; the recipe still has a later Python package compatibility failure to resolve.
 
 ### Recipe-level build check: `megnet`
 

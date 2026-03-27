@@ -815,8 +815,12 @@ These changes are now in this repo and should be used as the new baseline for ar
     `bash -c "source activate fsqc`
     `python -m pip install git+https://github.com/deep-mi/fsqc.git`
   - that confirms the recipe will install the upstream `fsqc` package into the named Conda env instead of escaping back to base
-  - the rerun was still in the earlier apt/Miniconda bootstrap path when I stopped it, so there is not yet a later concrete blocker or a completed image from this pass
-- Scope note: this pass closes three concrete recipe-side build blockers for `fsqc` on arm64. A final successful arm64 image was not produced in this pass.
+  - a later full rerun with `BUILDKIT_PROGRESS=plain ./build.sh fsqc` then progressed through Miniconda bootstrap, `conda create --name fsqc`, the Python 3.13 env install, the pip dependency stack, and the activated-env upstream `fsqc` install, then completed image export as `fsqc:2.1.4`
+- Final verification:
+  - `docker image inspect fsqc:2.1.4 --format '{{.Architecture}} {{.Os}}'` reported `arm64 linux`
+  - `docker run --rm fsqc:2.1.4 /bin/bash -lc 'source /opt/miniconda-latest/etc/profile.d/conda.sh && conda activate fsqc && python -c "import fsqc; print(fsqc.__file__)"'` succeeded and reported:
+    `/opt/miniconda-latest/envs/fsqc/lib/python3.13/site-packages/fsqc/__init__.py`
+- Scope note: this pass closes three concrete recipe-side build blockers for `fsqc` on arm64 and ends with a successful `fsqc:2.1.4` image build on arm64.
 
 ### Recipe-level full test check: `eharmonize`
 

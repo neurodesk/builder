@@ -735,7 +735,16 @@ These changes are now in this repo and should be used as the new baseline for ar
   - the concrete solver error reported by the rerun is:
     `LibMambaUnsatisfiableError`
     `package scipy-1.8.1-py39hc77f23a_3 is excluded by strict repo priority`
-- Scope note: this pass closes two concrete recipe-side Miniconda blockers for `fitlins` on arm64 and moves the build into the recipe's pinned Conda dependency set under strict channel priority. A final successful arm64 image was not produced in this pass.
+- Third fix landed in recipe YAML:
+  - change the recipe's pinned package install in `neurocontainers/recipes/fitlins/build.yaml` to use `conda install --override-channels -c conda-forge ...` so the solve no longer depends on strict mixed-channel priority
+- Verified rerun result after third fix:
+  - the next rerun stayed in the `conda-forge` solve well past the old immediate `scipy ... excluded by strict repo priority` failure, confirming that conflict was removed
+  - the remaining failure is now narrower and later in the same pinned package set:
+    `LibMambaUnsatisfiableError`
+  - the concrete unresolved arm64 package gaps reported by the rerun are:
+    `mkl =2021.4 * does not exist`
+    `mkl-service =2.4 * does not exist`
+- Scope note: this pass closes three concrete recipe-side Miniconda blockers for `fitlins` on arm64 and moves the build into missing arm64 availability for the recipe's pinned MKL-based Conda stack. A final successful arm64 image was not produced in this pass.
 
 ### Recipe-level full test check: `eharmonize`
 

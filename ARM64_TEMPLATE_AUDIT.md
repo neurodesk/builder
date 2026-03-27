@@ -530,6 +530,20 @@ These changes are now in this repo and should be used as the new baseline for ar
   - the generated `sifs/builder_0.2.simg` was created from the existing local Docker image, not from a rebuilt container
 - Scope note: this closes a recipe YAML/fulltest coverage gap for `builder` without rebuilding the image.
 
+### Recipe-level full test check: `template`
+
+- On 2026-03-28, `./test.sh template` was run against the existing local `template:1.1.5` image on an `aarch64` host without rebuilding the Docker image.
+- Initial failure:
+  - the recipe had no `neurocontainers/recipes/template/fulltest.yaml`, so `./test.sh template` stopped immediately with:
+    `Recipe full test file not found: /home/joshua/dev/projects/builder/./neurocontainers/recipes/template/fulltest.yaml`
+- Fix landed in recipe YAML only:
+  - add `neurocontainers/recipes/template/fulltest.yaml`
+  - the new suite configures Git identity in setup, verifies `datalad`, verifies `datalad-container` via `datalad containers-add --help`, creates a dataset under `/tmp`, confirms a clean dataset status, and checks that `python3` is present in the runtime image
+- Verified rerun result:
+  - rerunning `./test.sh template` against the same existing image path then passed cleanly with `5/5` tests passing in `10.5s`
+  - the generated `sifs/template_1.1.5.simg` was created from the existing local Docker image, not from a rebuilt container
+- Scope note: this closes a recipe YAML/fulltest coverage gap for `template` without rebuilding the image.
+
 ### Recipe-level full test check: `xnat`
 
 - On 2026-03-26, `./test.sh xnat` was run against the existing local `xnat:1.9.2.1` image without rebuilding it.

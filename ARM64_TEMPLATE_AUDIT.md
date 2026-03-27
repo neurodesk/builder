@@ -477,6 +477,20 @@ These changes are now in this repo and should be used as the new baseline for ar
   - after clearing the stale leftover tree once, rerunning `./test.sh datalad` still passed cleanly with `5/5` tests passing in `6.5s`
 - Scope note: this follow-up closes a second recipe YAML/fulltest issue for `datalad` by preventing the suite from contaminating the shared runner work directory for later tests.
 
+### Recipe-level full test check: `builder`
+
+- On 2026-03-28, `./test.sh builder` was run against the existing local `builder:0.2` image on an `aarch64` host without rebuilding the Docker image.
+- Initial failure:
+  - the recipe had no `neurocontainers/recipes/builder/fulltest.yaml`, so `./test.sh builder` stopped immediately with:
+    `Recipe full test file not found: /home/joshua/dev/projects/builder/./neurocontainers/recipes/builder/fulltest.yaml`
+- Fix landed in recipe YAML only:
+  - add `neurocontainers/recipes/builder/fulltest.yaml`
+  - the new suite verifies the shipped `sf-make` CLI, its help output and documented `--architecture` flag, plus the presence of `python3` and `apptainer` in the runtime image
+- Verified rerun result:
+  - rerunning `./test.sh builder` against the same existing image path then passed cleanly with `5/5` tests passing in `2.8s`
+  - the generated `sifs/builder_0.2.simg` was created from the existing local Docker image, not from a rebuilt container
+- Scope note: this closes a recipe YAML/fulltest coverage gap for `builder` without rebuilding the image.
+
 ### Recipe-level full test check: `xnat`
 
 - On 2026-03-26, `./test.sh xnat` was run against the existing local `xnat:1.9.2.1` image without rebuilding it.

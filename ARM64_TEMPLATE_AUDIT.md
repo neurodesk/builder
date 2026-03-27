@@ -392,6 +392,24 @@ These changes are now in this repo and should be used as the new baseline for ar
     `exec /opt/convert3d-nightly/bin/c3d: exec format error`
 - Scope note: this closes a recipe YAML/fulltest signal-quality issue for `convert3d`; it does not make the recipe arm64-ready.
 
+### Recipe-level full test check: `itksnap`
+
+- On 2026-03-27, `./test.sh itksnap` was run against an existing local ITK-SNAP image on an `aarch64` host without rebuilding the Docker image.
+- Local image note:
+  - the current recipe metadata expects `itksnap:4.4.0`, but the existing local runnable test target available in this workspace was `itksnap:4.2.2`
+  - that existing image was temporarily tagged as `itksnap:4.4.0` so `./test.sh itksnap` could exercise the current recipe/fulltest path without rebuilding
+- Initial result: `0/105` tests passed in `24.2s`.
+- Cause:
+  - direct runtime probes on the existing image showed both `itksnap` and `c3d` fail immediately on arm64 with `Exec format error`
+  - `neurocontainers/recipes/itksnap/fulltest.yaml` had no early launcher preflight, so one startup incompatibility expanded into 105 failed or skipped checks across `itksnap`, `c3d`, `greedy`, and `c3d_affine_tool`
+- Fix landed in recipe YAML only: add a setup-time `c3d --help` preflight in `neurocontainers/recipes/itksnap/fulltest.yaml` so the suite stops immediately when the packaged toolchain is not executable on arm64.
+- Verified rerun result:
+  - rerunning `./test.sh itksnap` against the same existing image path then fails immediately in setup with one clear launcher failure instead of 105 follow-on failures
+  - the rerun reports:
+    `Setup failed (exit 126): c3d launcher failed during setup (exit 126)`
+    `/opt/itksnap-4.2.2/bin/c3d: cannot execute binary file: Exec format error`
+- Scope note: this closes a recipe YAML/fulltest signal-quality issue for `itksnap`; it does not make the packaged ITK-SNAP toolchain arm64-ready.
+
 ### Recipe-level full test check: `xnat`
 
 - On 2026-03-26, `./test.sh xnat` was run against the existing local `xnat:1.9.2.1` image without rebuilding it.

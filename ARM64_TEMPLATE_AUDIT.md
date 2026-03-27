@@ -783,6 +783,22 @@ These changes are now in this repo and should be used as the new baseline for ar
     `0.11.0`
 - Scope note: this pass closes seven concrete recipe-side blockers for `fitlins` on arm64 and produces a successful arm64 image, but it also removes the recipe's previous AFNI install step because that dependency is not available from the current arm64 Conda channels used here.
 
+### Recipe-level build check: `fsqc`
+
+- On 2026-03-28, `./build.sh fsqc` was run on an `aarch64` host.
+- Initial issue observed:
+  - the recipe declared only `x86_64`, so the rendered Miniconda template selected the x86_64 installer URL:
+    `https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh`
+  - that is the wrong architecture for this host and blocks meaningful arm64 build progress in the Miniconda bootstrap path
+- Fix landed in recipe YAML:
+  - add `aarch64` to `neurocontainers/recipes/fsqc/build.yaml`
+- Verified rerun result:
+  - the next rerun switched the rendered Miniconda template to the arm64 installer URL:
+    `https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh`
+  - that confirms the recipe is no longer taking the wrong-architecture Miniconda path on arm64
+  - the rerun was still in the Miniconda installer stage when I stopped it, so there is not yet a later concrete blocker or a completed image from this pass
+- Scope note: this pass closes one concrete recipe-side Miniconda architecture blocker for `fsqc` on arm64. A final successful arm64 image was not produced in this pass.
+
 ### Recipe-level full test check: `eharmonize`
 
 - On 2026-03-28, `./test.sh eharmonize` was run against the existing local `eharmonize:1.0.0` image on an `aarch64` host without rebuilding the Docker image.

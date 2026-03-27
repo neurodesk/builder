@@ -313,6 +313,32 @@ These changes are now in this repo and should be used as the new baseline for ar
   - the generated `sifs/blastct_2.0.0.simg` was created from the existing local Docker image, not from a rebuilt container
 - Scope note: this closes a recipe YAML/fulltest coverage gap for `blastct` without rebuilding the image.
 
+### Recipe-level build check: `brainlesion`
+
+- On 2026-03-28, `./build.sh brainlesion` was run on an `aarch64` host.
+- Initial failure:
+  `conda: not found`
+- Cause:
+  - `neurocontainers/recipes/brainlesion/build.yaml` only declared `architectures: [x86_64]`
+  - because of that, the shared `miniconda` template rendered the x86_64 installer on an arm64 host, and the later conda configuration step failed because a usable arm64 `conda` was never installed
+- Fix landed in recipe YAML:
+  - add `aarch64` as a declared recipe architecture in `neurocontainers/recipes/brainlesion/build.yaml`
+- Verified rerun result:
+  - the regenerated Dockerfile now stages `https://repo.anaconda.com/miniconda/Miniconda3-py310_25.5.1-0-Linux-aarch64.sh` instead of the x86_64 installer
+  - rerunning `./build.sh brainlesion` no longer fails at `conda: not found`; it progresses through the Miniconda bootstrap on arm64
+- Follow-on issue uncovered while fixing the same path:
+  - the recipe still used the Miniconda template defaults, so the rerun then failed at:
+    `CondaValueError: 'base' is a reserved environment name`
+    from `conda create -y -q --name base`
+- Additional fix landed in recipe YAML:
+  - set `env_name: brainlesion`
+  - set `env_exists: "false"` so the template creates that named environment explicitly
+- Verified follow-up rerun result:
+  - the regenerated Dockerfile now emits `conda create -y -q --name brainlesion` instead of `--name base`
+  - rerunning `./build.sh brainlesion` gets through environment creation and into the real pip dependency install for the recipe's package set on arm64
+  - the follow-up run was stopped while pip was still downloading and resolving large dependencies, including arm64 wheels for `torch` and related packages, so there is not yet a finalized `brainlesion:1.0.0` image from this pass
+- Scope note: this closes two concrete recipe-side arm64 build issues for `brainlesion` by rendering the correct Miniconda installer and removing the reserved-`base` env failure; any later dependency-resolution or package-compatibility blockers remain to be closed out in a future run.
+
 ### Recipe-level build check: `amico`
 
 - On 2026-03-27, `./build.sh amico` was run on an `aarch64` host.

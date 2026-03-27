@@ -576,6 +576,12 @@ These changes are now in this repo and should be used as the new baseline for ar
 - Runtime note:
   - importing `segmentator` emits an upstream `pkg_resources` deprecation warning from the packaged Python code before normal module import completes
   - this did not block build or execution, so it was not treated as the build issue for this audit pass
+- Revalidation note:
+  - a fresh rerun of `BUILDKIT_PROGRESS=plain ./build.sh segmentator` on the same `aarch64` host completed cleanly again and rebuilt `segmentator:1.6.1` from cache
+  - `docker image inspect segmentator:1.6.1 --format '{{.Id}} {{.Architecture}} {{.Os}}'` reported:
+    `sha256:8763a48fa65f227bf330d63a0ca0896e610fc3c70784ac28cb14f640102b665f arm64 linux`
+  - the same runtime smoke check still succeeded and resolved `segmentator` from:
+    `/opt/segmentator/segmentator/__init__.py`
 - Scope note: this pass closes three more concrete recipe-side blockers for `segmentator` on arm64, including the NumPy 2.x incompatibility, and ends with a successful `segmentator:1.6.1` image build on arm64.
 
 ### Recipe-level build check: `spmpython`

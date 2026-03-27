@@ -696,7 +696,17 @@ These changes are now in this repo and should be used as the new baseline for ar
   - the next rerun progressed through arm64 Miniconda bootstrap, `conda update -n base conda`, `conda install -n base conda-libmamba-solver`, and `conda init bash`
   - the remaining failure is now later and narrower, in the template-managed environment creation step:
     `CondaValueError: 'base' is a reserved environment name`
-- Scope note: this pass closes two concrete recipe-side Miniconda blockers for `mne` on arm64 and moves the build into the current Conda env-creation issue in this recipe path. A final successful arm64 image was not produced in this pass.
+- Third fix landed in recipe YAML:
+  - change the Miniconda template env in `neurocontainers/recipes/mne/build.yaml` from `env_name: base` to `env_name: mne` and set `env_exists: "false"`
+- Verified rerun result after third fix:
+  - the next rerun progressed through arm64 Miniconda bootstrap, `conda create --name mne`, and cleanup of the new template-managed environment
+  - the remaining failure is now later and narrower, in the recipe's own `mamba` install step:
+    `LibMambaUnsatisfiableError`
+  - the concrete conflict reported by the rerun is:
+    `package mamba-0.24.0-py310hcf12e44_1 requires python >=3.10,<3.11.0a0 *_cpython`
+    while the current Miniconda base environment is pinned to:
+    `python=3.13`
+- Scope note: this pass closes three concrete recipe-side Miniconda blockers for `mne` on arm64 and moves the build into the recipe's pinned old-`mamba` dependency conflict. A final successful arm64 image was not produced in this pass.
 
 ### Recipe-level full test check: `eharmonize`
 

@@ -566,6 +566,39 @@ These changes are now in this repo and should be used as the new baseline for ar
   - the rerun was still actively downloading/installing that package stack when I stopped it, so there is not yet a finalized `spmpython:25.1.2.post1` image recorded from this pass
 - Scope note: this closes two concrete recipe-side Miniconda blockers for `spmpython` on arm64 and moves the build into the real upstream pip install path; any later package or runtime issues remain to be closed out in a future run.
 
+### Recipe-level build check: `topaz`
+
+- On 2026-03-28, `./build.sh topaz` was run on an `aarch64` host.
+- Initial failure:
+  - the recipe declared only `x86_64`, so the rendered Miniconda template downloaded the x86_64 installer:
+    `https://repo.anaconda.com/miniconda/Miniconda3-4.7.12.1-Linux-x86_64.sh`
+  - that installer failed on arm64 with:
+    `/opt/miniconda-4.7.12.1/conda.exe: cannot execute binary file: Exec format error`
+  - later template steps then failed with:
+    `/bin/sh: 1: conda: not found`
+- First fix landed in recipe YAML:
+  - add `aarch64` to `neurocontainers/recipes/topaz/build.yaml`
+- Second failure after rerun:
+  - once the arm64 Miniconda path was active, the recipe's pinned installer version no longer existed for arm64:
+    `curl: (22) The requested URL returned error: 404`
+  - the rendered URL was:
+    `https://repo.anaconda.com/miniconda/Miniconda3-4.7.12.1-Linux-aarch64.sh`
+- Second fix landed in recipe YAML:
+  - change the Miniconda template version in `neurocontainers/recipes/topaz/build.yaml` from `4.7.12.1` to `latest`
+- Third failure after rerun:
+  - with a current arm64 installer in place, the build progressed into the template-managed environment creation step and failed with:
+    `CondaValueError: 'base' is a reserved environment name`
+- Third fix landed in recipe YAML:
+  - set `env_name: topaz` and `env_exists: "false"` in the Miniconda template block in `neurocontainers/recipes/topaz/build.yaml`
+- Verified rerun result:
+  - the next rerun progressed through arm64 Miniconda bootstrap, `conda update -n base conda`, `conda create --name topaz`, and into the real package solve for:
+    `python=3.6 topaz=0.2.5 cudatoolkit=10.2 -c tbepler -c pytorch`
+  - the remaining failure is now later and narrower:
+    `LibMambaUnsatisfiableError`
+    `nothing provides openssl >=1.0.2p,<1.0.3a needed by python-3.6.7`
+    `cudatoolkit =10.2 * does not exist`
+- Scope note: this pass closes three concrete recipe-side Miniconda blockers for `topaz` on arm64 and moves the build into the recipe's old Conda package constraints; a final successful arm64 image was not produced in this pass.
+
 ### Recipe-level full test check: `eharmonize`
 
 - On 2026-03-28, `./test.sh eharmonize` was run against the existing local `eharmonize:1.0.0` image on an `aarch64` host without rebuilding the Docker image.

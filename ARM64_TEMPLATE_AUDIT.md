@@ -31,7 +31,7 @@ Status meanings:
 | `neurodebian` | `binaries` | Fails | Broken key import: `gpg: no valid OpenPGP data found` |
 | `ndfreeze` | `source` | Fails | Build stalls/fails during `nd_freeze 2024-01-01` apt refresh |
 | `dcm2niix` | `binaries` | Fails | Binary payload is wrong architecture; runtime `Exec format error` |
-| `convert3d` | `binaries` | Fails | Downloads x86_64 tarball; runtime `Exec format error` |
+| `convert3d` | `binaries` | Fails | Recipe build completes on arm64, but the staged nightly payload is x86_64-only; runtime `Exec format error`. Upstream `Linux-gcc64` nightly inspected on 2026-03-27 is also x86_64 |
 | `matlabmcr` | `binaries` | Fails by design | Upstream is x86_64-only |
 | `ants` | `source` | Unknown | `./build.sh ants` on arm64 rendered and compiled cleanly through upstream ITK/ANTs build stages past 80%, but a full clean completion was not captured yet |
 | `mrtrix3` | `source` | Unknown | Still needs a clean final arm64 run |
@@ -252,6 +252,21 @@ These changes are now in this repo and should be used as the new baseline for ar
   - the original arm64 Miniconda/render issue is fixed
   - `blastct` still has a separate recipe problem to resolve before the image can complete on arm64, because the recipe asks modern Conda to create a new environment named `base`
 - Scope note: this closes one concrete arm64 build/render issue for `blastct` by making the recipe render the correct Miniconda installer for arm64 hosts; the remaining failure is a separate Conda-environment logic issue.
+
+### Recipe-level build check: `convert3d`
+
+- On 2026-03-27, `./build.sh convert3d` was run on an `aarch64` host.
+- Build result:
+  - the Docker build completed successfully and produced `convert3d:1.1.0`
+  - `docker image inspect convert3d:1.1.0 --format '{{.Architecture}} {{.Os}}'` reports an arm64 Linux image
+- Runtime smoke check result:
+  - `docker run --rm convert3d:1.1.0 c3d -version` failed immediately with:
+    `exec /opt/convert3d-nightly/bin/c3d: exec format error`
+- Cause:
+  - the rendered Dockerfile still downloads `https://sourceforge.net/projects/c3d/files/c3d/Nightly/c3d-nightly-Linux-x86_64.tar.gz/download`
+  - inspection of the downloaded upstream nightly payload confirms `c3d` and `c3d_affine_tool` are `ELF 64-bit ... x86-64`
+  - inspection of the newer upstream `c3d-nightly-Linux-gcc64.tar.gz` payload on 2026-03-27 also showed `ELF 64-bit ... x86-64`, so it is not an arm64 replacement
+- Scope note: `convert3d` currently has no validated upstream arm64 binary artifact in this template path. The recipe-level arm64 build succeeds, but the bundled runtime remains unusable on arm64 because the installed payload is still x86_64-only.
 
 ### Recipe-level full test check: `xnat`
 

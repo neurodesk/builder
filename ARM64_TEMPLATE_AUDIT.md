@@ -1288,6 +1288,13 @@ These changes are now in this repo and should be used as the new baseline for ar
   - rerunning `./test.sh template` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `5/5` tests in `5.2s`
 - Scope note: this follow-up strengthens the no-rebuild fulltest to validate the current DataLad runtime version in the existing image.
 
+- Follow-up on 2026-03-28:
+  - the same `template` fulltest still used a broad Python assertion, only checking that `python3 --version` contained `Python 3.`
+  - the recipe YAML was tightened again to assert the shipped interpreter version from the existing runtime image instead:
+    `Python 3.11.2`
+  - rerunning `./test.sh template` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `5/5` tests in `5.1s`
+- Scope note: this follow-up strengthens the no-rebuild `template` fulltest to validate the exact shipped Python runtime version in the existing image.
+
 ### Recipe-level full test check: `xnat`
 
 - On 2026-03-26, `./test.sh xnat` was run against the existing local `xnat:1.9.2.1` image without rebuilding it.

@@ -629,6 +629,12 @@ These changes are now in this repo and should be used as the new baseline for ar
   - the rerun reports:
     `Setup failed (exit 126): antsRegistration launcher failed during setup (exit 126)`
     `/opt/ants-2.4.3/antsRegistration: cannot execute binary file: Exec format error`
+- Follow-up on 2026-03-28:
+  - `neurocontainers/recipes/ants/fulltest.yaml` still had stale metadata from the older `2.6.0` recipe state even though `neurocontainers/recipes/ants/build.yaml` is now `2.6.5`
+  - the fulltest metadata was aligned to the current recipe (`version: 2.6.5`, `container: ants_2.6.5.simg`)
+  - rerunning `./test.sh ants` after that YAML-only metadata fix produced the same immediate setup failure on the existing image path:
+    `Setup failed (exit 126): antsRegistration launcher failed during setup (exit 126)`
+    `/opt/ants-2.4.3/antsRegistration: cannot execute binary file: Exec format error`
 - Scope note: this closes a recipe YAML/fulltest signal-quality issue for `ants`; it does not make the packaged ANTs binaries arm64-ready.
 
 ### Recipe-level full test check: `convert3d`

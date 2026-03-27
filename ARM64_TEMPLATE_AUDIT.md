@@ -1,6 +1,6 @@
 # ARM64 Template Audit
 
-Last updated: 2026-03-27
+Last updated: 2026-03-28
 
 This document tracks:
 
@@ -277,6 +277,26 @@ These changes are now in this repo and should be used as the new baseline for ar
   - the reserved-`base` Conda environment issue is fixed
   - `blastct` still has a later dependency-resolution problem on arm64 and Python 3.11 because the recipe pins `SimpleITK==1.2.4`, which is not available for the current build environment
 - Scope note: this closes one concrete Conda-environment build issue for `blastct` on arm64; the recipe still has a later Python package compatibility failure to resolve.
+
+- On 2026-03-28, `./build.sh blastct` was rerun on the same `aarch64` host.
+- Initial failure on that rerun:
+  `ERROR: Could not find a version that satisfies the requirement SimpleITK==1.2.4`
+- Cause:
+  - `neurocontainers/recipes/blastct/build.yaml` still pinned `SimpleITK==1.2.4` in the Miniconda template's `pip_install`, but that version is not available for this Python 3.11 arm64 environment
+  - the recipe also installed `blast-ct` directly from GitHub afterwards, so leaving dependency resolution enabled there would have reintroduced the same incompatible upstream pin
+- Fix landed in recipe YAML:
+  - replace the unavailable `SimpleITK==1.2.4` pin with `SimpleITK==2.4.1`
+  - add `tensorboard` to the explicitly managed pip dependencies so the recipe still provides the package set expected by upstream
+  - change the later GitHub install step to `pip install --no-deps` because the recipe now supplies those dependencies itself
+- Verified rerun result:
+  - rerunning `./build.sh blastct` completes successfully and produces `blastct:2.0.0`
+  - `docker image inspect blastct:2.0.0 --format '{{.Architecture}} {{.Os}}'` reports:
+    `arm64 linux`
+  - a follow-up runtime smoke check with `docker run --rm blastct:2.0.0 python3 -c 'import blast_ct; print(blast_ct.__file__)'` confirms the package imports from:
+    `/opt/miniconda/lib/python3.11/site-packages/blast_ct/__init__.py`
+  - `docker run --rm blastct:2.0.0 python3 -c 'import SimpleITK as sitk; print(sitk.Version_VersionString())'` reports:
+    `2.4.1`
+- Scope note: this closes the remaining Python package compatibility blocker for `blastct` in this arm64 build path; the recipe now builds and imports successfully on arm64 in this environment.
 
 ### Recipe-level build check: `amico`
 

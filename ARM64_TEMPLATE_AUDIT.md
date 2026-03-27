@@ -778,9 +778,13 @@ These changes are now in this repo and should be used as the new baseline for ar
   - the previous arm64 blocker:
     `code:amd64 : Depends: ... but it is not installable`
     is gone
-  - the patched rerun installed `code arm64 1.113.0-1774364715`, completed the VS Code extension-install layer, unpacked `mne-bids-pipeline-main`, and reached Docker's final image export path
-  - I interrupted that rerun while Docker was still quiet in final export/unpack, so there is not yet a finalized `mne:1.7.1` image recorded from this pass
-- Scope note: this pass closes five concrete recipe-side blockers for `mne` on arm64 and moves the build through the MNE env creation and VS Code install paths into final image export. A final successful arm64 image was not produced in this pass.
+  - the patched rerun installed `code arm64 1.113.0-1774364715`, completed the VS Code extension-install layer, unpacked `mne-bids-pipeline-main`, and completed Docker image export as `mne:1.7.1`
+  - verification:
+    `docker image inspect mne:1.7.1` reported `arm64 linux`
+    and
+    `docker run --rm mne:1.7.1 /bin/bash -lc 'source /opt/miniconda-latest/etc/profile.d/conda.sh && conda activate mne-1.7.1 && python -c "import mne; print(mne.__version__)"'`
+    printed `1.7.1`
+- Scope note: this pass closes five concrete recipe-side blockers for `mne` on arm64 and now produces a verified successful `mne:1.7.1` arm64 image.
 
 ### Recipe-level build check: `fitlins`
 

@@ -1339,6 +1339,14 @@ These changes are now in this repo and should be used as the new baseline for ar
   - rerunning `./test.sh template` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `5/5` tests in `5.1s`
 - Scope note: this follow-up strengthens the no-rebuild `template` fulltest to validate the exact shipped Python runtime version in the existing image.
 
+- Follow-up on 2026-03-28:
+  - the same `neurocontainers/recipes/template/fulltest.yaml` suite still used a broad `datalad containers-add --help` assertion, only checking the descriptive sentence:
+    `Add a container to a dataset`
+  - the recipe YAML was tightened to validate the shipped command surface instead, by checking the help usage line:
+    `Usage: datalad containers-add`
+  - rerunning `./test.sh template` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `5/5` tests in `4.9s`
+- Scope note: this follow-up strengthens the no-rebuild `template` fulltest to validate the actual `datalad containers-add` help surface in the existing image.
+
 ### Recipe-level full test check: `xnat`
 
 - On 2026-03-26, `./test.sh xnat` was run against the existing local `xnat:1.9.2.1` image without rebuilding it.

@@ -1191,6 +1191,12 @@ These changes are now in this repo and should be used as the new baseline for ar
   - several atlas/template path assertions also fail because the expected packaged files are not present in this runtime image
 - Scope note: this closes a recipe YAML/fulltest masking issue for `dsistudio`; it does not make the recipe arm64-ready.
 
+- Follow-up on 2026-03-28:
+  - `neurocontainers/recipes/dsistudio/fulltest.yaml` still pointed at the old dated SIF name `dsistudio_2024.06.12_20241010.simg`, while the current `./test.sh` path generates `sifs/dsistudio_2024.06.12.simg`
+  - the recipe YAML was updated to use `container: dsistudio_2024.06.12.simg`
+  - rerunning `./test.sh dsistudio` against the existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` reproduced the same runtime shape at `6/83` tests failed in `21.9s`
+- Scope note: this follow-up closes the stale fulltest metadata for the current no-rebuild wrapper path; it does not change the existing arm64 runtime incompatibility.
+
 ### Recipe-level full test check: `qupath`
 
 - On 2026-03-26, `./test.sh qupath` was run against the existing local `qupath:0.6.0` image on an `aarch64` host without rebuilding the Docker image.

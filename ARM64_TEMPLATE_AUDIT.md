@@ -543,12 +543,24 @@ These changes are now in this repo and should be used as the new baseline for ar
 - Fifth fix landed in recipe YAML:
   - run the editable install inside the activated env with:
     `bash -c "source activate segmentator && python -m pip install -e /opt/segmentator"`
-- Verified rerun result:
-  - after those YAML fixes, the build progressed through Miniconda setup, `conda create --name segmentator`, the modernized Conda dependency install, the corrected `compoda==0.3.5` pip install, and the recipe unpack step
-  - the remaining failure is now later and narrower, during editable install of the upstream `segmentator` source tree:
+- Sixth failure after rerun:
+  - once the editable install was moved into the activated env, pip's isolated editable-build metadata phase still could not see the already-installed `numpy` dependency and failed with:
     `ModuleNotFoundError: No module named 'numpy'`
-    from pip's isolated editable-build metadata phase
-- Scope note: this pass closes multiple concrete arm64 recipe-YAML blockers for `segmentator` and moves the build from immediate Conda/template failure into the upstream package's editable-install/build-isolation problem. A final successful arm64 image was not produced in this pass.
+- Sixth fix landed in recipe YAML:
+  - disable pip build isolation for the editable install so the upstream build uses the existing Conda env dependencies:
+    `bash -c "source activate segmentator && python -m pip install --no-build-isolation -e /opt/segmentator"`
+- Seventh failure after rerun:
+  - once pip build isolation was disabled, the upstream C extension build started and failed because the image had no compiler toolchain:
+    `error: command 'gcc' failed: No such file or directory`
+- Seventh fix landed in recipe YAML:
+  - add a `run` step to install `build-essential` before the editable install stage
+- Verified rerun result:
+  - after those YAML fixes, the build progressed through Miniconda setup, `conda create --name segmentator`, the modernized Conda dependency install, the corrected `compoda==0.3.5` pip install, native toolchain installation, and the editable install's C-extension compile step
+  - the remaining failure is now later and narrower, inside the upstream `segmentator` extension build against the current NumPy API, including:
+    `error: ‘PyArray_Descr’ {aka ‘struct _PyArray_Descr’} has no member named ‘subarray’`
+    and later:
+    `error: command '/usr/bin/gcc' failed with exit code 1`
+- Scope note: this pass closes two more concrete recipe-YAML blockers for `segmentator` on arm64 and moves the build from editable-install isolation/compiler failures into an upstream C-extension compatibility problem. A final successful arm64 image was not produced in this pass.
 
 ### Recipe-level build check: `spmpython`
 

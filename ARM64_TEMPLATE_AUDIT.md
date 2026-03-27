@@ -953,6 +953,12 @@ These changes are now in this repo and should be used as the new baseline for ar
   - `docker image inspect fsqc:2.1.4 --format '{{.Architecture}} {{.Os}}'` reported `arm64 linux`
   - `docker run --rm fsqc:2.1.4 /bin/bash -lc 'source /opt/miniconda-latest/etc/profile.d/conda.sh && conda activate fsqc && python -c "import fsqc; print(fsqc.__file__)"'` succeeded and reported:
     `/opt/miniconda-latest/envs/fsqc/lib/python3.13/site-packages/fsqc/__init__.py`
+- Revalidation note:
+  - a fresh rerun of `BUILDKIT_PROGRESS=plain ./build.sh fsqc` on the same `aarch64` host completed cleanly again and rebuilt `fsqc:2.1.4`
+  - `docker image inspect fsqc:2.1.4 --format '{{.Id}} {{.Architecture}} {{.Os}}'` then reported:
+    `sha256:1306332a76a14b73944d3b25b9d2751dba47541ac3731760dd2e4ea7982ecf8c arm64 linux`
+  - the same runtime smoke check still succeeded and resolved `fsqc` from:
+    `/opt/miniconda-latest/envs/fsqc/lib/python3.13/site-packages/fsqc/__init__.py`
 - Scope note: this pass closes three concrete recipe-side build blockers for `fsqc` on arm64 and ends with a successful `fsqc:2.1.4` image build on arm64.
 
 ### Recipe-level full test check: `eharmonize`

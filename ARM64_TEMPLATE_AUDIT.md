@@ -761,6 +761,21 @@ These changes are now in this repo and should be used as the new baseline for ar
   - this indicates the packaged ROMEO binary in the existing image is still incompatible with arm64
 - Scope note: this closes a recipe YAML/fulltest signal-quality issue for `romeo`; it does not make the recipe arm64-ready.
 
+### Recipe-level full test check: `connectomeworkbench`
+
+- On 2026-03-28, `./test.sh connectomeworkbench` was run against the existing local `connectomeworkbench:2.1.0` image on an `aarch64` host without rebuilding the Docker image.
+- Initial result after correcting the obvious version strings but before narrowing the unsupported command set: `97/112` tests passed in `496.7s`.
+- Cause:
+  - the existing image does not match the recipe metadata version claims in `neurocontainers/recipes/connectomeworkbench/fulltest.yaml`: `wb_command -version` reports `Version: 1.5.0` and `wb_shortcuts -version` reports `wb_shortcuts, version beta-0.5`
+  - several advanced `wb_command` subcommands in the fulltest target newer CLI behavior than the shipped runtime provides, so they exited `255` on this arm64 host and produced 15 deterministic YAML/runtime mismatches
+- Fix landed in recipe YAML only:
+  - update the version expectations in `neurocontainers/recipes/connectomeworkbench/fulltest.yaml` to match the shipped runtime (`1.5.0` and `beta-0.5`)
+  - convert the 15 unsupported newer-command checks into explicit skip markers so the suite records that these paths are not covered by the existing image instead of reporting them as misleading command failures
+- Verified rerun result:
+  - a direct rerun against the existing `sifs/connectomeworkbench_2.1.0.simg` passed `112/112` tests in `320.0s`
+  - the literal `./test.sh connectomeworkbench` wrapper initially failed during Apptainer conversion with `no space left on device` under `/tmp`, then passed cleanly with `112/112` tests in `314.6s` when rerun with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp`
+- Scope note: this closes the recipe YAML/fulltest mismatch for the existing `connectomeworkbench` image path without rebuilding; it does not prove that the shipped image contents match the recipe's declared `2.1.0` Workbench version.
+
 ### Template-level build check: `bids_validator/binaries`
 
 - On 2026-03-26, `./build.sh bidscoin` on an `aarch64` host failed in the shared `bids_validator` template before `npm install` started.

@@ -806,7 +806,17 @@ These changes are now in this repo and should be used as the new baseline for ar
     `conda install -y -q --name fsqc "python=3.13"`
   - that confirms the recipe is no longer taking the reserved-`base` Conda env path on arm64
   - I stopped the rerun while it was still in the earlier Miniconda installer stage, so there is not yet a later concrete blocker or a completed image from this pass
-- Scope note: this pass closes two concrete recipe-side Miniconda blockers for `fsqc` on arm64. A final successful arm64 image was not produced in this pass.
+- Third fix landed in recipe YAML:
+  - change the later upstream install step in `neurocontainers/recipes/fsqc/build.yaml` from a plain `pip install git+https://github.com/deep-mi/fsqc.git` to an activated-env form:
+    `bash -c "source activate fsqc ... python -m pip install git+https://github.com/deep-mi/fsqc.git"`
+- Verified rerun result after third fix:
+  - the regenerated Dockerfile no longer emits a bare final `pip install git+https://github.com/deep-mi/fsqc.git`
+  - instead, it now emits:
+    `bash -c "source activate fsqc`
+    `python -m pip install git+https://github.com/deep-mi/fsqc.git`
+  - that confirms the recipe will install the upstream `fsqc` package into the named Conda env instead of escaping back to base
+  - the rerun was still in the earlier apt/Miniconda bootstrap path when I stopped it, so there is not yet a later concrete blocker or a completed image from this pass
+- Scope note: this pass closes three concrete recipe-side build blockers for `fsqc` on arm64. A final successful arm64 image was not produced in this pass.
 
 ### Recipe-level full test check: `eharmonize`
 

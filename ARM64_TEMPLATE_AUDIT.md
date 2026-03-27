@@ -1122,6 +1122,13 @@ These changes are now in this repo and should be used as the new baseline for ar
   - rerunning `./test.sh amico` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `74/74` tests in `231.2s`
 - Scope note: this follow-up strengthens the no-rebuild fulltest to validate the current Python runtime version in the existing image.
 
+- Follow-up on 2026-03-28:
+  - the same `neurocontainers/recipes/amico/fulltest.yaml` suite still used a weak package-metadata assertion, only checking the install location from `python -m pip show dmri-amico`
+  - the recipe YAML was tightened to assert the shipped package version instead:
+    `Version: 2.1.1`
+  - rerunning `./test.sh amico` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `74/74` tests in `159.6s`
+- Scope note: this follow-up strengthens the no-rebuild `amico` fulltest to validate the installed `dmri-amico` package version in the existing image.
+
 ### Recipe-level full test check: `gingerale`
 
 - On 2026-03-28, `./test.sh gingerale` was run against the existing local `gingerale:3.0.2` image on an `aarch64` host without rebuilding the Docker image.

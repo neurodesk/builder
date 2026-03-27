@@ -1085,6 +1085,12 @@ These changes are now in this repo and should be used as the new baseline for ar
   - align `neurocontainers/recipes/amico/fulltest.yaml` container metadata to `amico_2.1.0.simg`
 - Scope note: this closes a stale fulltest-metadata issue for `amico`; the existing image already passes the no-rebuild arm64 runtime suite on this host.
 
+- Follow-up on 2026-03-28:
+  - the `neurocontainers/recipes/amico/fulltest.yaml` Python version check originally only asserted a broad `Python` prefix, which was weaker than the exact runtime metadata available in the image
+  - the recipe YAML was tightened to assert the shipped interpreter version instead: `Python 3.13.12`
+  - rerunning `./test.sh amico` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `74/74` tests in `231.2s`
+- Scope note: this follow-up strengthens the no-rebuild fulltest to validate the current Python runtime version in the existing image.
+
 ### Recipe-level full test check: `gingerale`
 
 - On 2026-03-28, `./test.sh gingerale` was run against the existing local `gingerale:3.0.2` image on an `aarch64` host without rebuilding the Docker image.

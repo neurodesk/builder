@@ -402,6 +402,25 @@ These changes are now in this repo and should be used as the new baseline for ar
   - I interrupted the rerun during the long Miniconda installer download/bootstrap, so there is not yet a finalized `megnet:1.0.1` image from the rerun
 - Scope note: this closes one concrete arm64 recipe-render issue for `megnet` by making the recipe render the correct Miniconda installer for arm64 hosts. Any later recipe-specific arm64 blockers remain untested from this turn.
 
+- On 2026-03-28, `./build.sh megnet` was rerun on the same `aarch64` host.
+- Initial failure on that rerun:
+  `CondaValueError: 'base' is a reserved environment name`
+- Cause:
+  - after the arm64 installer fix, the remaining recipe path still relied on the Miniconda template's environment-creation flow
+  - in this environment that rendered `conda create --name base`, which current Conda rejects
+- Follow-on issue uncovered while fixing the same path:
+  - even after moving off the reserved-`base` name, the template-managed environment creation path still failed inside Conda metadata/cache handling on arm64 (`libmambapy ... File ... does not exist`, then classic-solver cache-file errors)
+- Fix landed in recipe YAML:
+  - stop using the Miniconda template for `megnet`'s package/environment management beyond the installer itself
+  - bootstrap the arm64 Miniconda installer explicitly in `neurocontainers/recipes/megnet/build.yaml`
+  - install the required conda package set directly into `base` with `conda install --solver classic -n base -c conda-forge ...`
+  - keep the recipe's pip-only dependencies as a direct `python -m pip install --no-cache-dir ...` step
+- Verified rerun result:
+  - the regenerated Dockerfile no longer emits `conda create ... --name base` or any separate Conda environment-creation step for `megnet`
+  - the rerun gets cleanly through the arm64 Miniconda bootstrap/configuration path and enters the real `conda install -y --solver classic -n base -c conda-forge ...` solve for the `megnet` package set
+  - the rerun was still actively solving that package set when I stopped it, so there is not yet a finalized `megnet:1.0.1` image from this follow-up pass
+- Scope note: this closes one concrete Conda-environment build issue for `megnet` on arm64 by removing the broken template-managed env creation path; any later solver or package-compatibility blockers remain to be closed out in a future run.
+
 ### Recipe-level build check: `convert3d`
 
 - On 2026-03-27, `./build.sh convert3d` was run on an `aarch64` host.

@@ -451,6 +451,24 @@ These changes are now in this repo and should be used as the new baseline for ar
     `/opt/MRIcroGL/Resources/dcm2niix: cannot execute binary file: Exec format error`
 - Scope note: this closes a recipe YAML/fulltest signal-quality issue for `mricrogl`; it does not prove the packaged MRIcroGL payload or bundled `dcm2niix` are arm64-runnable.
 
+### Recipe-level full test check: `datalad`
+
+- On 2026-03-27, `./test.sh datalad` was run on an `aarch64` host against an existing local Docker image without rebuilding it.
+- Initial failure:
+  - the recipe had no `neurocontainers/recipes/datalad/fulltest.yaml`, so `./test.sh datalad` stopped immediately with:
+    `Recipe full test file not found: /home/joshua/dev/projects/builder/./neurocontainers/recipes/datalad/fulltest.yaml`
+- Local image note:
+  - `neurocontainers/recipes/datalad/build.yaml` currently declares `version: 1.3.1`
+  - the existing local runtime image available in this workspace was `datalad:1.1.5`
+  - that existing image was temporarily tagged as `datalad:1.3.1` so `./test.sh datalad` could exercise the current recipe path without rebuilding
+- Fix landed in recipe YAML only:
+  - add `neurocontainers/recipes/datalad/fulltest.yaml`
+  - the new suite configures Git identity in setup, verifies the `datalad` CLI and help output, creates a dataset, saves a tracked file, and confirms a clean dataset status
+- Verified rerun result:
+  - rerunning `./test.sh datalad` against the same existing image path then passed cleanly with `5/5` tests passing in `6.5s`
+  - the generated `sifs/datalad_1.3.1.simg` was created from the existing local Docker image, not from a rebuilt container
+- Scope note: this closes a recipe YAML/fulltest coverage gap for `datalad` without rebuilding the image; it does not establish that the current `build.yaml` version string matches the older local runtime image used for this no-rebuild verification.
+
 ### Recipe-level full test check: `xnat`
 
 - On 2026-03-26, `./test.sh xnat` was run against the existing local `xnat:1.9.2.1` image without rebuilding it.

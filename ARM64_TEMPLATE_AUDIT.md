@@ -798,6 +798,17 @@ These changes are now in this repo and should be used as the new baseline for ar
   - align `neurocontainers/recipes/gingerale/fulltest.yaml` container metadata to `gingerale_3.0.2.simg`
 - Scope note: this closes a stale fulltest-metadata issue for `gingerale`; the existing image already passes the no-rebuild arm64 runtime suite on this host.
 
+### Recipe-level full test check: `palm`
+
+- On 2026-03-28, `./test.sh palm` was run against the existing local `palm:alpha119` image on an `aarch64` host without rebuilding the Docker image.
+- Initial result:
+  - rerunning the no-rebuild wrapper on the existing image path passed cleanly with `55/55` tests in `153.8s`
+- YAML issue found while verifying this path:
+  - `neurocontainers/recipes/palm/fulltest.yaml` still pointed at a dated container filename (`palm_alpha119_20211220.simg`) even though `./test.sh` now generates `sifs/palm_alpha119.simg`
+- Fix landed in recipe YAML only:
+  - align `neurocontainers/recipes/palm/fulltest.yaml` container metadata to `palm_alpha119.simg`
+- Scope note: this closes a stale fulltest-metadata issue for `palm`; the existing image already passes the no-rebuild arm64 runtime suite on this host.
+
 ### Recipe-level full test check: `convert3d`
 
 - On 2026-03-27, `./test.sh convert3d` was run against the existing local `convert3d:1.1.0` image on an `aarch64` host without rebuilding the Docker image.

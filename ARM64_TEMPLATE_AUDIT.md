@@ -1657,6 +1657,23 @@ These changes are now in this repo and should be used as the new baseline for ar
   - rerunning `./test.sh fsqc` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `5/5` tests in `13.6s`
 - Scope note: this follow-up strengthens the no-rebuild `fsqc` fulltest to validate the exact Python runtime version in the named Conda environment.
 
+### Recipe-level full test check: `segmentator`
+
+- On 2026-03-28, `./test.sh segmentator` was run against the existing local `segmentator:1.6.1` image on an `aarch64` host without rebuilding the Docker image.
+- Initial failure:
+  - the recipe had no `neurocontainers/recipes/segmentator/fulltest.yaml`, so `./test.sh segmentator` stopped immediately with:
+    `Recipe full test file not found: /home/joshua/dev/projects/builder/./neurocontainers/recipes/segmentator/fulltest.yaml`
+- Runtime layout note:
+  - the shipped image does not expose an installed `segmentator` distribution or console script on the default runtime path
+  - instead, the built payload is present as a source tree under `/opt/segmentator`, with the compiled native extension at `/opt/segmentator/segmentator/deriche_3D.cpython-310-aarch64-linux-gnu.so`
+- Fix landed in recipe YAML only:
+  - add `neurocontainers/recipes/segmentator/fulltest.yaml`
+  - the new minimal suite verifies the shipped Python runtime, the presence of `/opt/segmentator/segmentator/__main__.py`, the `version='1.6.1'` and console-entrypoint metadata in `/opt/segmentator/setup.py`, and the built native extension payload
+- Verified rerun result:
+  - with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp`, rerunning `./test.sh segmentator` on the same existing image passed `5/5` tests in `2.1s`
+  - the generated `sifs/segmentator_1.6.1.simg` was created from the existing local Docker image, not from a rebuilt container
+- Scope note: this closes a recipe YAML/fulltest coverage gap for `segmentator` without rebuilding the image and keeps the no-rebuild checks aligned to the payload the current image actually ships.
+
 ### Recipe-level full test check: `mne`
 
 - On 2026-03-28, `./test.sh mne` was run against the existing local `mne:1.7.1` image on an `aarch64` host without rebuilding the Docker image.

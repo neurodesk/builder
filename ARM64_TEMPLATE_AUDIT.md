@@ -678,7 +678,20 @@ These changes are now in this repo and should be used as the new baseline for ar
     `git clone https://github.com/MIC-DKFZ/HD-BET`
     `pip install -e .`
   - the rerun was still actively downloading and resolving the heavy dependency stack when I stopped it, including `torch-2.11.0-cp313-cp313-manylinux_2_28_aarch64.whl`
-- Scope note: this pass closes five concrete recipe-side build blockers for `hdbet` on arm64 and moves the build into the upstream HD-BET dependency installation path. A final successful arm64 image was not produced in this pass.
+- Sixth fix landed in recipe YAML:
+  - run the final upstream install inside the named `hdbet` Conda env in `neurocontainers/recipes/hdbet/build.yaml`:
+    `source activate hdbet`
+    `python -m pip install -e .`
+    instead of the previous bare `pip install -e .` from the base shell
+- Verified rerun result after sixth fix:
+  - the rerun stays on the `hdbet` env during the upstream install path
+  - the previous base-environment behavior is gone: the dependency resolution no longer targets `cp313` wheels from `/opt/miniconda-latest`
+  - the patched rerun now resolves packages against the intended Python 3.10 env, including:
+    `numpy-2.2.6-cp310-cp310-...`
+    `torch-2.11.0-cp310-cp310-manylinux_2_28_aarch64.whl`
+    `SimpleITK-2.5.3-cp310-cp310-...`
+  - I stopped that rerun while the heavy upstream dependency install was still active, so there is not yet a finalized `hdbet:1.0.0` image from this pass
+- Scope note: this pass closes six concrete recipe-side build blockers for `hdbet` on arm64 and moves the build into the intended Python 3.10 environment for the upstream HD-BET dependency installation path. A final successful arm64 image was not produced in this pass.
 
 ### Recipe-level build check: `condaenvs`
 

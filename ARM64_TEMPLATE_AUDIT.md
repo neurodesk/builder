@@ -1093,6 +1093,12 @@ These changes are now in this repo and should be used as the new baseline for ar
     `/opt/MRIcroGL/Resources/dcm2niix: cannot execute binary file: Exec format error`
 - Scope note: this closes a recipe YAML/fulltest signal-quality issue for `mricrogl`; it does not prove the packaged MRIcroGL payload or bundled `dcm2niix` are arm64-runnable.
 
+- Follow-up on 2026-03-28:
+  - `neurocontainers/recipes/mricrogl/fulltest.yaml` still pointed at the old dated SIF name `mricrogl_1.2.20211006_20220111.simg`, while the current `./test.sh` path generates `sifs/mricrogl_1.2.20211006.simg`
+  - the recipe YAML was updated to use `container: mricrogl_1.2.20211006.simg`
+  - rerunning `./test.sh mricrogl` against the existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` reproduced the same setup-time failure at `0/0` in `0.6s`
+- Scope note: this follow-up closes the stale fulltest metadata for the current no-rebuild wrapper path; it does not change the existing arm64 launcher incompatibility.
+
 ### Recipe-level full test check: `datalad`
 
 - On 2026-03-27, `./test.sh datalad` was run on an `aarch64` host against an existing local Docker image without rebuilding it.

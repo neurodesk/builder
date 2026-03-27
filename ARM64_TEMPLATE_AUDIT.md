@@ -503,6 +503,20 @@ These changes are now in this repo and should be used as the new baseline for ar
   - this warning did not block build or execution, so it was not treated as the build issue for this audit pass
 - Scope note: this closes two concrete recipe-side Miniconda template blockers for `eharmonize` on arm64 and produces a runnable arm64 image from the current recipe.
 
+### Recipe-level full test check: `eharmonize`
+
+- On 2026-03-28, `./test.sh eharmonize` was run against the existing local `eharmonize:1.0.0` image on an `aarch64` host without rebuilding the Docker image.
+- Initial failure:
+  - the recipe had no `neurocontainers/recipes/eharmonize/fulltest.yaml`, so `./test.sh eharmonize` stopped immediately with:
+    `Recipe full test file not found: /home/joshua/dev/projects/builder/./neurocontainers/recipes/eharmonize/fulltest.yaml`
+- Fix landed in recipe YAML only:
+  - add `neurocontainers/recipes/eharmonize/fulltest.yaml`
+  - the new suite verifies the `eharmonize` launcher is on `PATH`, checks the main CLI help, checks `harmonize-fa --help`, verifies the Miniconda `python` runtime, and confirms the installed package metadata with `python -m pip show eharmonize`
+- Verified rerun result:
+  - rerunning `./test.sh eharmonize` against the same existing image path passed cleanly with `5/5` tests in `5.8s`
+  - the generated `sifs/eharmonize_1.0.0.simg` was created from the existing local Docker image, not from a rebuilt container
+- Scope note: this closes a recipe YAML/fulltest coverage gap for `eharmonize` without rebuilding the image.
+
 ### Recipe-level full test check: `convert3d`
 
 - On 2026-03-27, `./test.sh convert3d` was run against the existing local `convert3d:1.1.0` image on an `aarch64` host without rebuilding the Docker image.

@@ -1388,6 +1388,12 @@ These changes are now in this repo and should be used as the new baseline for ar
   - the literal `./test.sh connectomeworkbench` wrapper initially failed during Apptainer conversion with `no space left on device` under `/tmp`, then passed cleanly with `112/112` tests in `314.6s` when rerun with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp`
 - Scope note: this closes the recipe YAML/fulltest mismatch for the existing `connectomeworkbench` image path without rebuilding; it does not prove that the shipped image contents match the recipe's declared `2.1.0` Workbench version.
 
+- Follow-up on 2026-03-28:
+  - `neurocontainers/recipes/connectomeworkbench/fulltest.yaml` still pointed at the old dated SIF name `connectomeworkbench_2.1.0_20251212.simg`, while the current `./test.sh` path generates `sifs/connectomeworkbench_2.1.0.simg`
+  - the recipe YAML was updated to use `container: connectomeworkbench_2.1.0.simg`
+  - rerunning `./test.sh connectomeworkbench` against the existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` passed cleanly again with `112/112` tests in `314.0s`
+- Scope note: this follow-up closes the stale fulltest metadata for the current no-rebuild wrapper path; it does not change the already-recorded runtime coverage limits of the existing image.
+
 ### Recipe-level full test check: `niftyreg`
 
 - On 2026-03-28, `./test.sh niftyreg` was run against the existing local `niftyreg:1.4.0` image on an `aarch64` host without rebuilding the Docker image.

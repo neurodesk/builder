@@ -398,6 +398,15 @@ These changes are now in this repo and should be used as the new baseline for ar
     `2.1.1`
 - Scope note: this is a revalidation pass on the current workspace rather than a new recipe fix; the existing arm64 `amico` build path remains good.
 
+- On 2026-03-28, `./build.sh amico` was rerun again on the same `aarch64` host.
+- Verified rerun result:
+  - the current recipe still builds cleanly end to end and refreshes `amico:2.1.0` from cache
+  - `docker image inspect amico:2.1.0 --format '{{.Id}} {{.Architecture}} {{.Os}}'` reports:
+    `sha256:f4bd7d522e187f0369452766d45274bd7a028ee70f66db0e3d55c531efa7c84c arm64 linux`
+  - a follow-up runtime smoke check with `docker run --rm amico:2.1.0 python -c 'import amico; print(amico.__version__)'` still prints:
+    `2.1.1`
+- Scope note: this is another revalidation pass on the current workspace rather than a new recipe fix; the existing arm64 `amico` build path remains good.
+
 - On 2026-03-27, `./test.sh amico` was run against the existing local `amico:2.1.0` image on an `aarch64` host without rebuilding the Docker image.
 - Initial result: `72/74` tests passed. The two failures were in `neurocontainers/recipes/amico/fulltest.yaml`, not the existing container runtime broadly:
   - `AMICO version check` expected `2.1.0`, but the built image reports `amico.__version__ == 2.1.1`

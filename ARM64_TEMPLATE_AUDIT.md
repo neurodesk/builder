@@ -555,6 +555,24 @@ These changes are now in this repo and should be used as the new baseline for ar
   - the generated `sifs/eharmonize_1.0.0.simg` was created from the existing local Docker image, not from a rebuilt container
 - Scope note: this closes a recipe YAML/fulltest coverage gap for `eharmonize` without rebuilding the image.
 
+### Recipe-level full test check: `ants`
+
+- On 2026-03-28, `./test.sh ants` was run against an existing local ANTs image on an `aarch64` host without rebuilding the Docker image.
+- Local image note:
+  - the current recipe metadata expects `ants:2.6.5`
+  - the available local runtime image in this workspace was `ants-binaries:0.0.0`, so that existing image was temporarily tagged as `ants:2.6.5` to exercise the current `ants` recipe/fulltest path without rebuilding
+- Initial result: `2/102` tests passed in `26.2s`.
+- Cause:
+  - direct runtime probes on the existing image showed core ANTs launchers such as `antsRegistration` and `N4BiasFieldCorrection` fail immediately on arm64 with `Exec format error`
+  - `neurocontainers/recipes/ants/fulltest.yaml` had no early launcher preflight, so one startup incompatibility expanded into 100 downstream command failures and dependency skips
+- Fix landed in recipe YAML only: add a setup-time `antsRegistration --version` preflight in `neurocontainers/recipes/ants/fulltest.yaml` so the suite stops immediately when the packaged ANTs toolchain cannot start on arm64.
+- Verified rerun result:
+  - rerunning `./test.sh ants` against the same existing image path now fails immediately in setup with one clear launcher failure instead of the earlier `2/102` cascade
+  - the rerun reports:
+    `Setup failed (exit 126): antsRegistration launcher failed during setup (exit 126)`
+    `/opt/ants-2.4.3/antsRegistration: cannot execute binary file: Exec format error`
+- Scope note: this closes a recipe YAML/fulltest signal-quality issue for `ants`; it does not make the packaged ANTs binaries arm64-ready.
+
 ### Recipe-level full test check: `convert3d`
 
 - On 2026-03-27, `./test.sh convert3d` was run against the existing local `convert3d:1.1.0` image on an `aarch64` host without rebuilding the Docker image.

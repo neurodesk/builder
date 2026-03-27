@@ -477,6 +477,32 @@ These changes are now in this repo and should be used as the new baseline for ar
   - inspection of the newer upstream `c3d-nightly-Linux-gcc64.tar.gz` payload on 2026-03-27 also showed `ELF 64-bit ... x86-64`, so it is not an arm64 replacement
 - Scope note: `convert3d` currently has no validated upstream arm64 binary artifact in this template path. The recipe-level arm64 build succeeds, but the bundled runtime remains unusable on arm64 because the installed payload is still x86_64-only.
 
+### Recipe-level build check: `eharmonize`
+
+- On 2026-03-28, `./build.sh eharmonize` was run on an `aarch64` host.
+- Initial failure:
+  - the recipe declared only `x86_64`, so the rendered Miniconda template downloaded `Miniconda3-latest-Linux-x86_64.sh`
+  - the installer failed with:
+    `/opt/miniconda/_conda: cannot execute binary file: Exec format error`
+  - the next Docker step then failed with:
+    `/bin/sh: 1: conda: not found`
+- First fix landed in recipe YAML:
+  - add `aarch64` to `neurocontainers/recipes/eharmonize/build.yaml` so the Miniconda template renders an arm64-compatible installer path
+- Second failure after rerun:
+  - once the arm64 installer path was fixed, the build progressed into the template-managed environment creation step and failed with:
+    `CondaValueError: 'base' is a reserved environment name`
+- Second fix landed in recipe YAML:
+  - set `env_name: eharmonize` and `env_exists: "false"` in the Miniconda template block in `neurocontainers/recipes/eharmonize/build.yaml`
+- Verified rerun result:
+  - the next rerun progressed through Miniconda bootstrap, `conda create --name eharmonize`, the upstream `git clone`, and `python -m pip install --no-cache-dir .`
+  - Docker completed image export and named `eharmonize:1.0.0`
+  - `docker image inspect eharmonize:1.0.0 --format '{{.Architecture}} {{.Os}}'` reports `arm64 linux`
+  - a runtime smoke check with `docker run --rm --entrypoint /bin/bash eharmonize:1.0.0 -lc 'eharmonize --help'` succeeded
+- Runtime note:
+  - `eharmonize --help` emits a `pkg_resources` deprecation warning from the packaged Python code before printing normal help text
+  - this warning did not block build or execution, so it was not treated as the build issue for this audit pass
+- Scope note: this closes two concrete recipe-side Miniconda template blockers for `eharmonize` on arm64 and produces a runnable arm64 image from the current recipe.
+
 ### Recipe-level full test check: `convert3d`
 
 - On 2026-03-27, `./test.sh convert3d` was run against the existing local `convert3d:1.1.0` image on an `aarch64` host without rebuilding the Docker image.

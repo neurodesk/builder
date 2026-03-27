@@ -958,6 +958,14 @@ These changes are now in this repo and should be used as the new baseline for ar
     printed:
     `0.11.0`
 - Scope note: this pass closes seven concrete recipe-side blockers for `fitlins` on arm64 and produces a successful arm64 image, but it also removes the recipe's previous AFNI install step because that dependency is not available from the current arm64 Conda channels used here.
+- Revalidation note:
+  - a fresh rerun of `BUILDKIT_PROGRESS=plain ./build.sh fitlins` on the same `aarch64` host completed cleanly again and rebuilt `fitlins:0.11.0` from cache
+  - `docker image inspect fitlins:0.11.0 --format '{{.Id}} {{.Architecture}} {{.Os}}'` reported:
+    `sha256:cf8dbc32b6f7a7b886ac2966ca6bc8d0896c0c7e582f63f8b38e996474762018 arm64 linux`
+  - the same runtime smoke check still succeeded:
+    `docker run --rm fitlins:0.11.0 python -c 'import fitlins; print(fitlins.__version__)'`
+    and reported:
+    `0.11.0`
 
 ### Recipe-level build check: `fsqc`
 

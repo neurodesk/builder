@@ -719,7 +719,17 @@ These changes are now in this repo and should be used as the new baseline for ar
     `qt6-main-6.8.3`
     `vtk-base-9.4.1`
   - I stopped that rerun while the large conda-forge transaction was still in progress, so there is not yet a finalized `mne:1.7.1` image recorded from this pass
-- Scope note: this pass closes four concrete recipe-side blockers for `mne` on arm64 and moves the build into the recipe's real `mne` environment solve/download path. A final successful arm64 image was not produced in this pass.
+- Fifth fix landed in recipe YAML:
+  - replace the fixed VS Code payload in `neurocontainers/recipes/mne/build.yaml` with an architecture-aware download at build time
+  - on `aarch64`, fetch `https://code.visualstudio.com/sha/download?build=stable&os=linux-deb-arm64` instead of the previous `linux-deb-x64` package
+- Verified rerun result after fifth fix:
+  - the next rerun completed the full `conda create --name mne-1.7.1 ...` transaction and got past the old VS Code packaging failure
+  - the previous arm64 blocker:
+    `code:amd64 : Depends: ... but it is not installable`
+    is gone
+  - the patched rerun installed `code arm64 1.113.0-1774364715`, completed the VS Code extension-install layer, unpacked `mne-bids-pipeline-main`, and reached Docker's final image export path
+  - I interrupted that rerun while Docker was still quiet in final export/unpack, so there is not yet a finalized `mne:1.7.1` image recorded from this pass
+- Scope note: this pass closes five concrete recipe-side blockers for `mne` on arm64 and moves the build through the MNE env creation and VS Code install paths into final image export. A final successful arm64 image was not produced in this pass.
 
 ### Recipe-level build check: `fitlins`
 

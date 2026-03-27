@@ -599,6 +599,32 @@ These changes are now in this repo and should be used as the new baseline for ar
     `cudatoolkit =10.2 * does not exist`
 - Scope note: this pass closes three concrete recipe-side Miniconda blockers for `topaz` on arm64 and moves the build into the recipe's old Conda package constraints; a final successful arm64 image was not produced in this pass.
 
+### Recipe-level build check: `vesselvio`
+
+- On 2026-03-28, `./build.sh vesselvio` was run on an `aarch64` host.
+- Initial failure:
+  - the recipe declared only `x86_64`, so the rendered Miniconda template downloaded the x86_64 installer:
+    `https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh`
+  - that installer failed on arm64 with:
+    `/opt/miniconda-latest/_conda: cannot execute binary file: Exec format error`
+  - the next template step then failed with:
+    `/bin/sh: 1: conda: not found`
+- First fix landed in recipe YAML:
+  - add `aarch64` to `neurocontainers/recipes/vesselvio/build.yaml`
+- Second failure after rerun:
+  - once the arm64 installer path was active, the build progressed into the template-managed environment creation step and failed with:
+    `CondaValueError: 'base' is a reserved environment name`
+- Second fix landed in recipe YAML:
+  - set `env_name: vesselvio` and `env_exists: "false"` in the Miniconda template block in `neurocontainers/recipes/vesselvio/build.yaml`
+- Verified rerun result:
+  - the next rerun progressed through arm64 Miniconda bootstrap, `conda update -n base conda`, `conda create --name vesselvio`, the Conda package install for `python=3.8.8`, and the environment cleanup step
+  - the build then entered the real upstream application install path:
+    `git clone https://github.com/JacobBumgarner/VesselVio.git /opt/vesselvio-1.1.2/`
+    `pip install -r /opt/vesselvio-1.1.2/requirements.txt`
+  - observed progress in that step included source builds and metadata preparation for requirements such as `aiohttp==3.8.1`, `frozenlist==1.2.0`, `future==0.18.2`, and `igraph==0.9.10`
+  - the rerun was still actively processing that dependency stack when I stopped it, so there is not yet a finalized `vesselvio:1.1.2` image recorded from this pass
+- Scope note: this pass closes two concrete recipe-side Miniconda blockers for `vesselvio` on arm64 and moves the build into the recipe's real Python dependency installation path; any later package or runtime issues remain to be closed out in a future run.
+
 ### Recipe-level full test check: `eharmonize`
 
 - On 2026-03-28, `./test.sh eharmonize` was run against the existing local `eharmonize:1.0.0` image on an `aarch64` host without rebuilding the Docker image.

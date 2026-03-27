@@ -639,7 +639,25 @@ These changes are now in this repo and should be used as the new baseline for ar
     `pip install -r /opt/vesselvio-1.1.2/requirements.txt`
   - observed progress in that step included source builds and metadata preparation for requirements such as `aiohttp==3.8.1`, `frozenlist==1.2.0`, `future==0.18.2`, and `igraph==0.9.10`
   - the rerun was still actively processing that dependency stack when I stopped it, so there is not yet a finalized `vesselvio:1.1.2` image recorded from this pass
-- Scope note: this pass closes two concrete recipe-side Miniconda blockers for `vesselvio` on arm64 and moves the build into the recipe's real Python dependency installation path; any later package or runtime issues remain to be closed out in a future run.
+- Third fix landed in recipe YAML:
+  - run the upstream requirements install inside the named `vesselvio` Conda env in `neurocontainers/recipes/vesselvio/build.yaml`:
+    `source activate vesselvio`
+    `python -m pip install -r /opt/vesselvio-1.1.2/requirements.txt`
+    instead of the previous bare `pip install -r ...` from the base shell
+- Verified rerun result after third fix:
+  - the rerun now stays on the `vesselvio` env during the upstream install path
+  - the previous base-environment behavior is gone, and the build progresses through the env-local Python 3.8.8 requirements installation
+  - observed progress in the patched path included env-local resolution and metadata preparation for pinned requirements such as:
+    `aiohttp==3.8.1`
+    `frozenlist==1.2.0`
+    `future==0.18.2`
+    `igraph==0.9.10`
+    `llvmlite==0.36.0`
+    `numba==0.53.1`
+    `opencv-python==4.5.4.60`
+    `pandas==1.3.5`
+  - I stopped that rerun while the heavy requirements install was still active, so there is not yet a finalized `vesselvio:1.1.2` image from this pass
+- Scope note: this pass closes three concrete recipe-side blockers for `vesselvio` on arm64 and moves the build into the intended env-local requirements installation path. Any later package or runtime issues remain to be closed out in a future run.
 
 ### Recipe-level build check: `hdbet`
 

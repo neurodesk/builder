@@ -339,6 +339,26 @@ These changes are now in this repo and should be used as the new baseline for ar
     `Location: /opt/miniconda/lib/python3.13/site-packages`
 - Scope note: this closes a recipe YAML/fulltest mismatch for `amico` without rebuilding the image; it does not change the built container contents.
 
+### Recipe-level build check: `mricrogl`
+
+- On 2026-03-27, `./build.sh mricrogl` was run on an `aarch64` host.
+- Initial failure:
+  - the rendered Dockerfile installed Ubuntu's `libqt5pas1` package successfully
+  - it then failed at the later recipe step that force-installed `libqt5pas1_2.9-0_amd64.deb` with:
+    `libqt5pas1:amd64 : Depends: libc6:amd64 ... but it is not installable`
+- Cause:
+  - `neurocontainers/recipes/mricrogl/build.yaml` already installed distro `libqt5pas1`
+  - the recipe then overrode that with a second, hard-coded amd64-only `.deb`, which cannot be resolved in the arm64 build environment
+- Fix landed in recipe YAML:
+  - remove the redundant external `libqt5pas1_2.9-0_amd64.deb` install step
+  - remove the now-unused staged `.deb` file entry
+- Verified rerun result:
+  - a fresh builder render for `mricrogl` no longer emits the amd64 `.deb` install layer
+  - rerunning the same Docker build path against that fresh render completes successfully and produces `mricrogl:debug-fixed`
+- Scope note:
+  - this closes one concrete recipe-side build issue for `mricrogl` on arm64 by removing an unnecessary amd64 package override
+  - the recipe still declares `architectures: [x86_64]`, and this pass did not verify that the bundled MRIcroGL payload itself is arm64-runnable
+
 ### Recipe-level build check: `megnet`
 
 - On 2026-03-27, `./build.sh megnet` was run on an `aarch64` host.

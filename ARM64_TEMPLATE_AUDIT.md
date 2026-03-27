@@ -315,6 +315,23 @@ These changes are now in this repo and should be used as the new baseline for ar
     `2.1.1`
 - Scope note: this closes the recipe-side Conda-environment build issue for `amico`; the recipe now builds and imports successfully on arm64 in this environment.
 
+- On 2026-03-27, `./test.sh amico` was run against the existing local `amico:2.1.0` image on an `aarch64` host without rebuilding the Docker image.
+- Initial result: `72/74` tests passed. The two failures were in `neurocontainers/recipes/amico/fulltest.yaml`, not the existing container runtime broadly:
+  - `AMICO version check` expected `2.1.0`, but the built image reports `amico.__version__ == 2.1.1`
+  - `AMICO README check` tried to read `/README.md`, but that file is not present in the deployed image
+- Cause:
+  - `neurocontainers/recipes/amico/fulltest.yaml` had a stale hard-coded package version assertion
+  - the same test file also assumed a README deployment path that the current recipe/image does not provide
+- Fix landed in recipe YAML:
+  - update the version expectation in `neurocontainers/recipes/amico/fulltest.yaml` from `2.1.0` to `2.1.1`
+  - replace the invalid `/README.md` assertion with a package-metadata check using `python -m pip show dmri-amico`
+- Verified rerun result:
+  - rerunning `./test.sh amico` against the same existing image then passes cleanly with `74/74` tests passing in `160.7s`
+  - a direct package probe in that image with `python -m pip show dmri-amico` reports:
+    `Version: 2.1.1`
+    `Location: /opt/miniconda/lib/python3.13/site-packages`
+- Scope note: this closes a recipe YAML/fulltest mismatch for `amico` without rebuilding the image; it does not change the built container contents.
+
 ### Recipe-level build check: `megnet`
 
 - On 2026-03-27, `./build.sh megnet` was run on an `aarch64` host.

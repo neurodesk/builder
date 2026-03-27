@@ -271,6 +271,31 @@ These changes are now in this repo and should be used as the new baseline for ar
   - `blastct` still has a later dependency-resolution problem on arm64 and Python 3.11 because the recipe pins `SimpleITK==1.2.4`, which is not available for the current build environment
 - Scope note: this closes one concrete Conda-environment build issue for `blastct` on arm64; the recipe still has a later Python package compatibility failure to resolve.
 
+### Recipe-level build check: `amico`
+
+- On 2026-03-27, `./build.sh amico` was run on an `aarch64` host.
+- Initial failure:
+  - the generated Dockerfile rendered `https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh`
+  - the Miniconda bootstrap then failed with:
+    `/opt/miniconda/_conda: cannot execute binary file: Exec format error`
+  - the next Conda step failed at:
+    `conda: not found`
+- Cause:
+  - `neurocontainers/recipes/amico/build.yaml` only declared `architectures: [x86_64]`
+  - because of that, the shared `miniconda` template rendered the x86_64 installer on an arm64 host
+- Fix landed in recipe YAML:
+  - add `aarch64` as a declared recipe architecture in `neurocontainers/recipes/amico/build.yaml`
+- Verified rerun result:
+  - the regenerated Dockerfile now stages `https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh` instead of the x86_64 installer
+  - rerunning `./build.sh amico` no longer fails in the Miniconda bootstrap with the x86_64 `_conda` exec-format error; it completes Miniconda installation and progresses through `conda update` and `conda-libmamba-solver` install on arm64
+  - the same rerun then fails later at:
+    `CondaValueError: 'base' is a reserved environment name`
+    from `conda create -y -q --name base`
+- Current remaining blocker after this fix:
+  - the original arm64 Miniconda/render issue is fixed
+  - `amico` still has a later Conda-environment problem to resolve because the rendered build path asks modern Conda to create a new environment named `base`
+- Scope note: this closes one concrete arm64 Miniconda/render issue for `amico`; the recipe still has a later Conda-environment logic failure.
+
 ### Recipe-level build check: `megnet`
 
 - On 2026-03-27, `./build.sh megnet` was run on an `aarch64` host.

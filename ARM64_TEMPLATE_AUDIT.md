@@ -1417,6 +1417,22 @@ These changes are now in this repo and should be used as the new baseline for ar
   - this closes the stale fulltest metadata and the recipe-side no-rebuild test mismatch for the current arm64 `fsqc:2.1.4` image path
   - the shipped package metadata in the image currently reports `fsqc 2.1.8.dev0`, so the minimal suite verifies the image as built rather than forcing the recipe tag into the runtime assertion
 
+### Recipe-level full test check: `mne`
+
+- On 2026-03-28, `./test.sh mne` was run against the existing local `mne:1.7.1` image on an `aarch64` host without rebuilding the Docker image.
+- Initial result:
+  - `neurocontainers/recipes/mne/fulltest.yaml` still targeted the obsolete `1.1.1` image layout, including `version: 1.1.1`, `container: mne_1.1.1_20220912.simg`, and commands pinned to `/opt/miniconda-4.7.12` with `conda activate mne-1.1.1`
+  - after replacing that stale suite with a minimal env-aware one, the first rerun failed `4/5` in `16.9s` because the last test incorrectly expected `code --version` to emit a visible version string
+- Fix landed in recipe YAML only:
+  - replace the old `mne` fulltest with a minimal no-rebuild suite for the current image
+  - update it to `version: 1.7.1` and `container: mne_1.7.1.simg`
+  - verify the actual `mne-1.7.1` Conda environment under `/opt/miniconda-latest`, `pip show mne`, the imported module path, and the presence of the shipped VS Code launcher via `command -v code`
+- Verified rerun result:
+  - with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp`, rerunning `./test.sh mne` on the same existing image passed `5/5` tests in `14.6s`
+- Scope note:
+  - this closes the stale fulltest metadata and no-rebuild runtime-test mismatch for the current arm64 `mne:1.7.1` image path
+  - the minimal suite validates the runtime actually shipped in the built image, not the old pre-1.7.1 Miniconda layout
+
 ### Template-level build check: `bids_validator/binaries`
 
 - On 2026-03-26, `./build.sh bidscoin` on an `aarch64` host failed in the shared `bids_validator` template before `npm install` started.

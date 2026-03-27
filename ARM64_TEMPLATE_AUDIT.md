@@ -648,7 +648,25 @@ These changes are now in this repo and should be used as the new baseline for ar
     `Installer requires GLIBC >=2.28, but system has 2.23.`
   - after that installer failure, the next Docker step still aborts with:
     `/bin/sh: 1: conda: not found`
-- Scope note: this pass closes two concrete recipe-side Miniconda blockers for `hdbet` on arm64 and moves the build to the next real compatibility issue: the recipe's `ubuntu:16.04` base image is now too old for the current arm64 Miniconda installer. A final successful arm64 image was not produced in this pass.
+- Third fix landed in recipe YAML:
+  - change the recipe base image in `neurocontainers/recipes/hdbet/build.yaml` from `ubuntu:16.04` to `ubuntu:20.04`
+- Verified rerun result after third fix:
+  - the next rerun got cleanly past the old Miniconda installer GLIBC failure on arm64
+  - the previous blocker:
+    `Installer requires GLIBC >=2.28, but system has 2.23.`
+    is gone
+  - the rerun then exposed the next recipe-side failure in the template-managed environment creation step:
+    `CondaValueError: 'base' is a reserved environment name`
+- Fourth fix landed in recipe YAML:
+  - set `env_name: hdbet` and `env_exists: "false"` in the Miniconda template block in `neurocontainers/recipes/hdbet/build.yaml`
+- Verified rerun result after fourth fix:
+  - the rerun now gets through `conda create --name hdbet` on `linux-aarch64`
+  - the remaining failure is later and narrower, in the recipe's pinned Python install:
+    `conda install -y -q --name hdbet "python=3.6"`
+  - the concrete solver error reported by the rerun is:
+    `LibMambaUnsatisfiableError`
+    `nothing provides openssl >=1.0.2p,<1.0.3a needed by python-3.6.7`
+- Scope note: this pass closes four concrete recipe-side Miniconda blockers for `hdbet` on arm64 and moves the build into the recipe's old `python=3.6` constraint on current `linux-aarch64` channels. A final successful arm64 image was not produced in this pass.
 
 ### Recipe-level build check: `condaenvs`
 

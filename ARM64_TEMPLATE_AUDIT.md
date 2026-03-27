@@ -984,6 +984,12 @@ These changes are now in this repo and should be used as the new baseline for ar
   - the rerun passed cleanly with `73/73` tests passing in `90.1s`
 - Scope note: this closes a recipe YAML/fulltest mismatch for `brainlifecli` without rebuilding the image; it does not change the recipe's declared `architectures: [x86_64]`.
 
+- Follow-up on 2026-03-28:
+  - `neurocontainers/recipes/brainlifecli/fulltest.yaml` still pointed at the old dated SIF name `brainlifecli_1.7.0_20241003.simg`, while the current `./test.sh` path generates `sifs/brainlifecli_1.7.0.simg`
+  - the recipe YAML was updated to use `container: brainlifecli_1.7.0.simg`
+  - rerunning `./test.sh brainlifecli` against the existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` then passed cleanly with `73/73` tests in `85.3s`
+- Scope note: this follow-up closes the stale fulltest metadata for the current no-rebuild wrapper path.
+
 ### Recipe-level full test check: `sigviewer`
 
 - On 2026-03-26, `./test.sh sigviewer` was run against the existing local `sigviewer:0.6.4` image on an `aarch64` host without rebuilding the Docker image.

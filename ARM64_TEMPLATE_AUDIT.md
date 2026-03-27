@@ -706,6 +706,17 @@ These changes are now in this repo and should be used as the new baseline for ar
   - that follow-up rerun was still in the long SIF repack/conversion phase for the large existing image when this audit entry was updated, so there is not yet a second post-fix runtime result to record
 - Scope note: this closes a stale fulltest-metadata issue for `fsl`, but the existing local image path remains blocked first by an `amd64` container-health failure on arm64 rather than by recipe test logic.
 
+### Recipe-level full test check: `niimath`
+
+- On 2026-03-28, `./test.sh niimath` was run against the existing local `niimath:1.0.20250804` image on an `aarch64` host without rebuilding the Docker image.
+- Initial result:
+  - rerunning the no-rebuild wrapper on the existing image path passed cleanly with `114/114` tests in `509.5s`
+- YAML issue found while verifying this path:
+  - `neurocontainers/recipes/niimath/fulltest.yaml` still pointed at a dated container filename (`niimath_1.0.20250804_20251016.simg`) even though `./test.sh` now generates `sifs/niimath_1.0.20250804.simg`
+- Fix landed in recipe YAML only:
+  - align `neurocontainers/recipes/niimath/fulltest.yaml` container metadata to `niimath_1.0.20250804.simg`
+- Scope note: this closes a stale fulltest-metadata issue for `niimath`; the existing image already passes the no-rebuild arm64 runtime suite on this host.
+
 ### Recipe-level full test check: `convert3d`
 
 - On 2026-03-27, `./test.sh convert3d` was run against the existing local `convert3d:1.1.0` image on an `aarch64` host without rebuilding the Docker image.

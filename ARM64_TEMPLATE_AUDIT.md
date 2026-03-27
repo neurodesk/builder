@@ -1488,6 +1488,12 @@ These changes are now in this repo and should be used as the new baseline for ar
   - with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp`, rerunning `./test.sh fitlins` on the same existing image passed `5/5` tests in `5.5s`
 - Scope note: this adds and validates a minimal no-rebuild runtime suite for the existing arm64 `fitlins:0.11.0` image path.
 
+- Follow-up on 2026-03-28:
+  - the minimal `neurocontainers/recipes/fitlins/fulltest.yaml` suite originally only asserted a broad Python runtime prefix (`Python 3.9`), which was weaker than the exact runtime metadata available in the image
+  - the recipe YAML was tightened to assert the shipped interpreter version instead: `Python 3.9.18`
+  - rerunning `./test.sh fitlins` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `5/5` tests in `5.2s`
+- Scope note: this follow-up strengthens the no-rebuild fulltest to validate the current Python runtime version in the existing image.
+
 ### Recipe-level full test check: `fsqc`
 
 - On 2026-03-28, `./test.sh fsqc` was run against the existing local `fsqc:2.1.4` image on an `aarch64` host without rebuilding the Docker image.

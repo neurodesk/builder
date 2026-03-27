@@ -753,7 +753,16 @@ These changes are now in this repo and should be used as the new baseline for ar
   - the concrete unresolved constraints reported by the rerun are:
     `pin on python 3.9.*`
     `pandas =1.3 *`
-- Scope note: this pass closes four concrete recipe-side Miniconda blockers for `fitlins` on arm64 and moves the build into the remaining Python-3.9-era dependency pins in the recipe's Conda stack. A final successful arm64 image was not produced in this pass.
+- Fifth fix landed in recipe YAML:
+  - remove the explicit `pandas=1.3` pin from the recipe's `conda install --override-channels -c conda-forge ...` step in `neurocontainers/recipes/fitlins/build.yaml`
+- Verified rerun result after fifth fix:
+  - the next rerun progressed through the full pinned Conda install transaction, including `python-3.9.18`, `pandas-2.0.3`, `scipy-1.8.1`, and `scikit-learn-1.0.2`
+  - the remaining failure is now later and narrower, in the recipe's own pip install step:
+    `pip install fitlins=0.11.0`
+  - the concrete error reported by the rerun is:
+    `Invalid requirement: 'fitlins=0.11.0'`
+    `Hint: = is not a valid operator. Did you mean == ?`
+- Scope note: this pass closes five concrete recipe-side blockers for `fitlins` on arm64 and moves the build out of the Conda solve into a later recipe pip syntax error. A final successful arm64 image was not produced in this pass.
 
 ### Recipe-level full test check: `eharmonize`
 

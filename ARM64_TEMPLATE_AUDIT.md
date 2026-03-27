@@ -469,6 +469,14 @@ These changes are now in this repo and should be used as the new baseline for ar
   - the generated `sifs/datalad_1.3.1.simg` was created from the existing local Docker image, not from a rebuilt container
 - Scope note: this closes a recipe YAML/fulltest coverage gap for `datalad` without rebuilding the image; it does not establish that the current `build.yaml` version string matches the older local runtime image used for this no-rebuild verification.
 
+- Follow-up on 2026-03-27:
+  - the first draft of that new `datalad` fulltest created its dataset under the shared `${output_dir}` work tree
+  - because `datalad` stores annex objects in read-only directories, that left cleanup-hostile content under `neurocontainers/work/test_output`, which later caused the runner to abort before another suite started with:
+    `PermissionError: [Errno 13] Permission denied`
+  - `neurocontainers/recipes/datalad/fulltest.yaml` was updated so the dataset is created under `/tmp/datalad-fulltest-dataset` inside the container instead of inside the shared output directory
+  - after clearing the stale leftover tree once, rerunning `./test.sh datalad` still passed cleanly with `5/5` tests passing in `6.5s`
+- Scope note: this follow-up closes a second recipe YAML/fulltest issue for `datalad` by preventing the suite from contaminating the shared runner work directory for later tests.
+
 ### Recipe-level full test check: `xnat`
 
 - On 2026-03-26, `./test.sh xnat` was run against the existing local `xnat:1.9.2.1` image without rebuilding it.

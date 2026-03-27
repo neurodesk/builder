@@ -625,6 +625,31 @@ These changes are now in this repo and should be used as the new baseline for ar
   - the rerun was still actively processing that dependency stack when I stopped it, so there is not yet a finalized `vesselvio:1.1.2` image recorded from this pass
 - Scope note: this pass closes two concrete recipe-side Miniconda blockers for `vesselvio` on arm64 and moves the build into the recipe's real Python dependency installation path; any later package or runtime issues remain to be closed out in a future run.
 
+### Recipe-level build check: `hdbet`
+
+- On 2026-03-28, `./build.sh hdbet` was run on an `aarch64` host.
+- Initial failure:
+  - the recipe declared only `x86_64`, so the rendered Miniconda template downloaded the x86_64 installer:
+    `https://repo.anaconda.com/miniconda/Miniconda3-4.7.12.1-Linux-x86_64.sh`
+  - later template steps then failed with:
+    `/bin/sh: 1: conda: not found`
+- First fix landed in recipe YAML:
+  - add `aarch64` to `neurocontainers/recipes/hdbet/build.yaml`
+- Second failure after rerun:
+  - once the arm64 Miniconda path was active, the recipe's pinned installer version no longer existed for arm64:
+    `curl: (22) The requested URL returned error: 404 Not Found`
+  - the rendered URL was:
+    `https://repo.anaconda.com/miniconda/Miniconda3-4.7.12.1-Linux-aarch64.sh`
+- Second fix landed in recipe YAML:
+  - change the Miniconda template version in `neurocontainers/recipes/hdbet/build.yaml` from `4.7.12.1` to `latest`
+- Verified rerun result:
+  - the next rerun got past the old installer URL failure and reached the current arm64 Miniconda bootstrap on the same recipe path
+  - the remaining failure is now later and narrower, in the interaction between the new Miniconda installer and the old base image:
+    `Installer requires GLIBC >=2.28, but system has 2.23.`
+  - after that installer failure, the next Docker step still aborts with:
+    `/bin/sh: 1: conda: not found`
+- Scope note: this pass closes two concrete recipe-side Miniconda blockers for `hdbet` on arm64 and moves the build to the next real compatibility issue: the recipe's `ubuntu:16.04` base image is now too old for the current arm64 Miniconda installer. A final successful arm64 image was not produced in this pass.
+
 ### Recipe-level full test check: `eharmonize`
 
 - On 2026-03-28, `./test.sh eharmonize` was run against the existing local `eharmonize:1.0.0` image on an `aarch64` host without rebuilding the Docker image.

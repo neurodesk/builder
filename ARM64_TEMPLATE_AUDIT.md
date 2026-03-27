@@ -1173,6 +1173,12 @@ These changes are now in this repo and should be used as the new baseline for ar
   - the existing `qupath:0.6.0` image is still not runnable on arm64 because the `QuPath` launcher returns `Permission denied`
 - Scope note: this closes a recipe YAML/fulltest signal-quality issue for `qupath`; it does not make the recipe arm64-ready.
 
+- Follow-up on 2026-03-28:
+  - `neurocontainers/recipes/qupath/fulltest.yaml` still pointed at the old dated SIF name `qupath_0.6.0_20250805.simg`, while the current `./test.sh` path generates `sifs/qupath_0.6.0.simg`
+  - the recipe YAML was updated to use `container: qupath_0.6.0.simg`
+  - rerunning `./test.sh qupath` against the existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` produced the same immediate setup failure: `Setup failed (exit 126)` with `0/0` tests run
+- Scope note: this follow-up closes the stale fulltest metadata for the current no-rebuild wrapper path; it does not change the existing arm64 runtime incompatibility.
+
 ### Recipe-level full test check: `mritools`
 
 - On 2026-03-26, `./test.sh mritools` was run against the existing local `mritools:3.3.0` image on an `aarch64` host without rebuilding the Docker image.

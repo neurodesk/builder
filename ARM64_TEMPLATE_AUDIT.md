@@ -503,6 +503,44 @@ These changes are now in this repo and should be used as the new baseline for ar
   - this warning did not block build or execution, so it was not treated as the build issue for this audit pass
 - Scope note: this closes two concrete recipe-side Miniconda template blockers for `eharmonize` on arm64 and produces a runnable arm64 image from the current recipe.
 
+### Recipe-level build check: `segmentator`
+
+- On 2026-03-28, `./build.sh segmentator` was run on an `aarch64` host.
+- Initial failure:
+  - the recipe declared only `x86_64`, and the first arm64 rerun exposed a broken Miniconda path where later template steps reached:
+    `/bin/sh: 1: conda: not found`
+- First fix landed in recipe YAML:
+  - add `aarch64` to `neurocontainers/recipes/segmentator/build.yaml`
+- Second failure after rerun:
+  - once the arm64 Miniconda path was active, the build failed in the template-managed env creation step with:
+    `CondaValueError: 'base' is a reserved environment name`
+- Second fix landed in recipe YAML:
+  - set `env_name: segmentator` and `env_exists: "false"` in the Miniconda template block
+- Third failure after rerun:
+  - the recipe's original Conda spec was pinned to a Python 3.6 era environment that current arm64 channels could not solve, including:
+    `nothing provides openssl >=1.0.2p,<1.0.3a needed by python-3.6.7`
+- Third fix landed in recipe YAML:
+  - replace the stale Conda spec with an arm64-solvable baseline:
+    `matplotlib numpy nibabel scipy python=3.10`
+- Fourth failure after rerun:
+  - the recipe's pip dependency pin used invalid pip syntax:
+    `compoda=0.3.5`
+  - the build failed with:
+    `Hint: = is not a valid operator. Did you mean == ?`
+- Fourth fix landed in recipe YAML:
+  - change `pip_install` to `compoda==0.3.5`
+- Fifth failure after rerun:
+  - the recipe unpack/install step ran its editable install outside the activated Conda env, so `setup.py` could not import the `numpy` dependency that had just been installed into `segmentator`
+- Fifth fix landed in recipe YAML:
+  - run the editable install inside the activated env with:
+    `bash -c "source activate segmentator && python -m pip install -e /opt/segmentator"`
+- Verified rerun result:
+  - after those YAML fixes, the build progressed through Miniconda setup, `conda create --name segmentator`, the modernized Conda dependency install, the corrected `compoda==0.3.5` pip install, and the recipe unpack step
+  - the remaining failure is now later and narrower, during editable install of the upstream `segmentator` source tree:
+    `ModuleNotFoundError: No module named 'numpy'`
+    from pip's isolated editable-build metadata phase
+- Scope note: this pass closes multiple concrete arm64 recipe-YAML blockers for `segmentator` and moves the build from immediate Conda/template failure into the upstream package's editable-install/build-isolation problem. A final successful arm64 image was not produced in this pass.
+
 ### Recipe-level full test check: `eharmonize`
 
 - On 2026-03-28, `./test.sh eharmonize` was run against the existing local `eharmonize:1.0.0` image on an `aarch64` host without rebuilding the Docker image.

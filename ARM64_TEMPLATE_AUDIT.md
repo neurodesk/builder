@@ -309,6 +309,21 @@ These changes are now in this repo and should be used as the new baseline for ar
   - inspection of the newer upstream `c3d-nightly-Linux-gcc64.tar.gz` payload on 2026-03-27 also showed `ELF 64-bit ... x86-64`, so it is not an arm64 replacement
 - Scope note: `convert3d` currently has no validated upstream arm64 binary artifact in this template path. The recipe-level arm64 build succeeds, but the bundled runtime remains unusable on arm64 because the installed payload is still x86_64-only.
 
+### Recipe-level full test check: `convert3d`
+
+- On 2026-03-27, `./test.sh convert3d` was run against the existing local `convert3d:1.1.0` image on an `aarch64` host without rebuilding the Docker image.
+- Initial result: `0/98` tests passed in `24.9s`.
+- Cause:
+  - the existing image's `c3d` launcher is not runnable on this arm64 host, so the suite expanded one startup failure into 98 failed cases with repeated `exit 126` results
+  - `neurocontainers/recipes/convert3d/fulltest.yaml` had no early launcher preflight, so every downstream command test repeated the same root failure instead of surfacing it once
+- Fix landed in recipe YAML only: add a setup-time `c3d -version` preflight in `neurocontainers/recipes/convert3d/fulltest.yaml` so the suite fails immediately when the packaged executables cannot start.
+- Verified rerun result:
+  - the existing generated `sifs/convert3d_1.1.0.simg` was retested against the updated `neurocontainers/recipes/convert3d/fulltest.yaml` without rebuilding the Docker image
+  - the rerun now fails immediately in setup with a single clear launcher failure (`Setup failed (exit 126)`)
+  - a direct runtime probe with `docker run --rm convert3d:1.1.0 c3d -version` still fails immediately on arm64 with:
+    `exec /opt/convert3d-nightly/bin/c3d: exec format error`
+- Scope note: this closes a recipe YAML/fulltest signal-quality issue for `convert3d`; it does not make the recipe arm64-ready.
+
 ### Recipe-level full test check: `xnat`
 
 - On 2026-03-26, `./test.sh xnat` was run against the existing local `xnat:1.9.2.1` image without rebuilding it.

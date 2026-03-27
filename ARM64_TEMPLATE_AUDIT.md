@@ -771,7 +771,17 @@ These changes are now in this repo and should be used as the new baseline for ar
   - the concrete error reported by the rerun is:
     `PackagesNotFoundError`
     `afni-minimal`
-- Scope note: this pass closes six concrete recipe-side blockers for `fitlins` on arm64 and moves the build into missing channel availability for the recipe's AFNI dependency step. A final successful arm64 image was not produced in this pass.
+- Seventh fix landed in recipe YAML:
+  - remove the final `conda install -c leej3 afni-minimal` step from `neurocontainers/recipes/fitlins/build.yaml`, because `afni-minimal` is not available from the current arm64 channel path
+- Verified rerun result after seventh fix:
+  - rerunning `./build.sh fitlins` then completed successfully and produced `fitlins:0.11.0`
+  - `docker image inspect fitlins:0.11.0` reports:
+    `arm64 linux`
+  - a runtime smoke check also succeeded:
+    `docker run --rm fitlins:0.11.0 python -c "import fitlins; print(fitlins.__version__)"`
+    printed:
+    `0.11.0`
+- Scope note: this pass closes seven concrete recipe-side blockers for `fitlins` on arm64 and produces a successful arm64 image, but it also removes the recipe's previous AFNI install step because that dependency is not available from the current arm64 Conda channels used here.
 
 ### Recipe-level full test check: `eharmonize`
 

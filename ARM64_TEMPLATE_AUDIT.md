@@ -1111,6 +1111,12 @@ These changes are now in this repo and should be used as the new baseline for ar
   - this indicates the packaged executables in the existing image are still incompatible with arm64
 - Scope note: this closes a recipe YAML/fulltest signal-quality issue for `mritools`; it does not make the recipe arm64-ready.
 
+- Follow-up on 2026-03-28:
+  - `neurocontainers/recipes/mritools/fulltest.yaml` still pointed at the old dated SIF name `mritools_3.3.0_20220224.simg`, while the current `./test.sh` path generates `sifs/mritools_3.3.0.simg`
+  - the recipe YAML was updated to use `container: mritools_3.3.0.simg`
+  - rerunning `./test.sh mritools` against the existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` produced the same immediate setup failure: `Setup failed (exit 126)` with `0/0` tests run
+- Scope note: this follow-up closes the stale fulltest metadata for the current no-rebuild wrapper path; it does not change the existing arm64 runtime incompatibility.
+
 ### Recipe-level full test check: `laynii`
 
 - On 2026-03-26, `./test.sh laynii` was run against the existing local `laynii:2.2.1` image on an `aarch64` host without rebuilding the Docker image.

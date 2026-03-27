@@ -762,7 +762,16 @@ These changes are now in this repo and should be used as the new baseline for ar
   - the concrete error reported by the rerun is:
     `Invalid requirement: 'fitlins=0.11.0'`
     `Hint: = is not a valid operator. Did you mean == ?`
-- Scope note: this pass closes five concrete recipe-side blockers for `fitlins` on arm64 and moves the build out of the Conda solve into a later recipe pip syntax error. A final successful arm64 image was not produced in this pass.
+- Sixth fix landed in recipe YAML:
+  - change the recipe's pip install line in `neurocontainers/recipes/fitlins/build.yaml` from `fitlins=0.11.0` to `fitlins==0.11.0`
+- Verified rerun result after sixth fix:
+  - the next rerun completed the full pinned Conda install transaction and the later `pip install fitlins==0.11.0` step successfully
+  - the remaining failure is now later and narrower, in the final AFNI dependency step:
+    `conda install -c leej3 afni-minimal`
+  - the concrete error reported by the rerun is:
+    `PackagesNotFoundError`
+    `afni-minimal`
+- Scope note: this pass closes six concrete recipe-side blockers for `fitlins` on arm64 and moves the build into missing channel availability for the recipe's AFNI dependency step. A final successful arm64 image was not produced in this pass.
 
 ### Recipe-level full test check: `eharmonize`
 

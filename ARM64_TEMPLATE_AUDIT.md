@@ -1,6 +1,6 @@
 # ARM64 Template Audit
 
-Last updated: 2026-03-26
+Last updated: 2026-03-27
 
 This document tracks:
 
@@ -265,6 +265,21 @@ These changes are now in this repo and should be used as the new baseline for ar
   and `/opt/xnat-webapp/scripts/generated/xnat_projectData.js`.
 - Verified rerun result: the same `./test.sh xnat` invocation then passed cleanly with `98/98` tests passing in `27.7s`.
 - Scope note: this closes a recipe YAML/fulltest mismatch for `xnat`; it does not change the recipe's declared architecture support.
+
+### Recipe-level full test check: `brainlifecli`
+
+- On 2026-03-27, `./test.sh brainlifecli` was run against the existing local `brainlifecli:1.7.0` image on an `aarch64` host without rebuilding the Docker image.
+- Initial result: `71/73` tests passed. The two failures were in `neurocontainers/recipes/brainlifecli/fulltest.yaml`, not the container runtime itself:
+  `Version check` and `Version command`.
+- Cause:
+  - the existing image's `bl --version` and `bl version` commands report `1.8.2`
+  - `neurocontainers/recipes/brainlifecli/build.yaml` installs `brainlife` from npm without pinning an exact package version, so the runtime-reported CLI version can drift away from the recipe's `version: 1.7.0`
+  - `neurocontainers/recipes/brainlifecli/fulltest.yaml` hardcoded `1.7.0`, which made the suite fail on a healthy container for an upstream version-string mismatch
+- Fix landed in recipe YAML only: change the two version checks to normalize any `x.y.z` output to `VERSION` before asserting, so the full test verifies that the CLI reports a semantic version without pinning a stale npm-derived string.
+- Verified rerun result:
+  - the same container was rerun through the full test suite using the existing generated `.simg`, without rebuilding the image
+  - the rerun passed cleanly with `73/73` tests passing in `90.1s`
+- Scope note: this closes a recipe YAML/fulltest mismatch for `brainlifecli` without rebuilding the image; it does not change the recipe's declared `architectures: [x86_64]`.
 
 ### Recipe-level full test check: `sigviewer`
 

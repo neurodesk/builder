@@ -1119,6 +1119,12 @@ These changes are now in this repo and should be used as the new baseline for ar
   - align `neurocontainers/recipes/palm/fulltest.yaml` container metadata to `palm_alpha119.simg`
 - Scope note: this closes a stale fulltest-metadata issue for `palm`; the existing image already passes the no-rebuild arm64 runtime suite on this host.
 
+- Follow-up on 2026-03-28:
+  - the `neurocontainers/recipes/palm/fulltest.yaml` suite did not explicitly validate the underlying GNU Octave runtime even though the existing image exposes a stable version string
+  - the recipe YAML was tightened by adding an `octave --version` check that asserts the shipped runtime version: `GNU Octave, version 6.4.0`
+  - rerunning `./test.sh palm` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `56/56` tests in `152.6s`
+- Scope note: this follow-up strengthens the no-rebuild fulltest to validate the current Octave runtime in the existing image.
+
 ### Recipe-level full test check: `convert3d`
 
 - On 2026-03-27, `./test.sh convert3d` was run against the existing local `convert3d:1.1.0` image on an `aarch64` host without rebuilding the Docker image.

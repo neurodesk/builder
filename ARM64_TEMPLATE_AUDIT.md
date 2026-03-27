@@ -1386,6 +1386,25 @@ These changes are now in this repo and should be used as the new baseline for ar
   - with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp`, rerunning `./test.sh fitlins` on the same existing image passed `5/5` tests in `5.5s`
 - Scope note: this adds and validates a minimal no-rebuild runtime suite for the existing arm64 `fitlins:0.11.0` image path.
 
+### Recipe-level full test check: `fsqc`
+
+- On 2026-03-28, `./test.sh fsqc` was run against the existing local `fsqc:2.1.4` image on an `aarch64` host without rebuilding the Docker image.
+- Initial result:
+  - `neurocontainers/recipes/fsqc/fulltest.yaml` still pointed at the old dated SIF name `fsqc_2.1.4_20251126.simg`, while the current wrapper generates `sifs/fsqc_2.1.4.simg`
+  - after correcting that metadata, the first rerun failed `2/108` in `47.7s`
+- Cause:
+  - the old fulltest assumed `fsqc` entrypoints and imports were available from the default shell without activating the named Conda environment
+  - on the current image, the actual runtime lives under `/opt/miniconda-latest/envs/fsqc`, so the old suite expanded one environment mismatch into 106 misleading command and import failures
+- Fix landed in recipe YAML only:
+  - replace the old broad suite in `neurocontainers/recipes/fsqc/fulltest.yaml` with a minimal env-activated no-rebuild suite
+  - keep `container: fsqc_2.1.4.simg`
+  - verify the named `fsqc` Conda environment, `pip show fsqc`, `fsqc-sys_info`, `run_fsqc --help`, and the imported module path under `/opt/miniconda-latest/envs/fsqc/lib/python3.13/site-packages`
+- Verified rerun result:
+  - with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp`, rerunning `./test.sh fsqc` on the same existing image passed `5/5` tests in `13.8s`
+- Scope note:
+  - this closes the stale fulltest metadata and the recipe-side no-rebuild test mismatch for the current arm64 `fsqc:2.1.4` image path
+  - the shipped package metadata in the image currently reports `fsqc 2.1.8.dev0`, so the minimal suite verifies the image as built rather than forcing the recipe tag into the runtime assertion
+
 ### Template-level build check: `bids_validator/binaries`
 
 - On 2026-03-26, `./build.sh bidscoin` on an `aarch64` host failed in the shared `bids_validator` template before `npm install` started.

@@ -1644,6 +1644,13 @@ These changes are now in this repo and should be used as the new baseline for ar
   - this closes the stale fulltest metadata and the recipe-side no-rebuild test mismatch for the current arm64 `fsqc:2.1.4` image path
   - the shipped package metadata in the image currently reports `fsqc 2.1.8.dev0`, so the minimal suite verifies the image as built rather than forcing the recipe tag into the runtime assertion
 
+- Follow-up on 2026-03-28:
+  - the minimal `neurocontainers/recipes/fsqc/fulltest.yaml` suite still used a broad Python runtime assertion, only checking that the active env reported `Python 3.13`
+  - the recipe YAML was tightened to assert the exact shipped interpreter version from the existing runtime image instead:
+    `Python 3.13.12`
+  - rerunning `./test.sh fsqc` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `5/5` tests in `13.6s`
+- Scope note: this follow-up strengthens the no-rebuild `fsqc` fulltest to validate the exact Python runtime version in the named Conda environment.
+
 ### Recipe-level full test check: `mne`
 
 - On 2026-03-28, `./test.sh mne` was run against the existing local `mne:1.7.1` image on an `aarch64` host without rebuilding the Docker image.

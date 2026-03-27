@@ -1118,6 +1118,18 @@ These changes are now in this repo and should be used as the new baseline for ar
   - the literal `./test.sh connectomeworkbench` wrapper initially failed during Apptainer conversion with `no space left on device` under `/tmp`, then passed cleanly with `112/112` tests in `314.6s` when rerun with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp`
 - Scope note: this closes the recipe YAML/fulltest mismatch for the existing `connectomeworkbench` image path without rebuilding; it does not prove that the shipped image contents match the recipe's declared `2.1.0` Workbench version.
 
+### Recipe-level full test check: `niftyreg`
+
+- On 2026-03-28, `./test.sh niftyreg` was run against the existing local `niftyreg:1.4.0` image on an `aarch64` host without rebuilding the Docker image.
+- Initial YAML issue:
+  - `neurocontainers/recipes/niftyreg/fulltest.yaml` still pointed at the old dated SIF name `niftyreg_1.4.0_20220317.simg`
+  - the current `./test.sh` path now generates `sifs/niftyreg_1.4.0.simg`, so the fulltest metadata was stale
+- Fix landed in recipe YAML only:
+  - update `container:` in `neurocontainers/recipes/niftyreg/fulltest.yaml` to `niftyreg_1.4.0.simg`
+- Verified rerun result:
+  - rerunning `./test.sh niftyreg` against the existing image path with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` passed `88/88` tests in `881.5s`
+- Scope note: this closes the stale fulltest-metadata issue for `niftyreg`; the existing local image passes the no-rebuild runtime suite on this arm64 host.
+
 ### Template-level build check: `bids_validator/binaries`
 
 - On 2026-03-26, `./build.sh bidscoin` on an `aarch64` host failed in the shared `bids_validator` template before `npm install` started.

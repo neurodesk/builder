@@ -706,7 +706,20 @@ These changes are now in this repo and should be used as the new baseline for ar
     `package mamba-0.24.0-py310hcf12e44_1 requires python >=3.10,<3.11.0a0 *_cpython`
     while the current Miniconda base environment is pinned to:
     `python=3.13`
-- Scope note: this pass closes three concrete recipe-side Miniconda blockers for `mne` on arm64 and moves the build into the recipe's pinned old-`mamba` dependency conflict. A final successful arm64 image was not produced in this pass.
+- Fourth fix landed in recipe YAML:
+  - remove the old base-environment `mamba=0.24.0` install from `neurocontainers/recipes/mne/build.yaml`
+  - replace the later `mamba create ...` step with a direct:
+    `conda create --override-channels --channel=conda-forge --name=mne-1.7.1 urllib3=2.2.1 mne=1.7.1`
+- Verified rerun result after fourth fix:
+  - the next rerun got cleanly past the old immediate `mamba=0.24.0` solver failure
+  - it entered the real `mne-1.7.1` environment transaction on arm64 and started downloading the package set, including:
+    `mne-1.7.1`
+    `mne-base-1.7.1`
+    `qt-main-5.15.15`
+    `qt6-main-6.8.3`
+    `vtk-base-9.4.1`
+  - I stopped that rerun while the large conda-forge transaction was still in progress, so there is not yet a finalized `mne:1.7.1` image recorded from this pass
+- Scope note: this pass closes four concrete recipe-side blockers for `mne` on arm64 and moves the build into the recipe's real `mne` environment solve/download path. A final successful arm64 image was not produced in this pass.
 
 ### Recipe-level build check: `fitlins`
 

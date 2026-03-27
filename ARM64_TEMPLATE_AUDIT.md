@@ -909,6 +909,12 @@ These changes are now in this repo and should be used as the new baseline for ar
     `exec /opt/convert3d-nightly/bin/c3d: exec format error`
 - Scope note: this closes a recipe YAML/fulltest signal-quality issue for `convert3d`; it does not make the recipe arm64-ready.
 
+- Follow-up on 2026-03-28:
+  - `neurocontainers/recipes/convert3d/fulltest.yaml` still pointed at the old dated SIF name `convert3d_1.1.0_20251212.simg`, while the current `./test.sh` path generates `sifs/convert3d_1.1.0.simg`
+  - the recipe YAML was updated to use `container: convert3d_1.1.0.simg`
+  - rerunning `./test.sh convert3d` against the existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` produced the same immediate setup failure: `Setup failed (exit 126)` with `0/0` tests run
+- Scope note: this follow-up closes the stale fulltest metadata for the current no-rebuild wrapper path; it does not change the existing arm64 runtime incompatibility.
+
 ### Recipe-level full test check: `itksnap`
 
 - On 2026-03-27, `./test.sh itksnap` was run against an existing local ITK-SNAP image on an `aarch64` host without rebuilding the Docker image.

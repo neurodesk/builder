@@ -948,6 +948,12 @@ These changes are now in this repo and should be used as the new baseline for ar
   - the generated `sifs/eharmonize_1.0.0.simg` was created from the existing local Docker image, not from a rebuilt container
 - Scope note: this closes a recipe YAML/fulltest coverage gap for `eharmonize` without rebuilding the image.
 
+- Follow-up on 2026-03-28:
+  - the minimal `neurocontainers/recipes/eharmonize/fulltest.yaml` suite originally only checked that `python -m pip show eharmonize` printed the package name, which was weaker than the actual runtime metadata available in the image
+  - the recipe YAML was tightened to assert the shipped package metadata version instead: `Version: 0.0.0`
+  - rerunning `./test.sh eharmonize` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `5/5` tests in `5.8s`
+- Scope note: this follow-up strengthens the no-rebuild fulltest to validate the current runtime package metadata in the existing image; it does not imply the recipe tag and the packaged Python distribution version string are the same thing.
+
 ### Recipe-level full test check: `ants`
 
 - On 2026-03-28, `./test.sh ants` was run against an existing local ANTs image on an `aarch64` host without rebuilding the Docker image.

@@ -996,6 +996,12 @@ These changes are now in this repo and should be used as the new baseline for ar
 - Verified rerun result: the same `./test.sh xnat` invocation then passed cleanly with `98/98` tests passing in `27.7s`.
 - Scope note: this closes a recipe YAML/fulltest mismatch for `xnat`; it does not change the recipe's declared architecture support.
 
+- Follow-up on 2026-03-28:
+  - `neurocontainers/recipes/xnat/fulltest.yaml` still pointed at the old dated SIF name `xnat_1.9.2.1_20250805.simg`, while the current `./test.sh` path generates `sifs/xnat_1.9.2.1.simg`
+  - the recipe YAML was updated to use `container: xnat_1.9.2.1.simg`
+  - rerunning `./test.sh xnat` against the existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` then passed cleanly with `98/98` tests in `28.6s`
+- Scope note: this follow-up closes the stale fulltest metadata for the current no-rebuild wrapper path.
+
 ### Recipe-level full test check: `brainlifecli`
 
 - On 2026-03-27, `./test.sh brainlifecli` was run against the existing local `brainlifecli:1.7.0` image on an `aarch64` host without rebuilding the Docker image.

@@ -298,6 +298,21 @@ These changes are now in this repo and should be used as the new baseline for ar
     `2.4.1`
 - Scope note: this closes the remaining Python package compatibility blocker for `blastct` in this arm64 build path; the recipe now builds and imports successfully on arm64 in this environment.
 
+### Recipe-level full test check: `blastct`
+
+- On 2026-03-28, `./test.sh blastct` was run against the existing local `blastct:2.0.0` image on an `aarch64` host without rebuilding the Docker image.
+- Initial failure:
+  - the recipe had no `neurocontainers/recipes/blastct/fulltest.yaml`, so `./test.sh blastct` stopped immediately with:
+    `Recipe full test file not found: /home/joshua/dev/projects/builder/./neurocontainers/recipes/blastct/fulltest.yaml`
+- Fix landed in recipe YAML only:
+  - add `neurocontainers/recipes/blastct/fulltest.yaml`
+  - the new suite verifies `python3`, imports `blast_ct`, checks `pip show blast_ct`, verifies `SimpleITK` reports `2.4.1`, and confirms the module is installed under `/opt/miniconda/lib/python3.11/site-packages`
+- Verified rerun result:
+  - rerunning `./test.sh blastct` against the same existing image path then passed cleanly with `5/5` tests passing in `4.1s`
+  - because the existing image is large, the no-rebuild rerun also required redirecting Apptainer temporary files to a project-local temp directory on the main filesystem instead of `/tmp`
+  - the generated `sifs/blastct_2.0.0.simg` was created from the existing local Docker image, not from a rebuilt container
+- Scope note: this closes a recipe YAML/fulltest coverage gap for `blastct` without rebuilding the image.
+
 ### Recipe-level build check: `amico`
 
 - On 2026-03-27, `./build.sh amico` was run on an `aarch64` host.

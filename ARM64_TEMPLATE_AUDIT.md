@@ -591,6 +591,12 @@ These changes are now in this repo and should be used as the new baseline for ar
     `sha256:8763a48fa65f227bf330d63a0ca0896e610fc3c70784ac28cb14f640102b665f arm64 linux`
   - the same runtime smoke check still succeeded and resolved `segmentator` from:
     `/opt/segmentator/segmentator/__init__.py`
+- Revalidation note:
+  - another fresh rerun of `BUILDKIT_PROGRESS=plain ./build.sh segmentator` on the same `aarch64` host completed cleanly again and rebuilt `segmentator:1.6.1` from cache
+  - `docker image inspect segmentator:1.6.1 --format '{{.Id}} {{.Architecture}} {{.Os}}'` still reports:
+    `sha256:55bb85c359ae33fd4aecaf0340db70cfb2e739ce4f37fa14abeec32d68db75d6 arm64 linux`
+  - the same runtime smoke check still succeeded and resolved `segmentator` from:
+    `/opt/segmentator/segmentator/__init__.py`
 - Scope note: this pass closes three more concrete recipe-side blockers for `segmentator` on arm64, including the NumPy 2.x incompatibility, and ends with a successful `segmentator:1.6.1` image build on arm64.
 
 ### Recipe-level build check: `spmpython`

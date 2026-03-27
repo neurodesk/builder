@@ -663,6 +663,24 @@ These changes are now in this repo and should be used as the new baseline for ar
     `/opt/ants-2.4.3/antsRegistration: cannot execute binary file: Exec format error`
 - Scope note: this closes a recipe YAML/fulltest signal-quality issue for `ants`; it does not make the packaged ANTs binaries arm64-ready.
 
+### Recipe-level full test check: `fsl`
+
+- On 2026-03-28, `./test.sh fsl` was run against an existing local FSL image on an `aarch64` host without rebuilding the Docker image.
+- Local image note:
+  - the current recipe metadata expects `fsl:6.0.7.19`
+  - the available local runtime image in this workspace was `ghcr.io/neurodesk/caid/fsl_6.0.3:20200905`, so that existing image was temporarily tagged as `fsl:6.0.7.19` to exercise the current `fsl` recipe/fulltest path without rebuilding
+- Initial result: `0/128` tests passed in `0.6s`.
+- Cause:
+  - the generated SIF from the existing image is `amd64`, and the test runner's built-in container health check stops immediately on this `arm64` host with:
+    `the image's architecture (amd64) could not run on the host's (arm64)`
+  - while checking this path, `neurocontainers/recipes/fsl/fulltest.yaml` was also found to have stale metadata from the older `6.0.7.18` recipe state even though `neurocontainers/recipes/fsl/build.yaml` is now `6.0.7.19`
+- Fix landed in recipe YAML only:
+  - align `neurocontainers/recipes/fsl/fulltest.yaml` metadata to the current recipe (`version: 6.0.7.19`, `container: fsl_6.0.7.19.simg`)
+- Follow-up status:
+  - the same `./test.sh fsl` wrapper was started again after the YAML-only metadata fix with project-local Apptainer temp dirs
+  - that follow-up rerun was still in the long SIF repack/conversion phase for the large existing image when this audit entry was updated, so there is not yet a second post-fix runtime result to record
+- Scope note: this closes a stale fulltest-metadata issue for `fsl`, but the existing local image path remains blocked first by an `amd64` container-health failure on arm64 rather than by recipe test logic.
+
 ### Recipe-level full test check: `convert3d`
 
 - On 2026-03-27, `./test.sh convert3d` was run against the existing local `convert3d:1.1.0` image on an `aarch64` host without rebuilding the Docker image.

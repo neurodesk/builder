@@ -313,6 +313,12 @@ These changes are now in this repo and should be used as the new baseline for ar
   - the generated `sifs/blastct_2.0.0.simg` was created from the existing local Docker image, not from a rebuilt container
 - Scope note: this closes a recipe YAML/fulltest coverage gap for `blastct` without rebuilding the image.
 
+- Follow-up on 2026-03-28:
+  - the minimal `neurocontainers/recipes/blastct/fulltest.yaml` suite originally only asserted a broad Python runtime prefix (`Python 3.`), which was weaker than the exact runtime metadata available in the image
+  - the recipe YAML was tightened to assert the shipped interpreter version instead: `Python 3.11.13`
+  - rerunning `./test.sh blastct` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `5/5` tests in `4.0s`
+- Scope note: this follow-up strengthens the no-rebuild fulltest to validate the current Python runtime version in the existing image.
+
 ### Recipe-level build check: `brainlesion`
 
 - On 2026-03-28, `./build.sh brainlesion` was run on an `aarch64` host.

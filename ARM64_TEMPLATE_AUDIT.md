@@ -1205,6 +1205,12 @@ These changes are now in this repo and should be used as the new baseline for ar
   - `neurocontainers/recipes/dcm2niix/build.yaml` downloads `dcm2niix_lnx.zip`, and the staged binary in the existing image is not executable on arm64
 - Scope note: this closes the recipe YAML/fulltest reporting issue for `dcm2niix`; it does not make the binary recipe arm64-ready.
 
+- Follow-up on 2026-03-28:
+  - `neurocontainers/recipes/dcm2niix/fulltest.yaml` still pointed at the old dated SIF name `dcm2niix_v1.0.20240202_20241125.simg`, while the current `./test.sh` path generates `sifs/dcm2niix_v1.0.20240202.simg`
+  - the recipe YAML was updated to use `container: dcm2niix_v1.0.20240202.simg`
+  - rerunning `./test.sh dcm2niix` against the existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` reproduced the same setup-time failure at `0/0` in `0.6s`
+- Scope note: this follow-up closes the stale fulltest metadata for the current no-rebuild wrapper path; it does not change the existing arm64 runtime incompatibility.
+
 ### Recipe-level full test check: `hnncore`
 
 - On 2026-03-26, `./test.sh hnncore` was run against the existing local `hnncore:0.3` image on an `aarch64` host without rebuilding the Docker image.

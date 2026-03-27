@@ -717,6 +717,17 @@ These changes are now in this repo and should be used as the new baseline for ar
   - align `neurocontainers/recipes/niimath/fulltest.yaml` container metadata to `niimath_1.0.20250804.simg`
 - Scope note: this closes a stale fulltest-metadata issue for `niimath`; the existing image already passes the no-rebuild arm64 runtime suite on this host.
 
+### Recipe-level full test check: `bart`
+
+- On 2026-03-28, `./test.sh bart` was run against the existing local `bart:0.9.00` image on an `aarch64` host without rebuilding the Docker image.
+- Initial result:
+  - rerunning the no-rebuild wrapper on the existing image path passed cleanly with `116/116` tests in `121.5s`
+- YAML issue found while verifying this path:
+  - `neurocontainers/recipes/bart/fulltest.yaml` still pointed at a dated container filename (`bart_0.9.00_20240723.simg`) even though `./test.sh` now generates `sifs/bart_0.9.00.simg`
+- Fix landed in recipe YAML only:
+  - align `neurocontainers/recipes/bart/fulltest.yaml` container metadata to `bart_0.9.00.simg`
+- Scope note: this closes a stale fulltest-metadata issue for `bart`; the existing image already passes the no-rebuild arm64 runtime suite on this host.
+
 ### Recipe-level full test check: `convert3d`
 
 - On 2026-03-27, `./test.sh convert3d` was run against the existing local `convert3d:1.1.0` image on an `aarch64` host without rebuilding the Docker image.

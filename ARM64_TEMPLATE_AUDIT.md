@@ -554,13 +554,23 @@ These changes are now in this repo and should be used as the new baseline for ar
     `error: command 'gcc' failed: No such file or directory`
 - Seventh fix landed in recipe YAML:
   - add a `run` step to install `build-essential` before the editable install stage
-- Verified rerun result:
-  - after those YAML fixes, the build progressed through Miniconda setup, `conda create --name segmentator`, the modernized Conda dependency install, the corrected `compoda==0.3.5` pip install, native toolchain installation, and the editable install's C-extension compile step
-  - the remaining failure is now later and narrower, inside the upstream `segmentator` extension build against the current NumPy API, including:
+- Eighth failure after rerun:
+  - once the editable extension build had a compiler toolchain, the upstream C extension still failed against NumPy 2.x, including:
     `error: ‘PyArray_Descr’ {aka ‘struct _PyArray_Descr’} has no member named ‘subarray’`
-    and later:
-    `error: command '/usr/bin/gcc' failed with exit code 1`
-- Scope note: this pass closes two more concrete recipe-YAML blockers for `segmentator` on arm64 and moves the build from editable-install isolation/compiler failures into an upstream C-extension compatibility problem. A final successful arm64 image was not produced in this pass.
+- Eighth fix landed in recipe YAML:
+  - pin the Conda dependency set in `neurocontainers/recipes/segmentator/build.yaml` to `numpy=1.26`, keeping the upstream Cython extension on the older NumPy API it actually builds against
+- Final verification:
+  - after that NumPy pin, `./build.sh segmentator` completed successfully and produced `segmentator:1.6.1`
+  - `docker image inspect segmentator:1.6.1 --format '{{.Id}} {{.Architecture}} {{.Os}}'` reported:
+    `sha256:8763a48fa65f227bf330d63a0ca0896e610fc3c70784ac28cb14f640102b665f arm64 linux`
+  - a runtime smoke check with:
+    `docker run --rm segmentator:1.6.1 /bin/bash -lc 'source /opt/miniconda/etc/profile.d/conda.sh && conda activate segmentator && python -c "import segmentator; print(segmentator.__file__)"'`
+    succeeded and reported:
+    `/opt/segmentator/segmentator/__init__.py`
+- Runtime note:
+  - importing `segmentator` emits an upstream `pkg_resources` deprecation warning from the packaged Python code before normal module import completes
+  - this did not block build or execution, so it was not treated as the build issue for this audit pass
+- Scope note: this pass closes three more concrete recipe-side blockers for `segmentator` on arm64, including the NumPy 2.x incompatibility, and ends with a successful `segmentator:1.6.1` image build on arm64.
 
 ### Recipe-level build check: `spmpython`
 

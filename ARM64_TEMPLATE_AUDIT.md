@@ -232,6 +232,13 @@ These changes are now in this repo and should be used as the new baseline for ar
     `No X11 DISPLAY variable was set`
 - Scope note: this closes one recipe-side build/fetch issue for `gingerale`; the built image is arm64, and the remaining runtime limitation from the smoke check is GUI/headless related rather than an arm64 packaging failure.
 
+- On 2026-03-27, `./test.sh gingerale` was run against the existing local `gingerale:3.0.2` image on an `aarch64` host without rebuilding the Docker image.
+- Result:
+  - the existing image converted successfully to `sifs/gingerale_3.0.2.simg`
+  - the current `neurocontainers/recipes/gingerale/fulltest.yaml` suite passed cleanly with `50/50` tests passing in `145.0s`
+  - the passing checks covered CLI usage, ALE generation, thresholding modes, clustering, contrast analysis, Java runtime, and expected error handling
+- Scope note: this is a no-rebuild arm64 runtime/fulltest verification result for `gingerale`; no recipe YAML changes were required in this pass.
+
 ### Recipe-level build check: `blastct`
 
 - On 2026-03-26, `./build.sh blastct` was run on an `aarch64` host.

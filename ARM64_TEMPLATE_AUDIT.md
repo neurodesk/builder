@@ -1231,6 +1231,15 @@ These changes are now in this repo and should be used as the new baseline for ar
   - after clearing the stale leftover tree once, rerunning `./test.sh datalad` still passed cleanly with `5/5` tests passing in `6.5s`
 - Scope note: this follow-up closes a second recipe YAML/fulltest issue for `datalad` by preventing the suite from contaminating the shared runner work directory for later tests.
 
+- Follow-up on 2026-03-28:
+  - the `datalad` fulltest was tightened to assert the shipped CLI version string from the existing local runtime image:
+    `datalad 1.1.5`
+  - that first rerun exposed another YAML-side setup issue: the suite still tried to `rm -rf /tmp/datalad-fulltest-dataset`, and stale annex object permissions caused setup to abort immediately with:
+    `rm: cannot remove '/tmp/datalad-fulltest-dataset/...': Permission denied`
+  - `neurocontainers/recipes/datalad/fulltest.yaml` was updated again so setup no longer recursively deletes that path; instead it moves any existing entry aside, creates a fresh `mktemp` directory, and repoints `/tmp/datalad-fulltest-dataset` at the new location
+  - rerunning `./test.sh datalad` with `TMPDIR` and `APPTAINER_TMPDIR` directed to `local/apptainer-tmp` then passed cleanly with `5/5` tests in `6.3s`
+- Scope note: this follow-up strengthens the no-rebuild `datalad` fulltest to validate the current CLI version and makes the setup path disposable between runs, without changing the earlier scope note that the local runtime image used here is still older than the recipe’s declared `1.3.1`.
+
 ### Recipe-level full test check: `builder`
 
 - On 2026-03-28, `./test.sh builder` was run against the existing local `builder:0.2` image on an `aarch64` host without rebuilding the Docker image.

@@ -666,7 +666,19 @@ These changes are now in this repo and should be used as the new baseline for ar
   - the concrete solver error reported by the rerun is:
     `LibMambaUnsatisfiableError`
     `nothing provides openssl >=1.0.2p,<1.0.3a needed by python-3.6.7`
-- Scope note: this pass closes four concrete recipe-side Miniconda blockers for `hdbet` on arm64 and moves the build into the recipe's old `python=3.6` constraint on current `linux-aarch64` channels. A final successful arm64 image was not produced in this pass.
+- Fifth fix landed in recipe YAML:
+  - update the Miniconda template `conda_install` pin in `neurocontainers/recipes/hdbet/build.yaml` from `python=3.6` to `python=3.10`, matching the current upstream `HD_BET` package metadata (`requires-python >=3.10`)
+- Verified rerun result after fifth fix:
+  - the rerun got cleanly past the old `python=3.6` solver failure and completed:
+    `conda install -y -q --name hdbet "python=3.10"`
+  - the previous blocker:
+    `nothing provides openssl >=1.0.2p,<1.0.3a needed by python-3.6.7`
+    is gone
+  - the build then entered the recipe's real upstream application install path:
+    `git clone https://github.com/MIC-DKFZ/HD-BET`
+    `pip install -e .`
+  - the rerun was still actively downloading and resolving the heavy dependency stack when I stopped it, including `torch-2.11.0-cp313-cp313-manylinux_2_28_aarch64.whl`
+- Scope note: this pass closes five concrete recipe-side build blockers for `hdbet` on arm64 and moves the build into the upstream HD-BET dependency installation path. A final successful arm64 image was not produced in this pass.
 
 ### Recipe-level build check: `condaenvs`
 

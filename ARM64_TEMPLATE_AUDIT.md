@@ -1150,6 +1150,16 @@ These changes are now in this repo and should be used as the new baseline for ar
   - rerunning `./test.sh niftyreg` against the existing image path with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` passed `88/88` tests in `881.5s`
 - Scope note: this closes the stale fulltest-metadata issue for `niftyreg`; the existing local image passes the no-rebuild runtime suite on this arm64 host.
 
+### Recipe-level full test check: `lipsia`
+
+- On 2026-03-28, `./test.sh lipsia` was run against the existing local `lipsia:3.1.1` image on an `aarch64` host without rebuilding the Docker image.
+- Result:
+  - with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp`, the no-rebuild wrapper passed `5/5` tests in `1.8s`
+- YAML review:
+  - `neurocontainers/recipes/lipsia/fulltest.yaml` already matched the current undated SIF naming (`lipsia_3.1.1.simg`)
+  - no recipe YAML change was required for this image path
+- Scope note: the existing local `lipsia` image passes its current no-rebuild runtime suite on this arm64 host.
+
 ### Template-level build check: `bids_validator/binaries`
 
 - On 2026-03-26, `./build.sh bidscoin` on an `aarch64` host failed in the shared `bids_validator` template before `npm install` started.

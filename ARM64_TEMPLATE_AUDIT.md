@@ -597,7 +597,23 @@ These changes are now in this repo and should be used as the new baseline for ar
     `LibMambaUnsatisfiableError`
     `nothing provides openssl >=1.0.2p,<1.0.3a needed by python-3.6.7`
     `cudatoolkit =10.2 * does not exist`
-- Scope note: this pass closes three concrete recipe-side Miniconda blockers for `topaz` on arm64 and moves the build into the recipe's old Conda package constraints; a final successful arm64 image was not produced in this pass.
+- Fourth fix landed in recipe YAML:
+  - replace the stale Conda package spec in `neurocontainers/recipes/topaz/build.yaml`
+  - the Miniconda template now creates the env with `python=3.10`
+  - the package install is moved to an env-activated pip step:
+    `python -m pip install --no-cache-dir topaz-em==0.2.5`
+- Verified rerun result after fourth fix:
+  - the rerun got cleanly past the old `python=3.6 topaz=0.2.5 cudatoolkit=10.2` solver failure
+  - the previous arm64 blockers:
+    `nothing provides openssl >=1.0.2p,<1.0.3a needed by python-3.6.7`
+    and
+    `cudatoolkit =10.2 * does not exist`
+    are gone
+  - the build now completes `conda install -y -q --name topaz "python=3.10"` and enters the real env-local pip install path:
+    `source activate topaz`
+    `python -m pip install --no-cache-dir topaz-em==0.2.5`
+  - I stopped that rerun while the heavy dependency install was still active, after it had already started downloading the real arm64 package set including `topaz_em-0.2.5`, `torch-2.11.0-cp310-cp310-manylinux_2_28_aarch64.whl`, `numpy-2.2.6-cp310-cp310-...`, and `scikit_learn-1.7.2-cp310-cp310-...`
+- Scope note: this pass closes four concrete recipe-side blockers for `topaz` on arm64 and moves the build into the intended Python 3.10 env-local package installation path. A final successful arm64 image was not produced in this pass.
 
 ### Recipe-level build check: `vesselvio`
 

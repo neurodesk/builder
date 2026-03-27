@@ -1045,6 +1045,12 @@ These changes are now in this repo and should be used as the new baseline for ar
 - Verified rerun result: the same `./test.sh hnncore` invocation then passed cleanly with `68/68` tests passing in `107.0s`.
 - Scope note: this closes a recipe YAML/fulltest mismatch for `hnncore` without rebuilding the image; it does not change the recipe's declared `architectures: [x86_64]`.
 
+- Follow-up on 2026-03-28:
+  - `neurocontainers/recipes/hnncore/fulltest.yaml` still pointed at the old dated SIF name `hnncore_0.3_20231112.simg`, while the current `./test.sh` path generates `sifs/hnncore_0.3.simg`
+  - the recipe YAML was updated to use `container: hnncore_0.3.simg`
+  - rerunning `./test.sh hnncore` against the existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` then passed cleanly with `68/68` tests in `110.1s`
+- Scope note: this follow-up closes the stale fulltest metadata for the current no-rebuild wrapper path.
+
 ### Recipe-level full test check: `dsistudio`
 
 - On 2026-03-26, `./test.sh dsistudio` was run against the existing local `dsistudio:2024.06.12` image on an `aarch64` host without rebuilding the Docker image.

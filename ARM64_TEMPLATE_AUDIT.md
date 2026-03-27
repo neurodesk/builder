@@ -253,6 +253,29 @@ These changes are now in this repo and should be used as the new baseline for ar
   - `blastct` still has a separate recipe problem to resolve before the image can complete on arm64, because the recipe asks modern Conda to create a new environment named `base`
 - Scope note: this closes one concrete arm64 build/render issue for `blastct` by making the recipe render the correct Miniconda installer for arm64 hosts; the remaining failure is a separate Conda-environment logic issue.
 
+### Recipe-level build check: `megnet`
+
+- On 2026-03-27, `./build.sh megnet` was run on an `aarch64` host.
+- Initial failure:
+  - the generated Dockerfile rendered `https://repo.anaconda.com/miniconda/Miniconda3-py310_25.5.1-0-Linux-x86_64.sh`
+  - the Miniconda bootstrap then failed with:
+    `/opt/miniconda/_conda: cannot execute binary file: Exec format error`
+  - the next Conda step failed at:
+    `conda: not found`
+- Cause:
+  - `neurocontainers/recipes/megnet/build.yaml` only declared `architectures: [x86_64]`
+  - because of that, the shared `miniconda` template rendered the x86_64 installer even though the build was running on an arm64 host
+- Fix landed in recipe YAML:
+  - add `aarch64` to `neurocontainers/recipes/megnet/build.yaml`
+- Verified rerun result:
+  - regenerating the Dockerfile for the same arm64 host now stages:
+    `https://repo.anaconda.com/miniconda/Miniconda3-py310_25.5.1-0-Linux-aarch64.sh`
+  - rerunning `./build.sh megnet` no longer failed immediately in the Miniconda bootstrap with the x86_64 `_conda` exec-format error; it progressed into downloading the arm64 installer payload
+- Current status after this fix:
+  - the original arm64 Miniconda/render issue is fixed
+  - I interrupted the rerun during the long Miniconda installer download/bootstrap, so there is not yet a finalized `megnet:1.0.1` image from the rerun
+- Scope note: this closes one concrete arm64 recipe-render issue for `megnet` by making the recipe render the correct Miniconda installer for arm64 hosts. Any later recipe-specific arm64 blockers remain untested from this turn.
+
 ### Recipe-level build check: `convert3d`
 
 - On 2026-03-27, `./build.sh convert3d` was run on an `aarch64` host.

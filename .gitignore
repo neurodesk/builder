@@ -8,3 +8,6 @@
 /.go*
 
 /sifs
+
+/work
+/results

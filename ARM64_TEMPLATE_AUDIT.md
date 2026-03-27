@@ -430,6 +430,27 @@ These changes are now in this repo and should be used as the new baseline for ar
     `/opt/itksnap-4.2.2/bin/c3d: cannot execute binary file: Exec format error`
 - Scope note: this closes a recipe YAML/fulltest signal-quality issue for `itksnap`; it does not make the packaged ITK-SNAP toolchain arm64-ready.
 
+### Recipe-level full test check: `mricrogl`
+
+- On 2026-03-27, `./test.sh mricrogl` was run against an existing local MRIcroGL image on an `aarch64` host without rebuilding the Docker image.
+- Local image note:
+  - the current recipe metadata expects `mricrogl:1.2.20211006`
+  - the available local image from the arm64 build-fix pass was `mricrogl:debug-fixed`, so that existing image was temporarily tagged as `mricrogl:1.2.20211006` to exercise the current recipe/fulltest path without rebuilding
+- Initial result: `110/123` tests passed in `32.9s`.
+- Cause:
+  - `neurocontainers/recipes/mricrogl/fulltest.yaml` incorrectly assumed `/README.md` would exist inside the runtime image
+  - the same fulltest also exercised `dcm2niix` command-by-command even though the packaged binary in the existing image is not executable on arm64 and fails immediately with `Exec format error`
+  - because there was no early launcher preflight, that one runtime incompatibility expanded into a dozen command-specific fulltest failures
+- Fix landed in recipe YAML only:
+  - replace the invalid `/README.md` assertion with a check for the shipped `/opt/MRIcroGL/MRIcroGL_Linux_Installation.txt` documentation file
+  - add a setup-time `dcm2niix --version` preflight in `neurocontainers/recipes/mricrogl/fulltest.yaml` so the suite stops immediately when the packaged launcher cannot start
+- Verified rerun result:
+  - rerunning `./test.sh mricrogl` against the same existing image path then fails immediately in setup with one clear launcher failure instead of 13 scattered mismatches
+  - the rerun reports:
+    `Setup failed (exit 126): dcm2niix launcher failed during setup (exit 126)`
+    `/opt/MRIcroGL/Resources/dcm2niix: cannot execute binary file: Exec format error`
+- Scope note: this closes a recipe YAML/fulltest signal-quality issue for `mricrogl`; it does not prove the packaged MRIcroGL payload or bundled `dcm2niix` are arm64-runnable.
+
 ### Recipe-level full test check: `xnat`
 
 - On 2026-03-26, `./test.sh xnat` was run against the existing local `xnat:1.9.2.1` image without rebuilding it.

@@ -797,7 +797,16 @@ These changes are now in this repo and should be used as the new baseline for ar
     `https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh`
   - that confirms the recipe is no longer taking the wrong-architecture Miniconda path on arm64
   - the rerun was still in the Miniconda installer stage when I stopped it, so there is not yet a later concrete blocker or a completed image from this pass
-- Scope note: this pass closes one concrete recipe-side Miniconda architecture blocker for `fsqc` on arm64. A final successful arm64 image was not produced in this pass.
+- Second fix landed in recipe YAML:
+  - set the Miniconda template env in `neurocontainers/recipes/fsqc/build.yaml` to `env_name: fsqc` with `env_exists: "false"`
+- Verified rerun result after second fix:
+  - the regenerated Dockerfile no longer emits `conda create --name base`
+  - instead, it now emits:
+    `conda create -y -q --name fsqc`
+    `conda install -y -q --name fsqc "python=3.13"`
+  - that confirms the recipe is no longer taking the reserved-`base` Conda env path on arm64
+  - I stopped the rerun while it was still in the earlier Miniconda installer stage, so there is not yet a later concrete blocker or a completed image from this pass
+- Scope note: this pass closes two concrete recipe-side Miniconda blockers for `fsqc` on arm64. A final successful arm64 image was not produced in this pass.
 
 ### Recipe-level full test check: `eharmonize`
 

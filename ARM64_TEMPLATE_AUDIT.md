@@ -675,6 +675,29 @@ These changes are now in this repo and should be used as the new baseline for ar
     `fatal: could not read Username for 'https://github.com': No such device or address`
 - Scope note: this pass closes two concrete recipe-side Miniconda blockers for `condaenvs` on arm64 and moves the build into the recipe's current upstream source acquisition problem. A final successful arm64 image was not produced in this pass.
 
+### Recipe-level build check: `mne`
+
+- On 2026-03-28, `./build.sh mne` was run on an `aarch64` host.
+- Initial failure:
+  - the recipe declared only `x86_64`, so the rendered Miniconda template downloaded the x86_64 installer:
+    `https://repo.anaconda.com/miniconda/Miniconda3-4.7.12-Linux-x86_64.sh`
+  - later template steps then failed with:
+    `/bin/sh: 1: conda: not found`
+- First fix landed in recipe YAML:
+  - add `aarch64` to `neurocontainers/recipes/mne/build.yaml`
+- Second failure after rerun:
+  - once the arm64 Miniconda path was active, the recipe's pinned installer version no longer existed for arm64:
+    `curl: (22) The requested URL returned error: 404`
+  - the rendered URL was:
+    `https://repo.anaconda.com/miniconda/Miniconda3-4.7.12-Linux-aarch64.sh`
+- Second fix landed in recipe YAML:
+  - change the Miniconda template version in `neurocontainers/recipes/mne/build.yaml` from `4.7.12` to `latest`
+- Verified rerun result:
+  - the next rerun progressed through arm64 Miniconda bootstrap, `conda update -n base conda`, `conda install -n base conda-libmamba-solver`, and `conda init bash`
+  - the remaining failure is now later and narrower, in the template-managed environment creation step:
+    `CondaValueError: 'base' is a reserved environment name`
+- Scope note: this pass closes two concrete recipe-side Miniconda blockers for `mne` on arm64 and moves the build into the current Conda env-creation issue in this recipe path. A final successful arm64 image was not produced in this pass.
+
 ### Recipe-level full test check: `eharmonize`
 
 - On 2026-03-28, `./test.sh eharmonize` was run against the existing local `eharmonize:1.0.0` image on an `aarch64` host without rebuilding the Docker image.

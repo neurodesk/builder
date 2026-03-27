@@ -1177,6 +1177,12 @@ These changes are now in this repo and should be used as the new baseline for ar
   - the generated `sifs/template_1.1.5.simg` was created from the existing local Docker image, not from a rebuilt container
 - Scope note: this closes a recipe YAML/fulltest coverage gap for `template` without rebuilding the image.
 
+- Follow-up on 2026-03-28:
+  - the minimal `neurocontainers/recipes/template/fulltest.yaml` suite originally only asserted that `datalad --version` contained the string `datalad`, which was weaker than the actual runtime metadata available in the image
+  - the recipe YAML was tightened to assert the shipped CLI version instead: `datalad 1.1.5`
+  - rerunning `./test.sh template` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `5/5` tests in `5.2s`
+- Scope note: this follow-up strengthens the no-rebuild fulltest to validate the current DataLad runtime version in the existing image.
+
 ### Recipe-level full test check: `xnat`
 
 - On 2026-03-26, `./test.sh xnat` was run against the existing local `xnat:1.9.2.1` image without rebuilding it.

@@ -296,6 +296,25 @@ These changes are now in this repo and should be used as the new baseline for ar
   - `amico` still has a later Conda-environment problem to resolve because the rendered build path asks modern Conda to create a new environment named `base`
 - Scope note: this closes one concrete arm64 Miniconda/render issue for `amico`; the recipe still has a later Conda-environment logic failure.
 
+- On 2026-03-27, `./build.sh amico` was rerun on the same `aarch64` host.
+- Initial failure on that rerun:
+  `CondaValueError: 'base' is a reserved environment name`
+- Cause:
+  - `neurocontainers/recipes/amico/build.yaml` still used the Miniconda template defaults, so the rendered Dockerfile asked Conda to create a new environment named `base`
+  - modern Conda rejects `base` as a user-created environment name
+- Fix landed in recipe YAML:
+  - set `env_name: amico`
+  - set `env_exists: "false"` so the template creates that named environment explicitly
+  - prepend `/opt/miniconda/envs/amico/bin` to `PATH` so the deployed `python` resolves to the environment where `dmri-amico` is installed
+- Verified rerun result:
+  - the regenerated Dockerfile now emits `conda create -y -q --name amico` instead of `--name base`
+  - `./build.sh amico` completes successfully and produces `amico:2.1.0`
+  - `docker image inspect amico:2.1.0 --format '{{.Architecture}} {{.Os}}'` reports:
+    `arm64 linux`
+  - a follow-up runtime smoke check with `docker run --rm amico:2.1.0 python -c 'import amico; print(amico.__version__)'` prints:
+    `2.1.1`
+- Scope note: this closes the recipe-side Conda-environment build issue for `amico`; the recipe now builds and imports successfully on arm64 in this environment.
+
 ### Recipe-level build check: `megnet`
 
 - On 2026-03-27, `./build.sh megnet` was run on an `aarch64` host.

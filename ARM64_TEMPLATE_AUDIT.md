@@ -27,7 +27,7 @@ Status meanings:
 | `dcm2niix` | `source` | Works | Builds from source and runs on arm64 |
 | `miniconda` | `binaries` | Works | Macro-backed template now selects the correct arm64 installer URL and a clean minimal `aarch64` smoke build completes with `conda --version` |
 | `jq` | `binaries` | Fails | Downloads `jq-linux64`; runtime `Exec format error` |
-| `bids_validator` | `binaries` | Fails | Macro regression fixed; arm64 now reaches `npm install`, but native addon build still fails (`make` missing on Ubuntu 22.04 template test, `distutils` missing on Ubuntu 24.04 via `bidscoin`) |
+| `bids_validator` | `binaries` | Unknown | Macro regression and native build prerequisites fixed; arm64 now installs Node 20 and reaches the real `npm install -g bids-validator@1.13.0`, but a clean final arm64 close-out has not been captured yet |
 | `neurodebian` | `binaries` | Fails | Broken key import: `gpg: no valid OpenPGP data found` |
 | `ndfreeze` | `source` | Fails | Build stalls/fails during `nd_freeze 2024-01-01` apt refresh |
 | `dcm2niix` | `binaries` | Fails | Binary payload is wrong architecture; runtime `Exec format error` |
@@ -670,6 +670,12 @@ These changes are now in this repo and should be used as the new baseline for ar
   - Ubuntu 22.04 template test path fails in `node-gyp` with `Error: not found: make`
   - Ubuntu 24.04 `bidscoin` path fails later in `node-gyp` with `ModuleNotFoundError: No module named 'distutils'`
 - Scope note: this closes one builder/template regression in `bids_validator`; the template still is not arm64-ready end to end.
+
+- Follow-up on 2026-03-27:
+  - `./build.sh bidscoin` was rerun on an `aarch64` host after updating `pkg/recipe/template_specs/bids_validator.yaml` so the shared template also installs native addon prerequisites on arm64 (`build-essential` and `python3-setuptools` for apt; `make`, `gcc-c++`, and `python3-setuptools` for yum)
+  - the regenerated Dockerfile now installs those packages before NodeSource bootstrap, installs `nodejs` 20.20.0 on arm64, prints `node --version` / `npm --version`, and then enters the real `npm install -g bids-validator@1.13.0` step instead of failing immediately on missing `make` / missing `distutils`
+  - the rerun was still busy inside that long `npm install` phase when this audit entry was updated, so no new end-to-end success or replacement hard failure was captured yet
+- Scope note: this follow-up closes one concrete arm64 build-dependency issue in `bids_validator`, but the template remains open until a full clean arm64 result is recorded.
 
 ### `miniconda/binaries`
 

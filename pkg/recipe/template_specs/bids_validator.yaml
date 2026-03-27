@@ -18,8 +18,13 @@ binaries:
     - curl
     - apt-utils
     - gnupg
+    - build-essential
+    - python3-setuptools
     yum:
     - curl
+    - make
+    - gcc-c++
+    - python3-setuptools
   # see install for node https://github.com/nodesource/distributions#installation-scripts
   instructions: |
     if [ ! -z `which node` ] ; then \

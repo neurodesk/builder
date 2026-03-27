@@ -33,7 +33,7 @@ Status meanings:
 | `dcm2niix` | `binaries` | Fails | Binary payload is wrong architecture; runtime `Exec format error` |
 | `convert3d` | `binaries` | Fails | Downloads x86_64 tarball; runtime `Exec format error` |
 | `matlabmcr` | `binaries` | Fails by design | Upstream is x86_64-only |
-| `ants` | `source` | Unknown | Still needs a clean final arm64 run |
+| `ants` | `source` | Unknown | `./build.sh ants` on arm64 rendered and compiled cleanly through upstream ITK/ANTs build stages past 80%, but a full clean completion was not captured yet |
 | `mrtrix3` | `source` | Unknown | Still needs a clean final arm64 run |
 | `niftyreg` | `source` | Works | `./build.sh niftyreg` completes on arm64 and `reg_aladin -h` runs in the built image |
 | `fsl` | `binaries` | Unknown | Still needs a clean final arm64 run |
@@ -520,6 +520,9 @@ These are the best candidates for arm64 enablement once their remaining dependen
 ### `ants/source` (3 recipes, still needs clean final close-out)
 
 `ants`, `braid`, `nighres`
+
+Current verification note:
+- On 2026-03-27, `./build.sh ants` was run on an arm64 host and progressed through Docker build, CMake configure, and deep upstream compilation without hitting an arm64-specific recipe failure. The run was stopped manually after the build passed 80% because it had become a long upstream compile rather than a quick-fail recipe check, so `ants/source` still needs one full clean close-out run.
 
 ## Non-Ubuntu Base Images
 

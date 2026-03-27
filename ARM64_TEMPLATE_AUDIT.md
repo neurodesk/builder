@@ -673,6 +673,14 @@ These changes are now in this repo and should be used as the new baseline for ar
     `git clone https://github.com/NeuroDesk/condaenvs`
   - the remaining failure is now later and narrower:
     `fatal: could not read Username for 'https://github.com': No such device or address`
+- Third fix landed in recipe YAML:
+  - restore the missing `git` package install and make the source fetch an explicit non-interactive `.git` clone in `neurocontainers/recipes/condaenvs/build.yaml`
+- Verified rerun result after third fix:
+  - the rerun no longer fails with `/bin/sh: 1: git: not found`
+  - it now reaches the same upstream source acquisition boundary directly:
+    `GIT_TERMINAL_PROMPT=0 git -c credential.helper= clone https://github.com/NeuroDesk/condaenvs.git /opt/condaenvs`
+  - the remaining failure is still the GitHub-side auth/prompt problem, now reported as:
+    `fatal: could not read Username for 'https://github.com': terminal prompts disabled`
 - Scope note: this pass closes two concrete recipe-side Miniconda blockers for `condaenvs` on arm64 and moves the build into the recipe's current upstream source acquisition problem. A final successful arm64 image was not produced in this pass.
 
 ### Recipe-level build check: `mne`

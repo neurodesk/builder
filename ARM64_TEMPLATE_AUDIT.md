@@ -541,6 +541,31 @@ These changes are now in this repo and should be used as the new baseline for ar
     from pip's isolated editable-build metadata phase
 - Scope note: this pass closes multiple concrete arm64 recipe-YAML blockers for `segmentator` and moves the build from immediate Conda/template failure into the upstream package's editable-install/build-isolation problem. A final successful arm64 image was not produced in this pass.
 
+### Recipe-level build check: `spmpython`
+
+- On 2026-03-28, `./build.sh spmpython` was run on an `aarch64` host.
+- Initial failure:
+  - the recipe declared only `x86_64`, and the first arm64 rerun exposed a broken Miniconda path where later template steps reached:
+    `/bin/sh: 1: conda: not found`
+- First fix landed in recipe YAML:
+  - add `aarch64` to `neurocontainers/recipes/spmpython/build.yaml`
+- Second failure after rerun:
+  - once the arm64 Miniconda path was active, the build failed in the template-managed env creation step with:
+    `CondaValueError: 'base' is a reserved environment name`
+- Second fix landed in recipe YAML:
+  - set `env_name: spmpython` and `env_exists: "false"` in the Miniconda template block in `neurocontainers/recipes/spmpython/build.yaml`
+- Verified rerun result:
+  - the next rerun progressed through Miniconda bootstrap, `conda create --name spmpython`, and the Conda package install for `python=3.12`
+  - the build then entered the real upstream package install path with the activated-env command:
+    `python -m pip install --no-cache-dir spm-python`
+  - observed downloads during that step included:
+    `spm_python-25.1.2.post2-py3-none-any.whl`
+    `spm_runtime_r2025b-25.1.2.post2-py3-none-any.whl`
+    `matlab_runtime-0.0.6-py3-none-any.whl`
+    `mpython_core-25.4rc1-py3-none-any.whl`
+  - the rerun was still actively downloading/installing that package stack when I stopped it, so there is not yet a finalized `spmpython:25.1.2.post1` image recorded from this pass
+- Scope note: this closes two concrete recipe-side Miniconda blockers for `spmpython` on arm64 and moves the build into the real upstream pip install path; any later package or runtime issues remain to be closed out in a future run.
+
 ### Recipe-level full test check: `eharmonize`
 
 - On 2026-03-28, `./test.sh eharmonize` was run against the existing local `eharmonize:1.0.0` image on an `aarch64` host without rebuilding the Docker image.

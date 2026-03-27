@@ -320,9 +320,13 @@ These changes are now in this repo and should be used as the new baseline for ar
 - Verified rerun result:
   - the same `./test.sh dcm2niix` invocation now fails cleanly with `0/105` tests passing in `25.2s`
   - the rerun consistently surfaces the underlying runtime problem instead of masking it behind shell fallbacks
+- On 2026-03-27, the existing `sifs/dcm2niix_v1.0.20240202.simg` from that `./test.sh dcm2niix` run was retested against the current `neurocontainers/recipes/dcm2niix/fulltest.yaml` without rebuilding the Docker image or the SIF.
+- Verified current result after the setup guard tightening:
+  - the suite now fails immediately at `Setup` with exit `126` and `0/0` tests run
+  - this collapses the known arm64 `Exec format error` into one deterministic fulltest failure instead of repeating the same runtime problem across dozens of per-command checks
 - Current remaining blocker after this fix:
   - `neurocontainers/recipes/dcm2niix/build.yaml` downloads `dcm2niix_lnx.zip`, and the staged binary in the existing image is not executable on arm64
-- Scope note: this closes a recipe YAML/fulltest masking issue for `dcm2niix`; it does not make the binary recipe arm64-ready.
+- Scope note: this closes the recipe YAML/fulltest reporting issue for `dcm2niix`; it does not make the binary recipe arm64-ready.
 
 ### Recipe-level full test check: `hnncore`
 

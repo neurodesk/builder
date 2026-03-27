@@ -650,6 +650,31 @@ These changes are now in this repo and should be used as the new baseline for ar
     `/bin/sh: 1: conda: not found`
 - Scope note: this pass closes two concrete recipe-side Miniconda blockers for `hdbet` on arm64 and moves the build to the next real compatibility issue: the recipe's `ubuntu:16.04` base image is now too old for the current arm64 Miniconda installer. A final successful arm64 image was not produced in this pass.
 
+### Recipe-level build check: `condaenvs`
+
+- On 2026-03-28, `./build.sh condaenvs` was run on an `aarch64` host.
+- Initial failure:
+  - the recipe declared only `x86_64`, so the rendered Miniconda template downloaded the x86_64 installer:
+    `https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh`
+  - that installer failed on arm64 with:
+    `/opt/miniconda-latest/_conda: cannot execute binary file: Exec format error`
+  - the next Docker step then failed with:
+    `/bin/sh: 1: conda: not found`
+- First fix landed in recipe YAML:
+  - add `aarch64` to `neurocontainers/recipes/condaenvs/build.yaml`
+- Second failure after rerun:
+  - once the arm64 Miniconda path was active, the build progressed into the template-managed environment creation step and failed with:
+    `CondaValueError: 'base' is a reserved environment name`
+- Second fix landed in recipe YAML:
+  - set `env_name: condaenvs` and `env_exists: "false"` in the Miniconda template block in `neurocontainers/recipes/condaenvs/build.yaml`
+- Verified rerun result:
+  - the next rerun progressed through arm64 Miniconda bootstrap, `conda update -n base conda`, `conda create --name condaenvs`, the environment cleanup step, and the later `apt install git` step
+  - the build then reached the recipe's own upstream fetch path:
+    `git clone https://github.com/NeuroDesk/condaenvs`
+  - the remaining failure is now later and narrower:
+    `fatal: could not read Username for 'https://github.com': No such device or address`
+- Scope note: this pass closes two concrete recipe-side Miniconda blockers for `condaenvs` on arm64 and moves the build into the recipe's current upstream source acquisition problem. A final successful arm64 image was not produced in this pass.
+
 ### Recipe-level full test check: `eharmonize`
 
 - On 2026-03-28, `./test.sh eharmonize` was run against the existing local `eharmonize:1.0.0` image on an `aarch64` host without rebuilding the Docker image.

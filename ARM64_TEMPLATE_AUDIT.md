@@ -744,7 +744,16 @@ These changes are now in this repo and should be used as the new baseline for ar
   - the concrete unresolved arm64 package gaps reported by the rerun are:
     `mkl =2021.4 * does not exist`
     `mkl-service =2.4 * does not exist`
-- Scope note: this pass closes three concrete recipe-side Miniconda blockers for `fitlins` on arm64 and moves the build into missing arm64 availability for the recipe's pinned MKL-based Conda stack. A final successful arm64 image was not produced in this pass.
+- Fourth fix landed in recipe YAML:
+  - remove the unavailable `mkl=2021.4` and `mkl-service=2.4` pins from the recipe's `conda install --override-channels -c conda-forge ...` step in `neurocontainers/recipes/fitlins/build.yaml`
+- Verified rerun result after fourth fix:
+  - the next rerun stayed in the `conda-forge` solve well past the old `mkl` and `mkl-service` package-not-found failures, confirming those gaps were removed
+  - the remaining failure is now narrower and later in the same old pinned stack:
+    `LibMambaUnsatisfiableError`
+  - the concrete unresolved constraints reported by the rerun are:
+    `pin on python 3.9.*`
+    `pandas =1.3 *`
+- Scope note: this pass closes four concrete recipe-side Miniconda blockers for `fitlins` on arm64 and moves the build into the remaining Python-3.9-era dependency pins in the recipe's Conda stack. A final successful arm64 image was not produced in this pass.
 
 ### Recipe-level full test check: `eharmonize`
 

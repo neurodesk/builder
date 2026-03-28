@@ -1700,6 +1700,14 @@ These changes are now in this repo and should be used as the new baseline for ar
   - rerunning `./test.sh fitlins` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `5/5` tests in `10.8s`
 - Scope note: this follow-up strengthens the no-rebuild `fitlins` fulltest to validate the actual installed launcher behavior, not just that the executable exists on `PATH`.
 
+- Follow-up on 2026-03-28:
+  - the same `neurocontainers/recipes/fitlins/fulltest.yaml` suite still used a broad module-location assertion, only checking that `fitlins.__file__` lived somewhere under:
+    `/opt/miniconda/lib/python3.9/site-packages/fitlins/`
+  - the recipe YAML was tightened to validate the exact shipped module path instead:
+    `/opt/miniconda/lib/python3.9/site-packages/fitlins/__init__.py`
+  - a fresh `./test.sh fitlins` rerun was started against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp`, but this pass did not reach a new suite summary before the run was stopped in the long Apptainer SIF-conversion tail
+- Scope note: this follow-up strengthens the no-rebuild `fitlins` fulltest to validate the exact shipped module path; it does not add a new post-change pass/fail timing beyond the earlier passing reruns already recorded above.
+
 ### Recipe-level full test check: `fsqc`
 
 - On 2026-03-28, `./test.sh fsqc` was run against the existing local `fsqc:2.1.4` image on an `aarch64` host without rebuilding the Docker image.

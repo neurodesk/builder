@@ -2022,6 +2022,15 @@ These changes are now in this repo and should be used as the new baseline for ar
   - this pass did not reach a new suite summary before the run stalled in the long Apptainer SIF-conversion tail, so there is not yet a post-change pass/fail timing to record
 - Scope note: this closes the misleading old no-rebuild test mismatch for `hdbet` at the YAML level by aligning the suite to the payload the current arm64 image actually ships; the updated suite still needs one completed rerun result recorded once the SIF-conversion path clears.
 
+Follow-up on 2026-03-28:
+- the same `neurocontainers/recipes/hdbet/fulltest.yaml` suite still used a broad bundled-model assertion, only checking for:
+  `4.model`
+- the recipe YAML was tightened to validate the shipped bundled model set instead:
+  `0.model 1.model 2.model 3.model 4.model`
+- a fresh `./test.sh hdbet` rerun was started against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp`, but it was stopped while still in the long Apptainer SIF-conversion tail and did not reach a new suite summary in this pass
+
+- Scope note: this follow-up strengthens the no-rebuild `hdbet` fulltest to validate the shipped bundled model payload more precisely; the updated suite still needs one completed rerun result recorded once the SIF-conversion path clears.
+
 ### Recipe-level full test check: `segmentator`
 
 - On 2026-03-28, `./test.sh segmentator` was run against the existing local `segmentator:1.6.1` image on an `aarch64` host without rebuilding the Docker image.

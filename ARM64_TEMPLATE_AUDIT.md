@@ -175,6 +175,14 @@ These changes are now in this repo and should be used as the new baseline for ar
     `docker run --rm --entrypoint bash builder:0.2 -lc 'bash --version | sed -n "1p"'`
     and reported:
     `GNU bash, version 5.3.3(1)-release (aarch64-alpine-linux-musl)`
+- Revalidation note:
+  - another fresh rerun of `BUILDKIT_PROGRESS=plain ./build.sh builder` on the same `aarch64` host completed cleanly again and rebuilt `builder:0.2` from cache
+  - `docker image inspect builder:0.2 --format '{{.Id}} {{.Architecture}} {{.Os}}'` now reports:
+    `sha256:41ff128dc7d3d597b85c8e9885c9f2b60d45805bcf233533424cedc60b126285 arm64 linux`
+  - the same explicit-entrypoint runtime smoke check still succeeded:
+    `docker run --rm --entrypoint bash builder:0.2 -lc 'bash --version | sed -n "1p"'`
+    and reported:
+    `GNU bash, version 5.3.3(1)-release (aarch64-alpine-linux-musl)`
 
 ### Recipe-level build check: `niftyreg`
 

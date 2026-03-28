@@ -13,15 +13,15 @@ Status rules used here:
 Status totals:
 
 - `not-started`: 50
-- `build-attempted`: 80
-- `built`: 4
+- `build-attempted`: 79
+- `built`: 5
 - `tested`: 14
 - `completed`: 22
 - `total`: 170
 
 | Container | Status | Notes |
 |---|---|---|
-| `afib1` | `build-attempted` | Local build log `local/local_logs/build_afib1.log` exists, but it does not record a finalized image |
+| `afib1` | `built` | Successful local build log `local/local_logs/build_afib1.log`; ARM64 image `afib1:1.6.0` built and `bet2` plus `/opt/code/python-ismrmrd-server/afib1.py` smoke checks passed |
 | `afni` | `build-attempted` | Local build log `local/local_logs/build_afni.log` exists, but it does not record a finalized image |
 | `amico` | `completed` | Arm64 image built and full test passed |
 | `ants` | `tested` | Full test completed and failed immediately on arm64 launcher exec-format issue |

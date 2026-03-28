@@ -15,8 +15,8 @@ Status totals:
 - `not-started`: 50
 - `build-attempted`: 81
 - `built`: 4
-- `tested`: 15
-- `completed`: 20
+- `tested`: 14
+- `completed`: 21
 - `total`: 170
 
 | Container | Status | Notes |
@@ -60,7 +60,7 @@ Status totals:
 | `condaenvs` | `build-attempted` | Build progressed to upstream source acquisition, but no finalized image was recorded |
 | `conn` | `build-attempted` | Local build log `local/local_logs/build_conn.log` exists, but it does not record a finalized image |
 | `connectomemapper3` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
-| `connectomeworkbench` | `tested` | Existing image full test passed; no arm64 build result is recorded in this audit |
+| `connectomeworkbench` | `completed` | Successful local build log `local/local_logs/build_connectomeworkbench.log` and passing full-test artifact(s) `local/test-results/connectomeworkbench-fulltest.json` |
 | `convert3d` | `tested` | Arm64 image built, but full test completed with x86_64-only runtime payload failures |
 | `cosmomvpa` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `cpac` | `build-attempted` | Local build log `local/local_logs/build_cpac.log` exists, but it does not record a finalized image |

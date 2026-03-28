@@ -1900,6 +1900,14 @@ These changes are now in this repo and should be used as the new baseline for ar
   - the generated `sifs/segmentator_1.6.1.simg` was created from the existing local Docker image, not from a rebuilt container
 - Scope note: this closes a recipe YAML/fulltest coverage gap for `segmentator` without rebuilding the image and keeps the no-rebuild checks aligned to the payload the current image actually ships.
 
+- Follow-up on 2026-03-28:
+  - the same `neurocontainers/recipes/segmentator/fulltest.yaml` suite still used a broad setup-version assertion, only checking for:
+    `version='1.6.1'`
+  - the recipe YAML was tightened to validate the exact shipped setup metadata line instead:
+    `version='1.6.1',`
+  - a fresh rerun of `./test.sh segmentator` was started against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp`, but it was stopped while still in the long Apptainer SIF-conversion tail and did not reach a new suite summary in this pass
+- Scope note: this follow-up strengthens the no-rebuild `segmentator` fulltest to validate the exact shipped setup metadata line; the prior passing `5/5` rerun for this image path remains the latest completed suite result.
+
 ### Recipe-level full test check: `mne`
 
 - On 2026-03-28, `./test.sh mne` was run against the existing local `mne:1.7.1` image on an `aarch64` host without rebuilding the Docker image.

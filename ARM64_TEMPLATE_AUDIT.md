@@ -1616,6 +1616,14 @@ These changes are now in this repo and should be used as the new baseline for ar
   - rerunning `./test.sh builder` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` then passed cleanly with `9/9` tests in `5.3s`
 - Scope note: this follow-up strengthens the no-rebuild `builder` fulltest to validate the exact documented Docker fallback option surface from the existing image.
 
+- Follow-up on 2026-03-28:
+  - the same `neurocontainers/recipes/builder/fulltest.yaml` suite still used a broad Docker fallback help assertion, only checking the option token:
+    `--use-docker`
+  - the recipe YAML was tightened to validate the exact shipped description line instead:
+    `Use Docker for building instead of BuildKit`
+  - rerunning `./test.sh builder` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` then passed cleanly with `9/9` tests in `5.2s`
+- Scope note: this follow-up strengthens the no-rebuild `builder` fulltest to validate the exact documented Docker fallback help detail from the existing image.
+
 ### Recipe-level full test check: `template`
 
 - On 2026-03-28, `./test.sh template` was run against the existing local `template:1.1.5` image on an `aarch64` host without rebuilding the Docker image.

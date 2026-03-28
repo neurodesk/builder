@@ -13,8 +13,8 @@ Status rules used here:
 Status totals:
 
 - `not-started`: 50
-- `build-attempted`: 81
-- `built`: 4
+- `build-attempted`: 80
+- `built`: 5
 - `tested`: 14
 - `completed`: 21
 - `total`: 170
@@ -31,7 +31,7 @@ Status totals:
 | `aslprep` | `build-attempted` | Local build log `local/local_logs/build_aslprep.log` exists, but it does not record a finalized image |
 | `b0map` | `build-attempted` | Local build log `local/local_logs/build_b0map.log` exists, but it does not record a finalized image |
 | `bart` | `completed` | Successful local build log `local/local_logs/build_bart.log` and passing full-test artifact(s) `local/test-results/bart-fulltest.json` |
-| `batchheudiconv` | `build-attempted` | Local build log `local/local_logs/build_batchheudiconv.log` exists, but it does not record a finalized image |
+| `batchheudiconv` | `built` | Successful local build log `local/local_logs/build_batchheudiconv.log`; ARM64 image `batchheudiconv:1.0.0` built and `bh01_prep_dir.sh` smoke check passed |
 | `bidsappaa` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `bidsappbaracus` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `bidsappbrainsuite` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |

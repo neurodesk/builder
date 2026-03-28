@@ -12,9 +12,9 @@ Status rules used here:
 
 Status totals:
 
-- `not-started`: 47
+- `not-started`: 46
 - `build-attempted`: 72
-- `built`: 6
+- `built`: 7
 - `tested`: 12
 - `completed`: 33
 - `total`: 170
@@ -154,7 +154,7 @@ Status totals:
 | `pydeface` | `build-attempted` | Local build log `local/local_logs/build_pydeface.log` exists, but it does not record a finalized image |
 | `qsiprep` | `build-attempted` | Local build log `local/local_logs/build_qsiprep.log` exists, but it does not record a finalized image |
 | `qsirecon` | `build-attempted` | Local build log `local/local_logs/build_qsirecon.log` exists, but it does not record a finalized image |
-| `qsmbly` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
+| `qsmbly` | `built` | Successful local build log `local/local_logs/build_qsmbly.log`; ARM64 image `qsmbly:0.8.4` built and `qsmbly` launcher smoke checks passed |
 | `qsmxt` | `build-attempted` | Local build log `local/local_logs/build_qsmxt.log` exists, but it does not record a finalized image |
 | `quickshear` | `build-attempted` | Local build log `local/local_logs/build_quickshear.log` exists, but it does not record a finalized image |
 | `qupath` | `tested` | Existing image full test completed and failed immediately on arm64 launcher issue |

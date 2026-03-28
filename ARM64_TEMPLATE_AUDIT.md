@@ -1915,6 +1915,14 @@ These changes are now in this repo and should be used as the new baseline for ar
   - rerunning `./test.sh mne` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `5/5` tests in `14.7s`
 - Scope note: this follow-up strengthens the no-rebuild `mne` fulltest to validate the exact Python runtime version in the named Conda environment.
 
+- Follow-up on 2026-03-28:
+  - the same `neurocontainers/recipes/mne/fulltest.yaml` suite still used a broad module-location assertion, only checking that `mne.__file__` lived somewhere under:
+    `/opt/miniconda-latest/envs/mne-1.7.1/lib/python3.11/site-packages/mne/`
+  - the recipe YAML was tightened to validate the exact shipped module path instead:
+    `/opt/miniconda-latest/envs/mne-1.7.1/lib/python3.11/site-packages/mne/__init__.py`
+  - a fresh rerun of `./test.sh mne` was started against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp`, but it was stopped while still in the long Apptainer SIF-conversion tail and did not reach a new suite summary in this pass
+- Scope note: this follow-up strengthens the no-rebuild `mne` fulltest to validate the exact shipped module path in the named Conda environment; the prior passing `5/5` reruns for this image path remain the latest completed suite result.
+
 ### Template-level build check: `bids_validator/binaries`
 
 - On 2026-03-26, `./build.sh bidscoin` on an `aarch64` host failed in the shared `bids_validator` template before `npm install` started.

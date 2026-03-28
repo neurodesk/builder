@@ -808,6 +808,16 @@ These changes are now in this repo and should be used as the new baseline for ar
     `/opt/miniconda/envs/spmpython/lib/python3.12/site-packages/spm/__init__.py`
   - the same import path also emits an upstream warning from `mpython`:
     `Since scipy.sparse is not available, sparse matrices will be implemented as dense matrices`
+- Revalidation note:
+  - another fresh rerun of `BUILDKIT_PROGRESS=plain ./build.sh spmpython` on the same `aarch64` host completed cleanly again through image export as `spmpython:25.1.2.post1`
+  - `docker image inspect spmpython:25.1.2.post1 --format '{{.Id}} {{.Architecture}} {{.Os}}'` now reports:
+    `sha256:d386a1da47d74d2b6b314eae3620dd08232f18ec37991b8901c780d77dfd5595 arm64 linux`
+  - the same env-local runtime smoke check still succeeds:
+    `docker run --rm spmpython:25.1.2.post1 /bin/bash -lc 'source /opt/miniconda/etc/profile.d/conda.sh && conda activate spmpython && python -c "import spm; print(spm.__file__)"'`
+    and still reports:
+    `/opt/miniconda/envs/spmpython/lib/python3.12/site-packages/spm/__init__.py`
+  - the same import still emits the upstream `mpython` sparse-array warning:
+    `Since scipy.sparse is not available, sparse matrices will be implemented as dense matrices`
 - Scope note:
   - this pass closes the remaining unresolved `spmpython` build path on arm64 and now produces a verified successful `spmpython:25.1.2.post1` arm64 image
 

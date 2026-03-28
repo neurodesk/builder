@@ -1983,6 +1983,14 @@ These changes are now in this repo and should be used as the new baseline for ar
   - rerunning `./test.sh brainlifecli` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` then passed cleanly with `73/73` tests in `84.0s`
 - Scope note: this follow-up strengthens the no-rebuild `brainlifecli` fulltest to validate the exact runtime CLI version present in the existing image without rebuilding it.
 
+- Follow-up on 2026-03-28:
+  - the same `neurocontainers/recipes/brainlifecli/fulltest.yaml` main-help check still only validated a broad set of command-name substrings, not the exact shipped top-level help surface
+  - direct runtime probes on the existing local image showed the CLI begins with the exact usage line:
+    `Usage: bl [options] [command]`
+  - the recipe YAML was tightened to assert that exact usage line instead of the broader command-list match
+  - rerunning `./test.sh brainlifecli` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` then passed cleanly with `73/73` tests in `85.9s`
+- Scope note: this follow-up strengthens the no-rebuild `brainlifecli` fulltest to validate the exact top-level CLI help surface from the existing image without rebuilding it.
+
 ### Recipe-level full test check: `sigviewer`
 
 - On 2026-03-26, `./test.sh sigviewer` was run against the existing local `sigviewer:0.6.4` image on an `aarch64` host without rebuilding the Docker image.

@@ -1823,6 +1823,14 @@ These changes are now in this repo and should be used as the new baseline for ar
   - rerunning `./test.sh fitlins` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` passed cleanly with `5/5` tests in `10.3s`
 - Scope note: this follow-up strengthens the no-rebuild `fitlins` fulltest to validate the exact installed CLI usage surface from the existing image.
 
+- Follow-up on 2026-03-28:
+  - the same `neurocontainers/recipes/fitlins/fulltest.yaml` suite still used a broad package-metadata assertion, only checking:
+    `Version: 0.11.0`
+  - the recipe YAML was tightened to validate the exact shipped summary line from `python -m pip show fitlins` instead:
+    `Summary: Fit Linear Models to BIDS Datasets`
+  - a fresh rerun of `./test.sh fitlins` was started against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp`, but it was stopped while still in the long Apptainer SIF-conversion tail and did not reach a new suite summary in this pass
+- Scope note: this follow-up strengthens the no-rebuild `fitlins` fulltest to validate the shipped package metadata more precisely; the prior passing `5/5` reruns for this image path remain the latest completed suite result.
+
 ### Recipe-level full test check: `fsqc`
 
 - On 2026-03-28, `./test.sh fsqc` was run against the existing local `fsqc:2.1.4` image on an `aarch64` host without rebuilding the Docker image.

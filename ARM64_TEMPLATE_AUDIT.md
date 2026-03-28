@@ -987,6 +987,23 @@ These changes are now in this repo and should be used as the new baseline for ar
     `Preparing metadata (pyproject.toml): started`
   - after that point both `docker build` and the env-local `python -m pip install -r /opt/vesselvio-1.1.2/requirements.txt` process remained alive without emitting a newer terminal failure, so I stopped the rerun there
   - there is still no newer concrete blocker or finalized `vesselvio:1.1.2` image to record beyond the existing fix boundary
+- Revalidation note:
+  - another fresh rerun of `BUILDKIT_PROGRESS=plain ./build.sh vesselvio` on the same `aarch64` host again got cleanly through the old unavailable-`PyQt5==5.13.2` and missing-`qmake` boundaries
+  - this pass progressed through the env-local requirements resolution, including the later pinned stack around:
+    `llvmlite==0.36.0`
+    `numba==0.53.1`
+    `numpy==1.22.0`
+    `opencv-python==4.5.4.60`
+    `pandas==1.3.5`
+    and
+    `PyMCubes==0.1.2`
+  - it then returned to the same late PyQt source-build metadata path:
+    `Collecting PyQt5==5.15.11`
+    `Installing build dependencies: finished with status 'done'`
+    `Getting requirements to build wheel: finished with status 'done'`
+    `Preparing metadata (pyproject.toml): started`
+  - after that point the rerun remained actively inside the env-local `python -m pip install -r /opt/vesselvio-1.1.2/requirements.txt` process for more than a minute without emitting a newer terminal failure, so I stopped it there
+  - there is still no newer concrete blocker or finalized `vesselvio:1.1.2` image to record beyond the existing fix boundary
 - Scope note: this pass closes five concrete recipe-side blockers for `vesselvio` on arm64 and moves the build past both the old unavailable `PyQt5==5.13.2` pin and the missing-`qmake` boundary into a later PyQt build stage. A final successful arm64 image was not produced in this pass.
 
 ### Recipe-level build check: `hdbet`

@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 50
 - `build-attempted`: 78
-- `built`: 5
+- `built`: 4
 - `tested`: 14
-- `completed`: 23
+- `completed`: 24
 - `total`: 170
 
 | Container | Status | Notes |
@@ -174,7 +174,7 @@ Status totals:
 | `spinalcordtoolbox` | `build-attempted` | Local build log `local/local_logs/build_spinalcordtoolbox.log` exists, but it does not record a finalized image |
 | `spm12` | `build-attempted` | Local build log `local/local_logs/build_spm12.log` exists, but it does not record a finalized image |
 | `spm25` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
-| `spmpython` | `built` | Arm64 image built; full-test rerun was started but no completed result was recorded |
+| `spmpython` | `completed` | Successful local build log `local/local_logs/build_spmpython.log` and passing full-test artifact(s) `local/test-results/spmpython-fulltest.json` |
 | `surfice` | `build-attempted` | Local build log `local/local_logs/build_surfice.log` exists, but it does not record a finalized image |
 | `syncro` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `template` | `completed` | Successful local build log `local/local_logs/build_template.log` and passing full-test artifact(s) `local/test-results/template-fulltest.json` |

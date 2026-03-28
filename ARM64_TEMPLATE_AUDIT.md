@@ -151,6 +151,14 @@ These changes are now in this repo and should be used as the new baseline for ar
   - `docker image inspect builder:0.2 --format '{{.Architecture}} {{.Os}}'` reported:
     `arm64 linux`
 - Scope note: this is a successful recipe-level arm64 build result for `builder`; no recipe changes were required.
+- Revalidation note:
+  - another fresh rerun of `BUILDKIT_PROGRESS=plain ./build.sh builder` on the same `aarch64` host completed cleanly again and rebuilt `builder:0.2` from cache
+  - `docker image inspect builder:0.2 --format '{{.Id}} {{.Architecture}} {{.Os}}'` now reports:
+    `sha256:81dda6526175a183498e8beda2f9915511228b423111a3a5494ce9738b67c6e8 arm64 linux`
+  - an explicit-entrypoint runtime smoke check also succeeded:
+    `docker run --rm --entrypoint bash builder:0.2 -lc 'bash --version | sed -n "1p"'`
+    and reported:
+    `GNU bash, version 5.3.3(1)-release (aarch64-alpine-linux-musl)`
 
 ### Recipe-level build check: `niftyreg`
 

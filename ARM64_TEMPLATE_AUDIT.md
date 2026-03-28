@@ -736,7 +736,18 @@ These changes are now in this repo and should be used as the new baseline for ar
     `opencv-python==4.5.4.60`
     `pandas==1.3.5`
   - I stopped that rerun while the heavy requirements install was still active, so there is not yet a finalized `vesselvio:1.1.2` image from this pass
-- Scope note: this pass closes three concrete recipe-side blockers for `vesselvio` on arm64 and moves the build into the intended env-local requirements installation path. Any later package or runtime issues remain to be closed out in a future run.
+- Fourth fix landed in recipe YAML:
+  - rewrite the stale upstream `PyQt5==5.13.2` pin to `PyQt5==5.15.11` in `neurocontainers/recipes/vesselvio/build.yaml` before the env-local `pip install -r /opt/vesselvio-1.1.2/requirements.txt` step
+- Verified rerun result after fourth fix:
+  - the rerun no longer fails with:
+    `ERROR: Could not find a version that satisfies the requirement PyQt5==5.13.2`
+  - the patched path now gets past that old unavailable-wheel blocker and reaches PyQt5 build metadata generation for the rewritten pin:
+    `Collecting PyQt5==5.15.11`
+  - the remaining failure is now later and narrower, during PyQt5 source-build metadata generation:
+    `sipbuild.pyproject.PyProjectOptionException`
+  - the traceback shows the immediate missing build tool boundary in the PyQt build backend:
+    `raise PyProjectOptionException('qmake',`
+- Scope note: this pass closes four concrete recipe-side blockers for `vesselvio` on arm64 and moves the build past the old unavailable `PyQt5==5.13.2` pin into the next PyQt build-tooling issue. A final successful arm64 image was not produced in this pass.
 
 ### Recipe-level build check: `hdbet`
 

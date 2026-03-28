@@ -283,7 +283,28 @@ These changes are now in this repo and should be used as the new baseline for ar
     `Installing base environment...`
 - Current status after this fix:
   - I interrupted the long rerun during the Miniconda/base-environment setup, so there is not yet a finalized `bidstools:1.0.4` image from the rerun
-- Scope note: this closes one concrete arm64 build issue for `bidstools` by making the recipe render the correct Miniconda installer for arm64 hosts.
+- Follow-on issue uncovered on 2026-03-28:
+  - once the arm64 Miniconda bootstrap and config path were allowed to continue, the rerun failed at:
+    `CondaValueError: 'base' is a reserved environment name`
+  - the failing rendered step was:
+    `conda create -y -q --name base`
+- Additional fixes landed in recipe YAML:
+  - set `env_name: bidstools`
+  - set `env_exists: "false"` so the Miniconda template creates a real named environment
+  - add `build-essential` so source-built Python dependencies have the libc/system headers they expect
+- Verified follow-up rerun result:
+  - the regenerated Dockerfile now emits `conda create -y -q --name bidstools`, and the previous reserved-`base` failure is gone
+  - the rerun got cleanly through env creation and the `python=3.11` environment install, then entered the real env-local pip install path for:
+    `heudiconv`
+    and
+    `traits`
+  - the previous `traits` source-build failure:
+    `fatal error: stdlib.h: No such file or directory`
+    is gone
+  - the patched rerun successfully built and installed the `traits-7.1.0` wheel on arm64, then progressed further into the later system-package install layer for:
+    `wget zip libgl1 libgtk2.0-0 dcmtk xmedcon pigz libxcb-cursor0`
+  - I stopped that rerun while the later apt package layer was still active, so there is not yet a finalized `bidstools:1.0.4` image from this pass
+- Scope note: this pass closes three concrete arm64 build issues for `bidstools` by rendering the correct Miniconda installer, removing the reserved-`base` env failure, and restoring the system headers needed for source-built Python dependencies. A final successful arm64 image was not produced in this pass.
 
 ### Recipe-level build check: `gingerale`
 

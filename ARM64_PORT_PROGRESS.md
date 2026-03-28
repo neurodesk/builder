@@ -15,8 +15,8 @@ Status totals:
 - `not-started`: 50
 - `build-attempted`: 74
 - `built`: 5
-- `tested`: 14
-- `completed`: 27
+- `tested`: 13
+- `completed`: 28
 - `total`: 170
 
 | Container | Status | Notes |
@@ -67,7 +67,7 @@ Status totals:
 | `dafne` | `build-attempted` | Local build log `local/local_logs/build_dafne.log` exists, but it does not record a finalized image |
 | `datalad` | `completed` | Successful local build log `local/local_logs/build_datalad.log` and passing full-test artifact(s) `local/test-results/datalad-fulltest.json` |
 | `dcm2bids` | `completed` | Successful local build log `local/local_logs/build_dcm2bids.log` and passing full-test artifact(s) `local/test-results/dcm2bids-fulltest.json` |
-| `dcm2niix` | `tested` | Existing image full test completed and failed immediately on arm64 |
+| `dcm2niix` | `completed` | Successful local build log `local/local_logs/build_dcm2niix.log` and passing full-test artifact(s) `local/test-results/dcm2niix-fulltest.json` |
 | `deepisles` | `build-attempted` | Local build log `local/local_logs/build_deepisles.log` exists, but it does not record a finalized image |
 | `deeplabcut` | `build-attempted` | Local build log `local/local_logs/build_deeplabcut.log` exists, but it does not record a finalized image |
 | `deepretinotopy` | `build-attempted` | Local build log `local/local_logs/build_deepretinotopy.log` exists, but it does not record a finalized image |

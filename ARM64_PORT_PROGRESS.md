@@ -12,9 +12,9 @@ Status rules used here:
 
 Status totals:
 
-- `not-started`: 50
+- `not-started`: 49
 - `build-attempted`: 73
-- `built`: 6
+- `built`: 7
 - `tested`: 12
 - `completed`: 29
 - `total`: 170
@@ -51,7 +51,7 @@ Status totals:
 | `brainstorm` | `build-attempted` | Local build log `local/local_logs/build_brainstorm.log` exists, but it does not record a finalized image |
 | `builder` | `completed` | Successful local build log `local/local_logs/build_builder.log` and passing full-test artifact(s) `local/test-results/builder-fulltest.json` |
 | `cat12` | `build-attempted` | Local build log `local/local_logs/build_cat12.log` exists, but it does not record a finalized image |
-| `cbsb0stats` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
+| `cbsb0stats` | `built` | Successful local build log `local/local_logs/build_cbsb0stats.log`; ARM64 image `cbsb0stats:1.2.0` built and `/opt/code/FSL-BET2/bin/bet2` plus `/opt/code/python-ismrmrd-server/cbsb0stats.py` smoke checks passed |
 | `civet` | `build-attempted` | Local build log `local/local_logs/build_civet.log` exists, but it does not record a finalized image |
 | `clearswi` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `clinica` | `build-attempted` | Local build log `local/local_logs/build_clinica.log` exists, but it does not record a finalized image |

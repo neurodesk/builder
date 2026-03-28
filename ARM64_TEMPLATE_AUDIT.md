@@ -327,6 +327,20 @@ These changes are now in this repo and should be used as the new baseline for ar
     `Chris Rorden's dcm2niiX version v1.0.20250505  GCC11.4.0 ARM (64-bit Linux)`
 - Scope note: this closes five concrete arm64 build issues for `bidstools` by rendering the correct Miniconda installer, removing the reserved-`base` env failure, restoring the system headers needed for source-built Python dependencies, replacing the broken generated `dcm2niix` shell path with explicit build steps, and adding the missing `git` dependency for that clone/build flow. `bidstools:1.0.4` now builds successfully on arm64.
 
+### Recipe-level full test check: `bidstools`
+
+- On 2026-03-28, `./test.sh bidstools` was run against the existing local `bidstools:1.0.4` image on an `aarch64` host without rebuilding the Docker image.
+- Initial issue:
+  - `neurocontainers/recipes/bidstools/fulltest.yaml` still pointed at the old dated SIF name `bidstools_1.0.4_20240221.simg`, while the current `./test.sh` path generates `sifs/bidstools_1.0.4.simg`
+- Fix landed in recipe YAML only:
+  - update `container:` to `bidstools_1.0.4.simg`
+- Rerun result:
+  - a fresh rerun of `./test.sh bidstools` was started against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp`
+  - the rerun remained in the long live Apptainer SIF-conversion phase for `sifs/bidstools_1.0.4.simg` and did not reach a new completed suite summary before it was stopped
+- Scope note:
+  - this pass closes the stale fulltest metadata for the current no-rebuild wrapper path for `bidstools`, but it does not yet add a completed full-suite runtime result for this image
+  - the underlying local Docker image used for this no-rebuild path was the existing verified arm64 build recorded above, not a rebuilt container
+
 ### Recipe-level build check: `gingerale`
 
 - On 2026-03-26, `./build.sh gingerale` was run on an `aarch64` host.

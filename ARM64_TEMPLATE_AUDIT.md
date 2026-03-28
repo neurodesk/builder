@@ -292,19 +292,40 @@ These changes are now in this repo and should be used as the new baseline for ar
   - set `env_name: bidstools`
   - set `env_exists: "false"` so the Miniconda template creates a real named environment
   - add `build-essential` so source-built Python dependencies have the libc/system headers they expect
-- Verified follow-up rerun result:
+- Additional follow-on issues uncovered on 2026-03-28:
+  - the generated `dcm2niix` template path emitted a broken shell step:
+    `/bin/sh: 2: Syntax error: "&&" unexpected`
+  - after replacing that template path with explicit clone/build steps, the rerun exposed one more concrete package-layer issue:
+    `/bin/sh: 1: git: not found`
+- Final fixes landed in recipe YAML:
+  - replace the broken `dcm2niix` template usage with explicit arm64-safe source-build steps:
+    clone `https://github.com/rordenlab/dcm2niix`, create `/tmp/dcm2niix/build`, run CMake with `-DCMAKE_INSTALL_PREFIX:PATH=/opt/dcm2niix-latest`, then `make install`
+  - add `git` to the package install list for that explicit `dcm2niix` source-build path
+  - extend `PATH` with `/opt/dcm2niix-latest/bin`
+- Verified final rerun result:
   - the regenerated Dockerfile now emits `conda create -y -q --name bidstools`, and the previous reserved-`base` failure is gone
-  - the rerun got cleanly through env creation and the `python=3.11` environment install, then entered the real env-local pip install path for:
+  - the rerun got cleanly through env creation and the `python=3.11` environment install, then through the real env-local pip install path for:
     `heudiconv`
     and
     `traits`
   - the previous `traits` source-build failure:
     `fatal error: stdlib.h: No such file or directory`
     is gone
-  - the patched rerun successfully built and installed the `traits-7.1.0` wheel on arm64, then progressed further into the later system-package install layer for:
+  - the patched rerun got cleanly through the later system-package install layer for:
     `wget zip libgl1 libgtk2.0-0 dcmtk xmedcon pigz libxcb-cursor0`
-  - I stopped that rerun while the later apt package layer was still active, so there is not yet a finalized `bidstools:1.0.4` image from this pass
-- Scope note: this pass closes three concrete arm64 build issues for `bidstools` by rendering the correct Miniconda installer, removing the reserved-`base` env failure, and restoring the system headers needed for source-built Python dependencies. A final successful arm64 image was not produced in this pass.
+  - the explicit `dcm2niix` source-build path now completes successfully on arm64 and installs:
+    `/opt/dcm2niix-latest/bin/dcm2niix`
+  - the Docker build completed successfully and produced `bidstools:1.0.4`
+  - `docker image inspect bidstools:1.0.4 --format '{{.Id}} {{.Architecture}} {{.Os}}'` reported:
+    `sha256:f69ec998fda7fa296bbe02a95e9b055bcb7cb600d803ef419b37d7ab558300c7 arm64 linux`
+  - a follow-up runtime smoke check with:
+    `docker run --rm bidstools:1.0.4 /bin/bash -lc 'source /opt/miniconda-latest/etc/profile.d/conda.sh && conda activate bidstools && command -v heudiconv && command -v dcm2niix && dcm2niix --version | head -n 1'`
+    confirmed:
+    `/opt/miniconda-latest/envs/bidstools/bin/heudiconv`
+    `/opt/dcm2niix-latest/bin/dcm2niix`
+    and
+    `Chris Rorden's dcm2niiX version v1.0.20250505  GCC11.4.0 ARM (64-bit Linux)`
+- Scope note: this closes five concrete arm64 build issues for `bidstools` by rendering the correct Miniconda installer, removing the reserved-`base` env failure, restoring the system headers needed for source-built Python dependencies, replacing the broken generated `dcm2niix` shell path with explicit build steps, and adding the missing `git` dependency for that clone/build flow. `bidstools:1.0.4` now builds successfully on arm64.
 
 ### Recipe-level build check: `gingerale`
 

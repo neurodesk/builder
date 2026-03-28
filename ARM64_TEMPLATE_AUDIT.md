@@ -1188,6 +1188,12 @@ These changes are now in this repo and should be used as the new baseline for ar
     `sha256:1306332a76a14b73944d3b25b9d2751dba47541ac3731760dd2e4ea7982ecf8c arm64 linux`
   - the same runtime smoke check still succeeded and resolved `fsqc` from:
     `/opt/miniconda-latest/envs/fsqc/lib/python3.13/site-packages/fsqc/__init__.py`
+- Revalidation note:
+  - another fresh rerun of `BUILDKIT_PROGRESS=plain ./build.sh fsqc` on the same `aarch64` host completed cleanly again and rebuilt `fsqc:2.1.4` from cache
+  - `docker image inspect fsqc:2.1.4 --format '{{.Id}} {{.Architecture}} {{.Os}}'` now reports:
+    `sha256:e10e74f099303b7b1fc8b2635efe80fe18e41ea88ecc2891344969e3a339cb3b arm64 linux`
+  - the same env-local runtime smoke check still succeeded and resolved `fsqc` from:
+    `/opt/miniconda-latest/envs/fsqc/lib/python3.13/site-packages/fsqc/__init__.py`
 - Scope note: this pass closes three concrete recipe-side build blockers for `fsqc` on arm64 and ends with a successful `fsqc:2.1.4` image build on arm64.
 
 ### Recipe-level full test check: `eharmonize`

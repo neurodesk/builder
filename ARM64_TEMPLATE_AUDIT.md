@@ -1678,6 +1678,13 @@ These changes are now in this repo and should be used as the new baseline for ar
   - rerunning `./test.sh builder` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` then passed cleanly with `11/11` tests in `6.7s`
 - Scope note: this follow-up strengthens the no-rebuild `builder` fulltest to validate the exact documented architecture-option help detail from the existing image.
 
+- Follow-up on 2026-03-28:
+  - the same `neurocontainers/recipes/builder/fulltest.yaml` suite still lacked an exact assertion for the standard help option line even though the image exposes a stable help surface for it
+  - the recipe YAML was tightened to validate the shipped help-option line instead:
+    `-h, --help            show this help message and exit`
+  - rerunning `./test.sh builder` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` then passed cleanly with `12/12` tests in `7.4s`
+- Scope note: this follow-up strengthens the no-rebuild `builder` fulltest to validate the exact documented standard help option surface from the existing image.
+
 ### Recipe-level full test check: `template`
 
 - On 2026-03-28, `./test.sh template` was run against the existing local `template:1.1.5` image on an `aarch64` host without rebuilding the Docker image.

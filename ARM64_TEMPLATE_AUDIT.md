@@ -797,6 +797,16 @@ These changes are now in this repo and should be used as the new baseline for ar
     `nvidia_nccl_cu13-2.28.9`
     `triton-3.6.0`
   - there is still no finalized `topaz:0.2.5` image from this path because the rerun was stopped while the heavy pip dependency install was still active
+- Verified rerun result:
+  - a fresh rerun of `BUILDKIT_PROGRESS=plain ./build.sh topaz` on the same `aarch64` host completed cleanly through image export as `topaz:0.2.5`
+  - `docker image inspect topaz:0.2.5 --format '{{.Id}} {{.Architecture}} {{.Os}}'` reported:
+    `sha256:33631419900bd9ee938b5e1ee79dbc5d4414afdb3235b260a23a8ef9015e9c8e arm64 linux`
+  - the same env-local runtime smoke check now succeeds:
+    `docker run --rm topaz:0.2.5 /bin/bash -lc 'source /opt/miniconda-latest/etc/profile.d/conda.sh && conda activate topaz && python -c "import topaz; print(topaz.__version__)"'`
+    and reported:
+    `0.2.5a`
+- Scope note:
+  - this pass closes the remaining unresolved `topaz` build path on arm64 and now produces a verified successful `topaz:0.2.5` arm64 image
 
 ### Recipe-level build check: `vesselvio`
 

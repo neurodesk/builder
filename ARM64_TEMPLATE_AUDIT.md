@@ -1559,6 +1559,14 @@ These changes are now in this repo and should be used as the new baseline for ar
   - rerunning `./test.sh xnat` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `98/98` tests in `41.8s`
 - Scope note: this follow-up strengthens the no-rebuild fulltest to validate the current Java runtime version in the existing image.
 
+- Follow-up on 2026-03-28:
+  - the same `neurocontainers/recipes/xnat/fulltest.yaml` manifest-version check still used a broad version-only assertion, only checking:
+    `1.9.2.1`
+  - the recipe YAML was tightened to validate the exact shipped MANIFEST entry instead:
+    `Implementation-Version: 1.9.2.1`
+  - rerunning `./test.sh xnat` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `98/98` tests in `28.4s`
+- Scope note: this follow-up strengthens the no-rebuild `xnat` fulltest to validate the exact packaged XNAT MANIFEST version line from the existing image.
+
 ### Recipe-level full test check: `brainlifecli`
 
 - On 2026-03-27, `./test.sh brainlifecli` was run against the existing local `brainlifecli:1.7.0` image on an `aarch64` host without rebuilding the Docker image.

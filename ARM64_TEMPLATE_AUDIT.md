@@ -742,7 +742,18 @@ These changes are now in this repo and should be used as the new baseline for ar
     `matlab_runtime-0.0.6-py3-none-any.whl`
     `mpython_core-25.4rc1-py3-none-any.whl`
   - the rerun was still actively downloading/installing that package stack when I stopped it, so there is not yet a finalized `spmpython:25.1.2.post1` image recorded from this pass
-- Scope note: this closes two concrete recipe-side Miniconda blockers for `spmpython` on arm64 and moves the build into the real upstream pip install path; any later package or runtime issues remain to be closed out in a future run.
+- Verified rerun result:
+  - a fresh rerun of `BUILDKIT_PROGRESS=plain ./build.sh spmpython` on the same `aarch64` host completed cleanly through image export as `spmpython:25.1.2.post1`
+  - `docker image inspect spmpython:25.1.2.post1 --format '{{.Id}} {{.Architecture}} {{.Os}}'` reported:
+    `sha256:b79bb2a4a549ebb04033ddc41958a55072665a3984c0abfc568c020a7dda0b22 arm64 linux`
+  - the same env-local runtime smoke check now succeeds:
+    `docker run --rm spmpython:25.1.2.post1 /bin/bash -lc 'source /opt/miniconda/etc/profile.d/conda.sh && conda activate spmpython && python -c "import spm; print(spm.__file__)"'`
+    and reported:
+    `/opt/miniconda/envs/spmpython/lib/python3.12/site-packages/spm/__init__.py`
+  - the same import path also emits an upstream warning from `mpython`:
+    `Since scipy.sparse is not available, sparse matrices will be implemented as dense matrices`
+- Scope note:
+  - this pass closes the remaining unresolved `spmpython` build path on arm64 and now produces a verified successful `spmpython:25.1.2.post1` arm64 image
 
 ### Recipe-level build check: `topaz`
 

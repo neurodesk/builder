@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 50
 - `build-attempted`: 82
-- `built`: 4
+- `built`: 3
 - `tested`: 15
-- `completed`: 19
+- `completed`: 20
 - `total`: 170
 
 | Container | Status | Notes |
@@ -66,7 +66,7 @@ Status totals:
 | `cpac` | `build-attempted` | Local build log `local/local_logs/build_cpac.log` exists, but it does not record a finalized image |
 | `dafne` | `build-attempted` | Local build log `local/local_logs/build_dafne.log` exists, but it does not record a finalized image |
 | `datalad` | `completed` | Successful local build log `local/local_logs/build_datalad.log` and passing full-test artifact(s) `local/test-results/datalad-fulltest.json` |
-| `dcm2bids` | `built` | Successful local build log `local/local_logs/build_dcm2bids.log`; ARM64 image `dcm2bids:3.2.0` built and `dcm2bids --help` smoke check passed |
+| `dcm2bids` | `completed` | Successful local build log `local/local_logs/build_dcm2bids.log` and passing full-test artifact(s) `local/test-results/dcm2bids-fulltest.json` |
 | `dcm2niix` | `tested` | Existing image full test completed and failed immediately on arm64 |
 | `deepisles` | `build-attempted` | Local build log `local/local_logs/build_deepisles.log` exists, but it does not record a finalized image |
 | `deeplabcut` | `build-attempted` | Local build log `local/local_logs/build_deeplabcut.log` exists, but it does not record a finalized image |

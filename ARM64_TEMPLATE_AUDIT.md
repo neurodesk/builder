@@ -778,6 +778,15 @@ These changes are now in this repo and should be used as the new baseline for ar
     `Installing build dependencies: finished with status 'done'`
     `Getting requirements to build wheel: finished with status 'done'`
     `Preparing metadata (pyproject.toml): started`
+- Revalidation note:
+  - another fresh rerun of `BUILDKIT_PROGRESS=plain ./build.sh vesselvio` on the same `aarch64` host again got cleanly through the old PyQt resolver and missing-`qmake` boundaries
+  - on this pass the build progressed back into the same env-local upstream requirements install and stayed active there for several minutes without producing a new terminal failure
+  - the repeated observed later-stage path still includes:
+    `Collecting PyQt5==5.15.11`
+    `Installing build dependencies: finished with status 'done'`
+    `Getting requirements to build wheel: finished with status 'done'`
+    `Preparing metadata (pyproject.toml): started`
+  - I stopped this pass at that same late PyQt build stage, so there is still no newer concrete blocker or finalized `vesselvio:1.1.2` image to record beyond the existing fix boundary
   - I stopped that rerun while `docker build` was still active in the same later PyQt build stage, so there is still no finalized `vesselvio:1.1.2` image from this path
 - Scope note: this pass closes five concrete recipe-side blockers for `vesselvio` on arm64 and moves the build past both the old unavailable `PyQt5==5.13.2` pin and the missing-`qmake` boundary into a later PyQt build stage. A final successful arm64 image was not produced in this pass.
 

@@ -13,8 +13,8 @@ Status rules used here:
 Status totals:
 
 - `not-started`: 43
-- `build-attempted`: 72
-- `built`: 5
+- `build-attempted`: 71
+- `built`: 6
 - `tested`: 12
 - `completed`: 38
 - `total`: 170
@@ -147,7 +147,7 @@ Status totals:
 | `ospreybids` | `build-attempted` | Local build log `local/local_logs/build_ospreybids.log` exists, but it does not record a finalized image |
 | `palm` | `completed` | Successful local build log `local/local_logs/build_palm.log` and passing full-test artifact(s) `local/test-results/palm-fulltest.json` |
 | `palmettobug` | `build-attempted` | Local build log `local/local_logs/build_palmettobug.log` exists, but it does not record a finalized image |
-| `pcntoolkit` | `build-attempted` | Local build log `local/local_logs/build_pcntoolkit.log` exists, but it does not record a finalized image |
+| `pcntoolkit` | `built` | Successful local build log `local/local_logs/build_pcntoolkit.log`; ARM64 image `pcntoolkit:0.35` built and `python -c "import pcntoolkit"` smoke check passed |
 | `petprep` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `physio` | `build-attempted` | Local build log `local/local_logs/build_physio.log` exists, but it does not record a finalized image |
 | `prostatefiducialseg` | `build-attempted` | Local build log `local/local_logs/build_prostatefiducialseg.log` exists, but it does not record a finalized image |

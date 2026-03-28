@@ -1110,6 +1110,14 @@ These changes are now in this repo and should be used as the new baseline for ar
     `docker run --rm fitlins:0.11.0 python -c 'import fitlins; print(fitlins.__version__)'`
     and reported:
     `0.11.0`
+- Revalidation note:
+  - another fresh rerun of `BUILDKIT_PROGRESS=plain ./build.sh fitlins` on the same `aarch64` host completed cleanly again and rebuilt `fitlins:0.11.0` from cache
+  - `docker image inspect fitlins:0.11.0 --format '{{.Id}} {{.Architecture}} {{.Os}}'` now reports:
+    `sha256:db8f9033e696aa0a8862dbcbe3250b89b227ad9b74917f414e7dec58986e2c70 arm64 linux`
+  - the same runtime smoke check still succeeded:
+    `docker run --rm fitlins:0.11.0 python -c 'import fitlins; print(fitlins.__version__)'`
+    and reported:
+    `0.11.0`
 
 ### Recipe-level build check: `fsqc`
 

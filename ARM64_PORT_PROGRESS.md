@@ -13,8 +13,8 @@ Status rules used here:
 Status totals:
 
 - `not-started`: 49
-- `build-attempted`: 73
-- `built`: 6
+- `build-attempted`: 72
+- `built`: 7
 - `tested`: 12
 - `completed`: 30
 - `total`: 170
@@ -188,6 +188,6 @@ Status totals:
 | `vesselvio` | `build-attempted` | Build progressed into the later PyQt build path, but no finalized image was recorded |
 | `vina` | `build-attempted` | Local build log `local/local_logs/build_vina.log` exists, but it does not record a finalized image |
 | `voreen` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
-| `workshopdemo` | `build-attempted` | Local build log `local/local_logs/build_workshopdemo.log` exists, but it does not record a finalized image |
+| `workshopdemo` | `built` | Successful local build log `local/local_logs/build_workshopdemo.log`; ARM64 image `workshopdemo:1.0.0` built after dropping the x86-only MATLAB runtime layer, and `hello` ran successfully in the container |
 | `xcpd` | `build-attempted` | Local build log `local/local_logs/build_xcpd.log` exists, but it does not record a finalized image |
 | `xnat` | `completed` | Successful local build log `local/local_logs/build_xnat.log` and passing full-test artifact(s) `local/test-results/xnat-fulltest.json` |

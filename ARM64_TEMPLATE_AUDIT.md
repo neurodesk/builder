@@ -878,6 +878,17 @@ These changes are now in this repo and should be used as the new baseline for ar
     `docker run --rm hdbet:1.0.0 /bin/bash -lc 'source /opt/miniconda-latest/etc/profile.d/conda.sh && conda activate hdbet && python -c "import HD_BET; print(HD_BET.__file__)"'`
     and reported:
     `/opt/HD-BET/HD_BET/__init__.py`
+- Revalidation note:
+  - another fresh rerun of `BUILDKIT_PROGRESS=plain ./build.sh hdbet` on the same `aarch64` host completed cleanly again
+  - `docker image inspect hdbet:1.0.0 --format '{{.Id}} {{.Architecture}} {{.Os}}'` now reports:
+    `sha256:4faa69c37a87902c373a00e6376c0b59be048ec5d3d670ad4726b4241cd3e192 arm64 linux`
+  - the same env-local runtime smoke check still succeeded:
+    `docker run --rm hdbet:1.0.0 /bin/bash -lc 'source /opt/miniconda-latest/etc/profile.d/conda.sh && conda activate hdbet && python -c "import HD_BET; print(HD_BET.__file__)" && python -m pip show HD_BET | sed -n "1,4p"'`
+    and reported:
+    `/opt/HD-BET/HD_BET/__init__.py`
+    `Name: HD_BET`
+    `Version: 2.0.1`
+    `Summary: Tool for brain extraction`
   - package metadata in the named env is still present and still reports:
     `Name: HD_BET`
     `Version: 2.0.1`

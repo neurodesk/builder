@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 50
 - `build-attempted`: 75
-- `built`: 5
+- `built`: 4
 - `tested`: 14
-- `completed`: 26
+- `completed`: 27
 - `total`: 170
 
 | Container | Status | Notes |
@@ -98,7 +98,7 @@ Status totals:
 | `halfpipe` | `build-attempted` | Local build log `local/local_logs/build_halfpipe.log` exists, but it does not record a finalized image |
 | `hcpasl` | `build-attempted` | Local build log `local/local_logs/build_hcpasl.log` exists, but it does not record a finalized image |
 | `hdbet` | `tested` | Local full-test artifact `local/test-results/hdbet-fulltest.json` recorded failures after the arm64 image was built |
-| `heudiconv` | `built` | Successful local build log `local/local_logs/build_heudiconv.log`; ARM64 image `heudiconv:1.3.1` built and `heudiconv --help` smoke check passed |
+| `heudiconv` | `completed` | Successful local build log `local/local_logs/build_heudiconv.log` and passing full-test artifact(s) `local/test-results/heudiconv-fulltest.json` |
 | `hmri` | `build-attempted` | Local build log `local/local_logs/build_hmri.log` exists, but it does not record a finalized image |
 | `hnncore` | `completed` | Successful local build log `local/local_logs/build_hnncore.log` and passing full-test artifact(s) `local/test-results/hnncore-fulltest.json` |
 | `ilastik` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |

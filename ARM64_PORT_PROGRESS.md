@@ -12,9 +12,9 @@ Status rules used here:
 
 Status totals:
 
-- `not-started`: 44
+- `not-started`: 43
 - `build-attempted`: 72
-- `built`: 6
+- `built`: 7
 - `tested`: 12
 - `completed`: 36
 - `total`: 170
@@ -91,7 +91,7 @@ Status totals:
 | `fsl` | `tested` | Existing image full test completed and failed on amd64/arm64 mismatch |
 | `fsqc` | `completed` | Arm64 image built and full test passed |
 | `gigaconnectome` | `build-attempted` | Local build log `local/local_logs/build_gigaconnectome.log` exists, but it does not record a finalized image |
-| `gimp` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
+| `gimp` | `built` | Successful local build log `local/local_logs/build_gimp.log`; ARM64 image `gimp:2.10.18` built and `gimp --version` smoke check passed |
 | `gingerale` | `completed` | Arm64 image built and full test passed |
 | `glmsingle` | `build-attempted` | Local build log `local/local_logs/build_glmsingle.log` exists, but it does not record a finalized image |
 | `gouhfi` | `build-attempted` | Local build log `local/local_logs/build_gouhfi.log` exists, but it does not record a finalized image |

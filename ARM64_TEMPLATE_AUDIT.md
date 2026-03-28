@@ -1731,6 +1731,13 @@ These changes are now in this repo and should be used as the new baseline for ar
   - rerunning `./test.sh builder` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` then passed cleanly with `14/14` tests in `8.9s`
 - Scope note: this follow-up strengthens the no-rebuild `builder` fulltest to validate the exact wrapped positional continuation from the existing image.
 
+- Follow-up on 2026-03-28:
+  - the same `neurocontainers/recipes/builder/fulltest.yaml` suite still lacked an exact assertion for the one-line help description even though the image exposes a stable descriptive line in the help surface
+  - the recipe YAML was tightened to validate the shipped description line instead:
+    `Build a recipe directory into a SIF using BuildKit (no Docker required)`
+  - rerunning `./test.sh builder` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` then passed cleanly with `15/15` tests in `9.6s`
+- Scope note: this follow-up strengthens the no-rebuild `builder` fulltest to validate the exact shipped help description from the existing image.
+
 ### Recipe-level full test check: `template`
 
 - On 2026-03-28, `./test.sh template` was run against the existing local `template:1.1.5` image on an `aarch64` host without rebuilding the Docker image.

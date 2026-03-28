@@ -747,7 +747,23 @@ These changes are now in this repo and should be used as the new baseline for ar
     `sipbuild.pyproject.PyProjectOptionException`
   - the traceback shows the immediate missing build tool boundary in the PyQt build backend:
     `raise PyProjectOptionException('qmake',`
-- Scope note: this pass closes four concrete recipe-side blockers for `vesselvio` on arm64 and moves the build past the old unavailable `PyQt5==5.13.2` pin into the next PyQt build-tooling issue. A final successful arm64 image was not produced in this pass.
+- Fifth fix landed in recipe YAML:
+  - add Qt build tooling in `neurocontainers/recipes/vesselvio/build.yaml`:
+    `qt5-qmake`
+    and
+    `qtbase5-dev`
+- Verified rerun result after fifth fix:
+  - the rerun no longer fails at the previous PyQt build-tool boundary:
+    `sipbuild.pyproject.PyProjectOptionException`
+    `raise PyProjectOptionException('qmake',`
+  - the patched build now gets cleanly through the added Qt package layer and back into the env-local requirements install
+  - observed progress in the patched PyQt path included:
+    `Collecting PyQt5==5.15.11`
+    `Installing build dependencies: finished with status 'done'`
+    `Getting requirements to build wheel: finished with status 'done'`
+    `Preparing metadata (pyproject.toml): started`
+  - I stopped that rerun while it was still active in the later PyQt build path, so there is not yet a new terminal failure or a finalized `vesselvio:1.1.2` image from this pass
+- Scope note: this pass closes five concrete recipe-side blockers for `vesselvio` on arm64 and moves the build past both the old unavailable `PyQt5==5.13.2` pin and the missing-`qmake` boundary into a later PyQt build stage. A final successful arm64 image was not produced in this pass.
 
 ### Recipe-level build check: `hdbet`
 

@@ -1540,6 +1540,13 @@ These changes are now in this repo and should be used as the new baseline for ar
   - rerunning `./test.sh builder` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `5/5` tests in `3.3s`
 - Scope note: this follow-up strengthens the no-rebuild `builder` fulltest to validate the exact documented architecture option surface from the existing image.
 
+- Follow-up on 2026-03-28:
+  - the same `neurocontainers/recipes/builder/fulltest.yaml` suite still lacked an exact shell-runtime assertion even though the image exposes a stable full bash version string
+  - the recipe YAML was tightened to validate the shipped bash runtime line instead:
+    `GNU bash, version 5.3.3(1)-release (aarch64-alpine-linux-musl)`
+  - rerunning `./test.sh builder` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` then passed cleanly with `6/6` tests in `3.2s`
+- Scope note: this follow-up strengthens the no-rebuild `builder` fulltest to validate the exact shipped bash runtime from the existing image.
+
 ### Recipe-level full test check: `template`
 
 - On 2026-03-28, `./test.sh template` was run against the existing local `template:1.1.5` image on an `aarch64` host without rebuilding the Docker image.

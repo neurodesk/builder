@@ -15,8 +15,8 @@ Status totals:
 - `not-started`: 50
 - `build-attempted`: 73
 - `built`: 6
-- `tested`: 13
-- `completed`: 28
+- `tested`: 12
+- `completed`: 29
 - `total`: 170
 
 | Container | Status | Notes |
@@ -190,4 +190,4 @@ Status totals:
 | `voreen` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `workshopdemo` | `build-attempted` | Local build log `local/local_logs/build_workshopdemo.log` exists, but it does not record a finalized image |
 | `xcpd` | `build-attempted` | Local build log `local/local_logs/build_xcpd.log` exists, but it does not record a finalized image |
-| `xnat` | `tested` | Existing image full test passed; build path was exercised but no arm64 image build result is recorded in this audit |
+| `xnat` | `completed` | Successful local build log `local/local_logs/build_xnat.log` and passing full-test artifact(s) `local/test-results/xnat-fulltest.json` |

@@ -1729,6 +1729,13 @@ These changes are now in this repo and should be used as the new baseline for ar
   - this closes the stale fulltest metadata and no-rebuild runtime-test mismatch for the current arm64 `mne:1.7.1` image path
   - the minimal suite validates the runtime actually shipped in the built image, not the old pre-1.7.1 Miniconda layout
 
+- Follow-up on 2026-03-28:
+  - the minimal `neurocontainers/recipes/mne/fulltest.yaml` suite still used a broad Python runtime assertion, only checking that the active env reported `Python 3.11`
+  - the recipe YAML was tightened to assert the exact shipped interpreter version from the existing runtime image instead:
+    `Python 3.11.15`
+  - rerunning `./test.sh mne` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `5/5` tests in `14.7s`
+- Scope note: this follow-up strengthens the no-rebuild `mne` fulltest to validate the exact Python runtime version in the named Conda environment.
+
 ### Template-level build check: `bids_validator/binaries`
 
 - On 2026-03-26, `./build.sh bidscoin` on an `aarch64` host failed in the shared `bids_validator` template before `npm install` started.

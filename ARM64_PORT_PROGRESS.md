@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 43
 - `build-attempted`: 72
-- `built`: 6
+- `built`: 5
 - `tested`: 12
-- `completed`: 37
+- `completed`: 38
 - `total`: 170
 
 | Container | Status | Notes |
@@ -141,7 +141,7 @@ Status totals:
 | `nipype` | `build-attempted` | Local build log `local/local_logs/build_nipype.log` exists, but it does not record a finalized image |
 | `noddi` | `build-attempted` | Local build log `local/local_logs/build_noddi.log` exists, but it does not record a finalized image |
 | `openads` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
-| `openreconexample` | `built` | Successful local build log `local/local_logs/build_openreconexample.log`; ARM64 image `openreconexample:1.0.0` built and `bet2` plus the bundled OpenRecon scripts smoke checked successfully |
+| `openreconexample` | `completed` | Successful local build log `local/local_logs/build_openreconexample.log` and passing full-test artifact(s) `local/test-results/openreconexample-fulltest.json` |
 | `oshyx` | `build-attempted` | Local build log `local/local_logs/build_oshyx.log` exists, but it does not record a finalized image |
 | `osprey` | `build-attempted` | Local build log `local/local_logs/build_osprey.log` exists, but it does not record a finalized image |
 | `ospreybids` | `build-attempted` | Local build log `local/local_logs/build_ospreybids.log` exists, but it does not record a finalized image |

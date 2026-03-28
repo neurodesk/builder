@@ -613,6 +613,14 @@ These changes are now in this repo and should be used as the new baseline for ar
     `/opt/segmentator/segmentator/__init__.py`
   - the same upstream import-time warning is still present:
     `pkg_resources is deprecated as an API`
+- Revalidation note:
+  - another fresh rerun of `BUILDKIT_PROGRESS=plain ./build.sh segmentator` on the same `aarch64` host completed cleanly again and rebuilt `segmentator:1.6.1` from cache
+  - `docker image inspect segmentator:1.6.1 --format '{{.Id}} {{.Architecture}} {{.Os}}'` now reports:
+    `sha256:160fdcbf1700195d646976538f169ffba30f45aa4ae54b7762fd56ff2bbf2d43 arm64 linux`
+  - the same runtime smoke check still succeeded and resolved `segmentator` from:
+    `/opt/segmentator/segmentator/__init__.py`
+  - the same upstream import-time warning is still present:
+    `pkg_resources is deprecated as an API`
 - Scope note: this pass closes three more concrete recipe-side blockers for `segmentator` on arm64, including the NumPy 2.x incompatibility, and ends with a successful `segmentator:1.6.1` image build on arm64.
 
 ### Recipe-level build check: `spmpython`

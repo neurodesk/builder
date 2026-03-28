@@ -12,9 +12,9 @@ Status rules used here:
 
 Status totals:
 
-- `not-started`: 49
+- `not-started`: 48
 - `build-attempted`: 72
-- `built`: 6
+- `built`: 7
 - `tested`: 12
 - `completed`: 31
 - `total`: 170
@@ -159,7 +159,7 @@ Status totals:
 | `quickshear` | `build-attempted` | Local build log `local/local_logs/build_quickshear.log` exists, but it does not record a finalized image |
 | `qupath` | `tested` | Existing image full test completed and failed immediately on arm64 launcher issue |
 | `rabies` | `build-attempted` | Local build log `local/local_logs/build_rabies.log` exists, but it does not record a finalized image |
-| `radtract` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
+| `radtract` | `built` | Successful local build log `local/local_logs/build_radtract.log`; ARM64 image `radtract:0.2.3` built and `radtract_features` plus `radtract_parcellate` help checks passed |
 | `romeo` | `tested` | Existing image full test completed and failed immediately on arm64 launcher exec-format issue |
 | `root` | `build-attempted` | Local build log `local/local_logs/build_root.log` exists, but it does not record a finalized image |
 | `rshrf` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |

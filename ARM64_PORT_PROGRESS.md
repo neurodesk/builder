@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 43
 - `build-attempted`: 72
-- `built`: 7
+- `built`: 6
 - `tested`: 12
-- `completed`: 36
+- `completed`: 37
 - `total`: 170
 
 | Container | Status | Notes |
@@ -91,7 +91,7 @@ Status totals:
 | `fsl` | `tested` | Existing image full test completed and failed on amd64/arm64 mismatch |
 | `fsqc` | `completed` | Arm64 image built and full test passed |
 | `gigaconnectome` | `build-attempted` | Local build log `local/local_logs/build_gigaconnectome.log` exists, but it does not record a finalized image |
-| `gimp` | `built` | Successful local build log `local/local_logs/build_gimp.log`; ARM64 image `gimp:2.10.18` built and `gimp --version` smoke check passed |
+| `gimp` | `completed` | Successful local build log `local/local_logs/build_gimp.log` and passing full-test artifact(s) `local/test-results/gimp-fulltest.json` |
 | `gingerale` | `completed` | Arm64 image built and full test passed |
 | `glmsingle` | `build-attempted` | Local build log `local/local_logs/build_glmsingle.log` exists, but it does not record a finalized image |
 | `gouhfi` | `build-attempted` | Local build log `local/local_logs/build_gouhfi.log` exists, but it does not record a finalized image |

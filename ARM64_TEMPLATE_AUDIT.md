@@ -1769,6 +1769,14 @@ These changes are now in this repo and should be used as the new baseline for ar
   - rerunning `./test.sh fsqc` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `5/5` tests in `13.6s`
 - Scope note: this follow-up strengthens the no-rebuild `fsqc` fulltest to validate the actual package version reported by `fsqc-sys_info` in the named Conda environment.
 
+- Follow-up on 2026-03-28:
+  - the same `neurocontainers/recipes/fsqc/fulltest.yaml` suite still used a broad module-location assertion, only checking that `fsqc.__file__` lived somewhere under:
+    `/opt/miniconda-latest/envs/fsqc/lib/python3.13/site-packages/fsqc/`
+  - the recipe YAML was tightened to validate the exact shipped module path instead:
+    `/opt/miniconda-latest/envs/fsqc/lib/python3.13/site-packages/fsqc/__init__.py`
+  - rerunning `./test.sh fsqc` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `5/5` tests in `16.1s`
+- Scope note: this follow-up strengthens the no-rebuild `fsqc` fulltest to validate the exact shipped module path in the named Conda environment.
+
 ### Recipe-level full test check: `hdbet`
 
 - On 2026-03-28, `./test.sh hdbet` was run against the existing local `hdbet:1.0.0` image on an `aarch64` host without rebuilding the Docker image.

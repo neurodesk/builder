@@ -2180,6 +2180,14 @@ These changes are now in this repo and should be used as the new baseline for ar
   - a fresh rerun of `./test.sh fitlins` was started against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp`, but this pass again remained in the long Apptainer SIF-conversion tail and did not reach a new suite summary before it was stopped
 - Scope note: this follow-up strengthens the no-rebuild `fitlins` fulltest to validate the shipped project metadata more precisely; the prior passing `5/5` reruns for this image path remain the latest completed suite result.
 
+- Follow-up on 2026-03-28:
+  - the same `neurocontainers/recipes/fitlins/fulltest.yaml` suite still used a broad package-metadata assertion, only checking the project homepage line:
+    `Home-page: https://github.com/poldracklab/fitlins`
+  - the recipe YAML was tightened to validate the exact shipped author line from `python -m pip show fitlins` instead:
+    `Author: Christopher J. Markiewicz`
+  - a fresh rerun of `./test.sh fitlins` was started against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp`, but this pass again remained in the long Apptainer SIF-conversion tail and did not reach a new suite summary before it was stopped
+- Scope note: this follow-up strengthens the no-rebuild `fitlins` fulltest to validate the shipped author metadata more precisely; the prior passing `5/5` reruns for this image path remain the latest completed suite result.
+
 ### Recipe-level full test check: `fsqc`
 
 - On 2026-03-28, `./test.sh fsqc` was run against the existing local `fsqc:2.1.4` image on an `aarch64` host without rebuilding the Docker image.

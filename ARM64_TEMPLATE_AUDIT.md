@@ -1363,6 +1363,14 @@ These changes are now in this repo and should be used as the new baseline for ar
   - rerunning `./test.sh template` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `5/5` tests in `4.9s`
 - Scope note: this follow-up strengthens the no-rebuild `template` fulltest to validate the actual `datalad containers-add` help surface in the existing image.
 
+- Follow-up on 2026-03-28:
+  - the same `neurocontainers/recipes/template/fulltest.yaml` suite still used a broad dataset-creation assertion, only checking the generic status token:
+    `create(ok)`
+  - the recipe YAML was tightened to validate the shipped create result instead, by checking the full dataset line:
+    `create(ok): /tmp/template-datalad-dataset (dataset)`
+  - rerunning `./test.sh template` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `5/5` tests in `5.2s`
+- Scope note: this follow-up strengthens the no-rebuild `template` fulltest to validate the actual DataLad dataset-creation result in the existing image.
+
 ### Recipe-level full test check: `xnat`
 
 - On 2026-03-26, `./test.sh xnat` was run against the existing local `xnat:1.9.2.1` image without rebuilding it.

@@ -13,8 +13,8 @@ Status rules used here:
 Status totals:
 
 - `not-started`: 50
-- `build-attempted`: 76
-- `built`: 4
+- `build-attempted`: 75
+- `built`: 5
 - `tested`: 14
 - `completed`: 26
 - `total`: 170
@@ -26,7 +26,7 @@ Status totals:
 | `amico` | `completed` | Arm64 image built and full test passed |
 | `ants` | `tested` | Full test completed and failed immediately on arm64 launcher exec-format issue |
 | `apptainer` | `build-attempted` | Build reached validation/export, but no finalized image was recorded |
-| `arfiproc` | `build-attempted` | Local build log `local/local_logs/build_arfiproc.log` exists, but it does not record a finalized image |
+| `arfiproc` | `built` | Successful local build log `local/local_logs/build_arfiproc.log`; ARM64 image `arfiproc:1.0.0` built and `/opt/code/python-ismrmrd-server/arfiproc.py` smoke check passed |
 | `ashs` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `aslprep` | `build-attempted` | Local build log `local/local_logs/build_aslprep.log` exists, but it does not record a finalized image |
 | `b0map` | `built` | Successful local build log `local/local_logs/build_b0map.log`; ARM64 image `b0map:1.0.0` built and `bet2` plus `/opt/code/python-ismrmrd-server/b0map.py` smoke checks passed |

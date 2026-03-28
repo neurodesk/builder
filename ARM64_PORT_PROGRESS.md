@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 50
 - `build-attempted`: 79
-- `built`: 5
+- `built`: 4
 - `tested`: 14
-- `completed`: 22
+- `completed`: 23
 - `total`: 170
 
 | Container | Status | Notes |
@@ -180,7 +180,7 @@ Status totals:
 | `template` | `completed` | Successful local build log `local/local_logs/build_template.log` and passing full-test artifact(s) `local/test-results/template-fulltest.json` |
 | `terastitcher` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `tinyrange` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
-| `topaz` | `built` | Arm64 image built; no completed full-test result was recorded |
+| `topaz` | `completed` | Successful local build log `local/local_logs/build_topaz.log` and passing full-test artifact(s) `local/test-results/topaz-fulltest.json` |
 | `totalsegmentator` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `trackvis` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `tractseg` | `build-attempted` | Local build log `local/local_logs/build_tractseg.log` exists, but it does not record a finalized image |

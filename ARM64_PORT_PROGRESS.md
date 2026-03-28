@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 50
 - `build-attempted`: 76
-- `built`: 5
+- `built`: 4
 - `tested`: 14
-- `completed`: 25
+- `completed`: 26
 - `total`: 170
 
 | Container | Status | Notes |
@@ -40,7 +40,7 @@ Status totals:
 | `bidsapppymvpa` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `bidsappspm` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `bidscoin` | `completed` | Successful local build log `local/local_logs/build_bidscoin.log` and passing full-test artifact(s) `local/test-results/bidscoin-fulltest.json` |
-| `bidsme` | `built` | Successful local build log `local/local_logs/build_bidsme.log`; ARM64 image `bidsme:1.9.3` built and `bidsme --help` smoke check passed |
+| `bidsme` | `completed` | Successful local build log `local/local_logs/build_bidsme.log` and passing full-test artifact(s) `local/test-results/bidsme-fulltest.json` |
 | `bidstools` | `built` | Arm64 image built; full-test rerun was started but no completed result was recorded |
 | `blastct` | `completed` | Arm64 image built and full test passed |
 | `blender` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |

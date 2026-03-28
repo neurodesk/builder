@@ -1911,6 +1911,14 @@ These changes are now in this repo and should be used as the new baseline for ar
   - rerunning `./test.sh brainlifecli` against the existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` then passed cleanly with `73/73` tests in `85.3s`
 - Scope note: this follow-up closes the stale fulltest metadata for the current no-rebuild wrapper path.
 
+- Follow-up on 2026-03-28:
+  - the same `neurocontainers/recipes/brainlifecli/fulltest.yaml` version checks still only validated that `bl --version` and `bl version` printed some semantic version, not the exact shipped CLI string in the current image
+  - direct runtime probes on the existing local image showed both commands report:
+    `1.8.2`
+  - the recipe YAML was tightened to assert that exact shipped version for both commands instead of the older `VERSION` placeholder normalization
+  - rerunning `./test.sh brainlifecli` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` then passed cleanly with `73/73` tests in `84.0s`
+- Scope note: this follow-up strengthens the no-rebuild `brainlifecli` fulltest to validate the exact runtime CLI version present in the existing image without rebuilding it.
+
 ### Recipe-level full test check: `sigviewer`
 
 - On 2026-03-26, `./test.sh sigviewer` was run against the existing local `sigviewer:0.6.4` image on an `aarch64` host without rebuilding the Docker image.

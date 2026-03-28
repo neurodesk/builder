@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 46
 - `build-attempted`: 72
-- `built`: 7
+- `built`: 6
 - `tested`: 12
-- `completed`: 33
+- `completed`: 34
 - `total`: 170
 
 | Container | Status | Notes |
@@ -154,7 +154,7 @@ Status totals:
 | `pydeface` | `build-attempted` | Local build log `local/local_logs/build_pydeface.log` exists, but it does not record a finalized image |
 | `qsiprep` | `build-attempted` | Local build log `local/local_logs/build_qsiprep.log` exists, but it does not record a finalized image |
 | `qsirecon` | `build-attempted` | Local build log `local/local_logs/build_qsirecon.log` exists, but it does not record a finalized image |
-| `qsmbly` | `built` | Successful local build log `local/local_logs/build_qsmbly.log`; ARM64 image `qsmbly:0.8.4` built and `qsmbly` launcher smoke checks passed |
+| `qsmbly` | `completed` | Successful local build log `local/local_logs/build_qsmbly.log` and passing full-test artifact(s) `local/test-results/qsmbly-fulltest.json` |
 | `qsmxt` | `build-attempted` | Local build log `local/local_logs/build_qsmxt.log` exists, but it does not record a finalized image |
 | `quickshear` | `build-attempted` | Local build log `local/local_logs/build_quickshear.log` exists, but it does not record a finalized image |
 | `qupath` | `tested` | Existing image full test completed and failed immediately on arm64 launcher issue |

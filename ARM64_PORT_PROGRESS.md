@@ -12,9 +12,9 @@ Status rules used here:
 
 Status totals:
 
-- `not-started`: 46
+- `not-started`: 45
 - `build-attempted`: 72
-- `built`: 6
+- `built`: 7
 - `tested`: 12
 - `completed`: 34
 - `total`: 170
@@ -62,7 +62,7 @@ Status totals:
 | `connectomemapper3` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `connectomeworkbench` | `completed` | Successful local build log `local/local_logs/build_connectomeworkbench.log` and passing full-test artifact(s) `local/test-results/connectomeworkbench-fulltest.json` |
 | `convert3d` | `tested` | Arm64 image built, but full test completed with x86_64-only runtime payload failures |
-| `cosmomvpa` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
+| `cosmomvpa` | `built` | Successful local build log `local/local_logs/build_cosmomvpa.log`; ARM64 image `cosmomvpa:1.1.0` built and `octave --no-gui --eval "which cosmo_wtf"` passed |
 | `cpac` | `build-attempted` | Local build log `local/local_logs/build_cpac.log` exists, but it does not record a finalized image |
 | `dafne` | `build-attempted` | Local build log `local/local_logs/build_dafne.log` exists, but it does not record a finalized image |
 | `datalad` | `completed` | Successful local build log `local/local_logs/build_datalad.log` and passing full-test artifact(s) `local/test-results/datalad-fulltest.json` |

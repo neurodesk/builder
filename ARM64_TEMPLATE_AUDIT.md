@@ -1647,6 +1647,13 @@ These changes are now in this repo and should be used as the new baseline for ar
   - rerunning `./test.sh builder` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` then passed cleanly with `10/10` tests in `5.9s`
 - Scope note: this follow-up strengthens the no-rebuild `builder` fulltest to validate the exact documented positional argument surface from the existing image.
 
+- Follow-up on 2026-03-28:
+  - the same `neurocontainers/recipes/builder/fulltest.yaml` suite still lacked an exact assertion for the documented ignore-architectures help detail even though the image exposes a stable wrapped line for it
+  - the recipe YAML was tightened to validate the shipped help detail line instead:
+    `Ignore architecture checks`
+  - rerunning `./test.sh builder` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` then passed cleanly with `11/11` tests in `6.8s`
+- Scope note: this follow-up strengthens the no-rebuild `builder` fulltest to validate the exact documented ignore-architectures help detail from the existing image.
+
 ### Recipe-level full test check: `template`
 
 - On 2026-03-28, `./test.sh template` was run against the existing local `template:1.1.5` image on an `aarch64` host without rebuilding the Docker image.

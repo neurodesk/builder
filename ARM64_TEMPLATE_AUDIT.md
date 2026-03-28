@@ -1060,6 +1060,14 @@ These changes are now in this repo and should be used as the new baseline for ar
     `1.7.1`
 - Revalidation note:
   - another fresh rerun of `BUILDKIT_PROGRESS=plain ./build.sh mne` on the same `aarch64` host completed cleanly again and rebuilt `mne:1.7.1` from cache
+  - `docker image inspect mne:1.7.1 --format '{{.Id}} {{.Architecture}} {{.Os}}'` now reports:
+    `sha256:93828e4ddde21bf12ad7499f9b02ff06021b4540e2638bb620fc7a900647b489 arm64 linux`
+  - the same env-local runtime smoke check still succeeded:
+    `docker run --rm mne:1.7.1 /bin/bash -lc 'source /opt/miniconda-latest/etc/profile.d/conda.sh && conda activate mne-1.7.1 && python -c "import mne; print(mne.__version__)"'`
+    and reported:
+    `1.7.1`
+- Revalidation note:
+  - another fresh rerun of `BUILDKIT_PROGRESS=plain ./build.sh mne` on the same `aarch64` host completed cleanly again and rebuilt `mne:1.7.1` from cache
   - `docker image inspect mne:1.7.1 --format '{{.Id}} {{.Architecture}} {{.Os}}'` still reports:
     `sha256:f311b16b7f3f10a60b9b444d1ce7020788fe159c43cbbf265400f7f480cbf294 arm64 linux`
   - the same runtime smoke check still succeeded:

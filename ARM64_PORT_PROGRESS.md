@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 47
 - `build-attempted`: 72
-- `built`: 7
+- `built`: 6
 - `tested`: 12
-- `completed`: 32
+- `completed`: 33
 - `total`: 170
 
 | Container | Status | Notes |
@@ -73,7 +73,7 @@ Status totals:
 | `deepretinotopy` | `build-attempted` | Local build log `local/local_logs/build_deepretinotopy.log` exists, but it does not record a finalized image |
 | `deepsif` | `build-attempted` | Local build log `local/local_logs/build_deepsif.log` exists, but it does not record a finalized image |
 | `delphi` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
-| `dicompare` | `built` | Successful local build log `local/local_logs/build_dicompare.log`; ARM64 image `dicompare:0.1.3` built and `dicompare` launcher smoke checks passed |
+| `dicompare` | `completed` | Successful local build log `local/local_logs/build_dicompare.log` and passing full-test artifact(s) `local/test-results/dicompare-fulltest.json` |
 | `dicomtools` | `completed` | Successful local build log `local/local_logs/build_dicomtools.log` and passing full-test artifact(s) `local/test-results/dicomtools-fulltest.json` |
 | `diffusiontoolkit` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `dsistudio` | `tested` | Existing image full test completed and failed on arm64 runtime incompatibility |

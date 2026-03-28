@@ -853,6 +853,18 @@ These changes are now in this repo and should be used as the new baseline for ar
     `Version: 2.0.1`
     with editable project location:
     `/opt/HD-BET`
+- Revalidation note:
+  - another fresh rerun of `BUILDKIT_PROGRESS=plain ./build.sh hdbet` on the same `aarch64` host completed cleanly again and rebuilt `hdbet:1.0.0` from cache
+  - `docker image inspect hdbet:1.0.0 --format '{{.Id}} {{.Architecture}} {{.Os}}'` now reports:
+    `sha256:9906d2296210f1067dfbc51926f8b67e2d9d64082bcd468bd21aa496c605a62b arm64 linux`
+  - the same runtime import smoke check still succeeded:
+    `docker run --rm hdbet:1.0.0 /bin/bash -lc 'source /opt/miniconda-latest/etc/profile.d/conda.sh && conda activate hdbet && python -c "import HD_BET; print(HD_BET.__file__)"'`
+    and reported:
+    `/opt/HD-BET/HD_BET/__init__.py`
+  - package metadata in the named env is still present and still reports:
+    `Name: HD_BET`
+    `Version: 2.0.1`
+    `Location: /opt/miniconda-latest/envs/hdbet/lib/python3.10/site-packages`
 - Scope note: this pass closes six concrete recipe-side build blockers for `hdbet` on arm64 and now produces a verified successful `hdbet:1.0.0` arm64 image.
 
 ### Recipe-level build check: `condaenvs`

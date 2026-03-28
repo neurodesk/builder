@@ -13,8 +13,8 @@ Status rules used here:
 Status totals:
 
 - `not-started`: 50
-- `build-attempted`: 79
-- `built`: 4
+- `build-attempted`: 78
+- `built`: 5
 - `tested`: 14
 - `completed`: 23
 - `total`: 170
@@ -29,7 +29,7 @@ Status totals:
 | `arfiproc` | `build-attempted` | Local build log `local/local_logs/build_arfiproc.log` exists, but it does not record a finalized image |
 | `ashs` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `aslprep` | `build-attempted` | Local build log `local/local_logs/build_aslprep.log` exists, but it does not record a finalized image |
-| `b0map` | `build-attempted` | Local build log `local/local_logs/build_b0map.log` exists, but it does not record a finalized image |
+| `b0map` | `built` | Successful local build log `local/local_logs/build_b0map.log`; ARM64 image `b0map:1.0.0` built and `bet2` plus `/opt/code/python-ismrmrd-server/b0map.py` smoke checks passed |
 | `bart` | `completed` | Successful local build log `local/local_logs/build_bart.log` and passing full-test artifact(s) `local/test-results/bart-fulltest.json` |
 | `batchheudiconv` | `completed` | Successful local build log `local/local_logs/build_batchheudiconv.log` and passing full-test artifact(s) `local/test-results/batchheudiconv-fulltest.json` |
 | `bidsappaa` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |

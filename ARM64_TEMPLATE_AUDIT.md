@@ -1712,6 +1712,14 @@ These changes are now in this repo and should be used as the new baseline for ar
   - rerunning `./test.sh fsqc` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `5/5` tests in `13.6s`
 - Scope note: this follow-up strengthens the no-rebuild `fsqc` fulltest to validate the exact Python runtime version in the named Conda environment.
 
+- Follow-up on 2026-03-28:
+  - the same `neurocontainers/recipes/fsqc/fulltest.yaml` suite still used a weak `fsqc-sys_info` assertion, only checking the generic header token:
+    `fsqc:`
+  - the recipe YAML was tightened to validate the shipped package/version line from that command instead:
+    `fsqc:                     2.1.8.dev0`
+  - rerunning `./test.sh fsqc` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `5/5` tests in `13.6s`
+- Scope note: this follow-up strengthens the no-rebuild `fsqc` fulltest to validate the actual package version reported by `fsqc-sys_info` in the named Conda environment.
+
 ### Recipe-level full test check: `segmentator`
 
 - On 2026-03-28, `./test.sh segmentator` was run against the existing local `segmentator:1.6.1` image on an `aarch64` host without rebuilding the Docker image.

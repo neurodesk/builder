@@ -755,6 +755,20 @@ These changes are now in this repo and should be used as the new baseline for ar
 - Scope note:
   - this pass closes the remaining unresolved `spmpython` build path on arm64 and now produces a verified successful `spmpython:25.1.2.post1` arm64 image
 
+### Recipe-level full test check: `spmpython`
+
+- On 2026-03-28, `./test.sh spmpython` was run against the existing local `spmpython:25.1.2.post1` image on an `aarch64` host without rebuilding the Docker image.
+- Initial issue:
+  - `neurocontainers/recipes/spmpython/fulltest.yaml` still pointed at the old dated SIF name `spmpython_25.1.2.post1_20250905.simg`, while the current `./test.sh` path generates `sifs/spmpython_25.1.2.post1.simg`
+- Fix landed in recipe YAML only:
+  - update `container:` to `spmpython_25.1.2.post1.simg`
+- Rerun result:
+  - a fresh rerun of `./test.sh spmpython` was started against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp`
+  - the rerun remained in the long live Apptainer SIF-conversion phase for `sifs/spmpython_25.1.2.post1.simg` and did not reach a new completed suite summary before it was stopped
+- Scope note:
+  - this pass closes the stale fulltest metadata for the current no-rebuild wrapper path for `spmpython`, but it does not yet add a completed full-suite runtime result for this image
+  - the underlying local Docker image used for this no-rebuild path was the existing verified arm64 build recorded above, not a rebuilt container
+
 ### Recipe-level build check: `topaz`
 
 - On 2026-03-28, `./build.sh topaz` was run on an `aarch64` host.

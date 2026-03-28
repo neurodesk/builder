@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 43
 - `build-attempted`: 70
-- `built`: 6
+- `built`: 5
 - `tested`: 12
-- `completed`: 39
+- `completed`: 40
 - `total`: 170
 
 | Container | Status | Notes |
@@ -25,7 +25,7 @@ Status totals:
 | `afni` | `build-attempted` | Local build log `local/local_logs/build_afni.log` exists, but it does not record a finalized image |
 | `amico` | `completed` | Arm64 image built and full test passed |
 | `ants` | `tested` | Full test completed and failed immediately on arm64 launcher exec-format issue |
-| `apptainer` | `built` | Successful local build log `local/local_logs/build_apptainer.log`; ARM64 image `apptainer:1.4.4` built and `apptainer --version` smoke check passed |
+| `apptainer` | `completed` | Successful local build log `local/local_logs/build_apptainer.log` and passing full-test artifact(s) `local/test-results/apptainer-fulltest.json` |
 | `arfiproc` | `built` | Successful local build log `local/local_logs/build_arfiproc.log`; ARM64 image `arfiproc:1.0.0` built and `/opt/code/python-ismrmrd-server/arfiproc.py` smoke check passed |
 | `ashs` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `aslprep` | `build-attempted` | Local build log `local/local_logs/build_aslprep.log` exists, but it does not record a finalized image |

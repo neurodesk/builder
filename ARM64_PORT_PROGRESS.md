@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 44
 - `build-attempted`: 72
-- `built`: 7
+- `built`: 6
 - `tested`: 12
-- `completed`: 35
+- `completed`: 36
 - `total`: 170
 
 | Container | Status | Notes |
@@ -53,7 +53,7 @@ Status totals:
 | `cat12` | `build-attempted` | Local build log `local/local_logs/build_cat12.log` exists, but it does not record a finalized image |
 | `cbsb0stats` | `built` | Successful local build log `local/local_logs/build_cbsb0stats.log`; ARM64 image `cbsb0stats:1.2.0` built and `/opt/code/FSL-BET2/bin/bet2` plus `/opt/code/python-ismrmrd-server/cbsb0stats.py` smoke checks passed |
 | `civet` | `build-attempted` | Local build log `local/local_logs/build_civet.log` exists, but it does not record a finalized image |
-| `clearswi` | `built` | Successful local build log `local/local_logs/build_clearswi.log`; ARM64 image `clearswi:1.0.0` built with Julia 1.9.3 and CLEARSWI package directory present in `/opt/julia_depot/packages/CLEARSWI` |
+| `clearswi` | `completed` | Successful local build log `local/local_logs/build_clearswi.log` and passing full-test artifact(s) `local/test-results/clearswi-fulltest.json` |
 | `clinica` | `build-attempted` | Local build log `local/local_logs/build_clinica.log` exists, but it does not record a finalized image |
 | `clinicadl` | `build-attempted` | Local build log `local/local_logs/build_clinicadl.log` exists, but it does not record a finalized image |
 | `code` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |

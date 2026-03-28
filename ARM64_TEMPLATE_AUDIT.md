@@ -2222,6 +2222,14 @@ These changes are now in this repo and should be used as the new baseline for ar
   - a fresh rerun of `./test.sh fsqc` was started against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp`, but it was stopped while still in the long Apptainer SIF-conversion tail and did not reach a new suite summary in this pass
 - Scope note: this follow-up strengthens the no-rebuild `fsqc` fulltest to validate the shipped package metadata more precisely; the prior passing `5/5` reruns for this image path remain the latest completed suite result.
 
+- Follow-up on 2026-03-28:
+  - the same `neurocontainers/recipes/fsqc/fulltest.yaml` suite still used a broad package-metadata assertion, only checking the summary line:
+    `Summary: Quality control scripts for FastSurfer and FreeSurfer structural MRI data`
+  - the recipe YAML was tightened to validate the exact shipped project homepage line from `python -m pip show fsqc` instead:
+    `Home-page: https://github.com/Deep-MI/fsqc`
+  - a fresh rerun of `./test.sh fsqc` was started against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp`, but this pass again remained in the long Apptainer SIF-conversion tail and did not reach a new suite summary before it was stopped
+- Scope note: this follow-up strengthens the no-rebuild `fsqc` fulltest to validate the shipped project metadata more precisely; the prior passing `5/5` reruns for this image path remain the latest completed suite result.
+
 ### Recipe-level full test check: `hdbet`
 
 - On 2026-03-28, `./test.sh hdbet` was run against the existing local `hdbet:1.0.0` image on an `aarch64` host without rebuilding the Docker image.

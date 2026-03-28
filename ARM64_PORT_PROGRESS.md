@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 49
 - `build-attempted`: 73
-- `built`: 7
+- `built`: 6
 - `tested`: 12
-- `completed`: 29
+- `completed`: 30
 - `total`: 170
 
 | Container | Status | Notes |
@@ -74,7 +74,7 @@ Status totals:
 | `deepsif` | `build-attempted` | Local build log `local/local_logs/build_deepsif.log` exists, but it does not record a finalized image |
 | `delphi` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `dicompare` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
-| `dicomtools` | `built` | Successful local build log `local/local_logs/build_dicomtools.log`; ARM64 image `dicomtools:1.0.0` built after switching to `ubuntu:24.04` and native `dcm2niix`, with `dcm2niix` and `xmedcon` smoke checks passing |
+| `dicomtools` | `completed` | Successful local build log `local/local_logs/build_dicomtools.log` and passing full-test artifact(s) `local/test-results/dicomtools-fulltest.json` |
 | `diffusiontoolkit` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `dsistudio` | `tested` | Existing image full test completed and failed on arm64 runtime incompatibility |
 | `eeglab` | `build-attempted` | Local build log `local/local_logs/build_eeglab.log` exists, but it does not record a finalized image |

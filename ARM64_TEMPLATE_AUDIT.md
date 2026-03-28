@@ -804,7 +804,21 @@ These changes are now in this repo and should be used as the new baseline for ar
     `torch-2.11.0-cp310-cp310-manylinux_2_28_aarch64.whl`
     `SimpleITK-2.5.3-cp310-cp310-...`
   - I stopped that rerun while the heavy upstream dependency install was still active, so there is not yet a finalized `hdbet:1.0.0` image from this pass
-- Scope note: this pass closes six concrete recipe-side build blockers for `hdbet` on arm64 and moves the build into the intended Python 3.10 environment for the upstream HD-BET dependency installation path. A final successful arm64 image was not produced in this pass.
+- Final verified rerun result:
+  - a fresh rerun of `BUILDKIT_PROGRESS=plain ./build.sh hdbet` on the same `aarch64` host completed cleanly and produced `hdbet:1.0.0`
+  - `docker image inspect hdbet:1.0.0 --format '{{.Id}} {{.Architecture}} {{.Os}}'` reported:
+    `sha256:504f9381cc4751bbd2cd3e838a936278def12a2e149cb8a91b713781c143a7b8 arm64 linux`
+  - a runtime smoke check inside the named env succeeded:
+    `docker run --rm hdbet:1.0.0 /bin/bash -lc 'source /opt/miniconda-latest/etc/profile.d/conda.sh && conda activate hdbet && python -c "import HD_BET; print(HD_BET.__file__)"'`
+    and reported:
+    `/opt/HD-BET/HD_BET/__init__.py`
+  - package metadata is also present in the env:
+    `python -m pip show HD_BET`
+    reported:
+    `Version: 2.0.1`
+    with editable project location:
+    `/opt/HD-BET`
+- Scope note: this pass closes six concrete recipe-side build blockers for `hdbet` on arm64 and now produces a verified successful `hdbet:1.0.0` arm64 image.
 
 ### Recipe-level build check: `condaenvs`
 

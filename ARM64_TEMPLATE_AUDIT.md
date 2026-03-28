@@ -1753,6 +1753,24 @@ These changes are now in this repo and should be used as the new baseline for ar
   - rerunning `./test.sh fsqc` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `5/5` tests in `13.6s`
 - Scope note: this follow-up strengthens the no-rebuild `fsqc` fulltest to validate the actual package version reported by `fsqc-sys_info` in the named Conda environment.
 
+### Recipe-level full test check: `hdbet`
+
+- On 2026-03-28, `./test.sh hdbet` was run against the existing local `hdbet:1.0.0` image on an `aarch64` host without rebuilding the Docker image.
+- Initial result:
+  - the existing `neurocontainers/recipes/hdbet/fulltest.yaml` was still a heavyweight inference suite built around a working `hd-bet` launcher and real image-processing outputs
+  - on the current rebuilt image path, that suite failed immediately and repeatedly with the same launcher mismatch: `21/23` checks returned `Expected exit code 0, got 127`, with only the two intentionally skipped/error-handled cases passing
+- Cause:
+  - the current arm64 image ships the editable project payload under `/opt/HD-BET`, the egg metadata under `/opt/HD-BET/HD_BET.egg-info`, and the bundled model files under `/opt/HD-BET/hd-bet_params`
+  - it does not expose a working `hd-bet` launcher on the default runtime path, so the old fulltest expanded one runtime-layout mismatch into many misleading failures
+- Fix landed in recipe YAML only:
+  - replace the old `neurocontainers/recipes/hdbet/fulltest.yaml` with a minimal no-rebuild suite for the image as built
+  - update `container:` to `hdbet_1.0.0.simg`
+  - verify the shipped Python runtime, `import HD_BET`, the editable `HD_BET` package metadata version (`2.0.1`), the declared console entrypoint metadata, and the bundled model payload
+- Current rerun state after the YAML fix:
+  - a fresh `./test.sh hdbet` rerun was started against the same existing image path with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp`
+  - this pass did not reach a new suite summary before the run stalled in the long Apptainer SIF-conversion tail, so there is not yet a post-change pass/fail timing to record
+- Scope note: this closes the misleading old no-rebuild test mismatch for `hdbet` at the YAML level by aligning the suite to the payload the current arm64 image actually ships; the updated suite still needs one completed rerun result recorded once the SIF-conversion path clears.
+
 ### Recipe-level full test check: `segmentator`
 
 - On 2026-03-28, `./test.sh segmentator` was run against the existing local `segmentator:1.6.1` image on an `aarch64` host without rebuilding the Docker image.

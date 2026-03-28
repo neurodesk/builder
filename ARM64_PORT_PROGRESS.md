@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 43
 - `build-attempted`: 69
-- `built`: 6
+- `built`: 5
 - `tested`: 12
-- `completed`: 40
+- `completed`: 41
 - `total`: 170
 
 | Container | Status | Notes |
@@ -111,7 +111,7 @@ Status totals:
 | `lesymap` | `build-attempted` | Local build log `local/local_logs/build_lesymap.log` exists, but it does not record a finalized image |
 | `linda` | `build-attempted` | Local build log `local/local_logs/build_linda.log` exists, but it does not record a finalized image |
 | `lipsia` | `completed` | Successful local build log `local/local_logs/build_lipsia.log` and passing full-test artifact(s) `local/test-results/lipsia-fulltest.json` |
-| `lqt` | `built` | Successful local build log `local/local_logs/build_lqt.log`; ARM64 image `lqt:0.1.0` built and `library(LQT)` smoke check passed |
+| `lqt` | `completed` | Successful local build log `local/local_logs/build_lqt.log` and passing full-test artifact(s) `local/test-results/lqt-fulltest.json` |
 | `lstai` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `megnet` | `build-attempted` | Build progressed into package solving, but no finalized image was recorded |
 | `metabody` | `build-attempted` | Local build log `local/local_logs/build_metabody.log` exists, but it does not record a finalized image |

@@ -2329,6 +2329,14 @@ Follow-up on 2026-03-28:
   - a fresh rerun of `./test.sh mne` was started against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp`, but it was stopped while still in the long Apptainer SIF-conversion tail and did not reach a new suite summary in this pass
 - Scope note: this follow-up strengthens the no-rebuild `mne` fulltest to validate the exact shipped module path in the named Conda environment; the prior passing `5/5` reruns for this image path remain the latest completed suite result.
 
+- Follow-up on 2026-03-28:
+  - the same `neurocontainers/recipes/mne/fulltest.yaml` suite still used a broad package-metadata assertion, only checking:
+    `Version: 1.7.1`
+  - the recipe YAML was tightened to validate the exact shipped project homepage line from `python -m pip show mne` instead:
+    `Home-page: https://mne.tools/`
+  - a fresh rerun of `./test.sh mne` was started against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp`, but this pass again remained in the long Apptainer SIF-conversion tail and did not reach a new suite summary before it was stopped
+- Scope note: this follow-up strengthens the no-rebuild `mne` fulltest to validate the shipped project metadata more precisely; the prior passing `5/5` reruns for this image path remain the latest completed suite result.
+
 ### Template-level build check: `bids_validator/binaries`
 
 - On 2026-03-26, `./build.sh bidscoin` on an `aarch64` host failed in the shared `bids_validator` template before `npm install` started.

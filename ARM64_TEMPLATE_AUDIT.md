@@ -391,6 +391,14 @@ These changes are now in this repo and should be used as the new baseline for ar
   - rerunning `./test.sh blastct` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `5/5` tests in `4.0s`
 - Scope note: this follow-up strengthens the no-rebuild fulltest to validate the current Python runtime version in the existing image.
 
+- Follow-up on 2026-03-28:
+  - the same `neurocontainers/recipes/blastct/fulltest.yaml` package-metadata check still only asserted the installed package version, which was weaker than the exact metadata available from `python3 -m pip show blast_ct`
+  - direct runtime probes on the existing local image showed the shipped package metadata includes the exact homepage line:
+    `Home-page: https://github.com/biomedia-mira/blast_ct`
+  - the recipe YAML was tightened to assert that exact homepage line instead of the broader version-only metadata check
+  - a fresh rerun of `./test.sh blastct` was started against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp`, but this pass remained in the long live Apptainer SIF-conversion tail and did not reach a new completed suite summary before it was stopped
+- Scope note: this follow-up strengthens the no-rebuild `blastct` fulltest to validate the shipped package metadata more precisely; the earlier passing `5/5` rerun remains the latest completed suite result for this image path.
+
 ### Recipe-level build check: `brainlesion`
 
 - On 2026-03-28, `./build.sh brainlesion` was run on an `aarch64` host.

@@ -1873,6 +1873,14 @@ These changes are now in this repo and should be used as the new baseline for ar
   - rerunning `./test.sh xnat` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `98/98` tests in `28.5s`
 - Scope note: this follow-up strengthens the no-rebuild `xnat` fulltest to validate the shipped generated-schema payload, not just file presence.
 
+- Follow-up on 2026-03-28:
+  - the same `neurocontainers/recipes/xnat/fulltest.yaml` generated-schema check was tightened again to validate a deeper exact line from the packaged asset instead of only the filename header
+  - the first rerun after that change failed at `97/98` in `28.3s` because the YAML only printed the first 8 lines of `/opt/xnat-webapp/scripts/generated/xnat_projectData.js`, while the exact shipped marker appears lower in the file
+  - the recipe YAML was then fixed to read the first 12 lines and assert the exact generated-file marker instead:
+    ` * GENERATED FILE`
+  - rerunning `./test.sh xnat` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` then passed cleanly with `98/98` tests in `28.0s`
+- Scope note: this follow-up strengthens the no-rebuild `xnat` fulltest to validate the generated-schema payload more precisely while keeping the suite aligned to the shipped file layout in the existing image.
+
 ### Recipe-level full test check: `brainlifecli`
 
 - On 2026-03-27, `./test.sh brainlifecli` was run against the existing local `brainlifecli:1.7.0` image on an `aarch64` host without rebuilding the Docker image.

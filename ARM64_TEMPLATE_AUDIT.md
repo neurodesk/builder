@@ -1575,6 +1575,13 @@ These changes are now in this repo and should be used as the new baseline for ar
   - rerunning `./test.sh xnat` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `98/98` tests in `28.4s`
 - Scope note: this follow-up strengthens the no-rebuild `xnat` fulltest to validate the exact packaged XNAT MANIFEST version line from the existing image.
 
+- Follow-up on 2026-03-28:
+  - the same `neurocontainers/recipes/xnat/fulltest.yaml` sample-config check still only proved the file existed, instead of validating its shipped content
+  - the recipe YAML was tightened to validate the exact header line from the packaged sample config instead:
+    `# web: xnat-conf.properties`
+  - rerunning `./test.sh xnat` against the same existing local image with `TMPDIR` and `APPTAINER_TMPDIR` redirected to `local/apptainer-tmp` still passed cleanly with `98/98` tests in `28.4s`
+- Scope note: this follow-up strengthens the no-rebuild `xnat` fulltest to validate the shipped XNAT sample-config payload, not just file presence.
+
 ### Recipe-level full test check: `brainlifecli`
 
 - On 2026-03-27, `./test.sh brainlifecli` was run against the existing local `brainlifecli:1.7.0` image on an `aarch64` host without rebuilding the Docker image.

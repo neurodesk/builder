@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 42
 - `build-attempted`: 69
-- `built`: 6
+- `built`: 5
 - `tested`: 12
-- `completed`: 41
+- `completed`: 42
 - `total`: 170
 
 | Container | Status | Notes |
@@ -147,7 +147,7 @@ Status totals:
 | `ospreybids` | `build-attempted` | Local build log `local/local_logs/build_ospreybids.log` exists, but it does not record a finalized image |
 | `palm` | `completed` | Successful local build log `local/local_logs/build_palm.log` and passing full-test artifact(s) `local/test-results/palm-fulltest.json` |
 | `palmettobug` | `build-attempted` | Local build log `local/local_logs/build_palmettobug.log` exists, but it does not record a finalized image |
-| `pcntoolkit` | `built` | Successful local build log `local/local_logs/build_pcntoolkit.log`; ARM64 image `pcntoolkit:0.35` built and `python -c "import pcntoolkit"` smoke check passed |
+| `pcntoolkit` | `completed` | Successful local build log `local/local_logs/build_pcntoolkit.log`; ARM64 image `pcntoolkit:0.35` built and passing full-test artifact `local/test-results/pcntoolkit-fulltest.json` recorded via the shared docker workflow on arm64 |
 | `petprep` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `physio` | `build-attempted` | Local build log `local/local_logs/build_physio.log` exists, but it does not record a finalized image |
 | `prostatefiducialseg` | `build-attempted` | Local build log `local/local_logs/build_prostatefiducialseg.log` exists, but it does not record a finalized image |

@@ -12,9 +12,9 @@ Status rules used here:
 
 Status totals:
 
-- `not-started`: 39
+- `not-started`: 38
 - `build-attempted`: 67
-- `built`: 3
+- `built`: 4
 - `tested`: 12
 - `completed`: 49
 - `total`: 170
@@ -162,7 +162,7 @@ Status totals:
 | `radtract` | `completed` | Successful local build log `local/local_logs/build_radtract.log` and passing full-test artifact(s) `local/test-results/radtract-fulltest.json` |
 | `romeo` | `tested` | Existing image full test completed and failed immediately on arm64 launcher exec-format issue |
 | `root` | `build-attempted` | Local build log `local/local_logs/build_root.log` exists, but it does not record a finalized image |
-| `rshrf` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
+| `rshrf` | `built` | Successful local build log `local/local_logs/build_rshrf.log`; ARM64 image `rshrf:1.5.8` built and `rsHRF --help` smoke check passed |
 | `rstudio` | `build-attempted` | Local build log `local/local_logs/build_rstudio.log` exists, but it does not record a finalized image |
 | `samsrfx` | `build-attempted` | Local build log `local/local_logs/build_samsrfx.log` exists, but it does not record a finalized image |
 | `segmentator` | `completed` | Arm64 image built and full test passed |

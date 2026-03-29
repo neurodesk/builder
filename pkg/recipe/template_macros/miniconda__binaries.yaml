@@ -2,7 +2,7 @@ builder: neurodocker
 directives:
 - environment:
     CONDA_DIR: '{{ self.install_path }}'
-    PATH: '{{ self.install_path }}/bin:$PATH'
+    PATH: '{{ self.install_path }}/condabin:{{ self.install_path }}/bin:$PATH'
 - variables:
     conda_opts: '{{ self.conda_opts|default("-q") }}'
     installer_path: /tmp/miniconda.sh
@@ -10,38 +10,38 @@ directives:
 - condition: self.installed.lower() not in ["true", "y", "1"]
   run:
   - '{{ self.install_dependencies() }}'
-  - export PATH="{{ self.install_path }}/bin:$PATH"
+  - export PATH="{{ self.install_path }}/condabin:{{ self.install_path }}/bin:$PATH"
   - echo "Downloading Miniconda installer ..."
   - curl -fsSL -o {{ installer_path }} {{ installer_url }}
   - bash {{ installer_path }} -b -p {{ self.install_path }}
   - rm -f {{ installer_path }}
-  - conda tos accept || true
+  - '{{ self.install_path }}/condabin/conda tos accept || true'
 - condition: self.installed.lower() not in ["true", "y", "1"] and self.version == "latest"
   run:
-  - conda update -yq -nbase conda
+  - '{{ self.install_path }}/condabin/conda update -yq -nbase conda'
 - condition: self.installed.lower() not in ["true", "y", "1"] and self.mamba == "true"
   run:
-  - conda install -yq -nbase conda-libmamba-solver
-  - conda config --set solver libmamba || true
+  - '{{ self.install_path }}/condabin/conda install -yq -nbase conda-libmamba-solver'
+  - '{{ self.install_path }}/condabin/conda config --set solver libmamba || true'
 - condition: self.installed.lower() not in ["true", "y", "1"]
   run:
-  - conda config --system --prepend channels conda-forge
-  - conda config --set channel_priority strict
-  - conda config --system --set auto_update_conda false
-  - conda config --system --set show_channel_urls true
-  - conda init bash
+  - '{{ self.install_path }}/condabin/conda config --system --prepend channels conda-forge'
+  - '{{ self.install_path }}/condabin/conda config --set channel_priority strict'
+  - '{{ self.install_path }}/condabin/conda config --system --set auto_update_conda false'
+  - '{{ self.install_path }}/condabin/conda config --system --set show_channel_urls true'
+  - '{{ self.install_path }}/condabin/conda init bash'
 - condition: self.yaml_file
   run:
   - |
     {% if self.env_name == "base" %}{{ raise("Environment name cannot be 'base' if creating an environment from a YAML file.") }}{% endif -%}
-  - conda env create {{ conda_opts }} --name {{ self.env_name }} --file {{ self.yaml_file }}
+  - '{{ self.install_path }}/condabin/conda env create {{ conda_opts }} --name {{ self.env_name }} --file {{ self.yaml_file }}'
 - condition: not self.yaml_file and self.env_exists.lower() not in ["true", "y", "1"]
   run:
-  - conda create -y {{ conda_opts }} --name {{ self.env_name }}
+  - 'if [ "{{ self.env_name }}" != "base" ]; then {{ self.install_path }}/condabin/conda create -y {{ conda_opts }} --name {{ self.env_name }}; fi'
 - condition: self.conda_install
   run:
   - |
-    conda install -y {{ conda_opts }} --name {{ self.env_name }} \
+    {{ self.install_path }}/condabin/conda install -y {{ conda_opts }} --name {{ self.env_name }} \
     {%- for pkg in self.conda_install.split() %}
         {% if not loop.last -%}
         "{{ pkg }}" \
@@ -52,16 +52,15 @@ directives:
 - condition: self.pip_install
   run:
   - |
-    bash -c "source activate {{ self.env_name }}
-      python -m pip install --no-cache-dir {{ self.pip_opts }} \
+    {{ self.install_path }}/condabin/conda run --no-capture-output --name {{ self.env_name }} python -m pip install --no-cache-dir {{ self.pip_opts }} \
       {%- for pkg in self.pip_install.split() %}
           {% if not loop.last -%}
           "{{ pkg }}" \
           {%- else -%}
           "{{ pkg }}"
           {%- endif -%}
-      {% endfor %}"
+      {% endfor %}
 - condition: self.installed.lower() not in ["true", "y", "1"] or self.conda_install or self.pip_install or self.yaml_file or self.env_exists.lower() not in ["true", "y", "1"]
   run:
-  - sync && conda clean --all --yes && sync
+  - sync && {{ self.install_path }}/condabin/conda clean --all --yes && sync
   - rm -rf ~/.cache/pip/*

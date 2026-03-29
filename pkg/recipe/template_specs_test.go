@@ -30,7 +30,7 @@ func TestTemplateSpecContextArchExposedToUrls(t *testing.T) {
 		t.Fatalf("Failed to execute miniconda template spec: %v", err)
 	}
 
-	if got := result.Environment["PATH"]; got != "/opt/miniconda-latest/bin:$PATH" {
+	if got := result.Environment["PATH"]; got != "/opt/miniconda-latest/condabin:/opt/miniconda-latest/bin:$PATH" {
 		t.Fatalf("Unexpected PATH env: %q", got)
 	}
 

@@ -12,9 +12,9 @@ Status rules used here:
 
 Status totals:
 
-- `not-started`: 41
+- `not-started`: 40
 - `build-attempted`: 68
-- `built`: 4
+- `built`: 5
 - `tested`: 12
 - `completed`: 45
 - `total`: 170
@@ -179,7 +179,7 @@ Status totals:
 | `syncro` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `template` | `completed` | Successful local build log `local/local_logs/build_template.log` and passing full-test artifact(s) `local/test-results/template-fulltest.json` |
 | `terastitcher` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
-| `tinyrange` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
+| `tinyrange` | `built` | Successful local build log `local/local_logs/build_tinyrange.log`; ARM64 image `tinyrange:0.4.0` built and `tinyrange --help` smoke check passed |
 | `topaz` | `completed` | Successful local build log `local/local_logs/build_topaz.log` and passing full-test artifact(s) `local/test-results/topaz-fulltest.json` |
 | `totalsegmentator` | `completed` | Successful local build log `local/local_logs/build_totalsegmentator.log`; ARM64 image `totalsegmentator:2.5.0` built and passing full-test artifact(s) `local/test-results/totalsegmentator-fulltest.json` recorded from the local arm64 Docker rerun |
 | `trackvis` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |

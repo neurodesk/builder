@@ -13,8 +13,8 @@ Status rules used here:
 Status totals:
 
 - `not-started`: 42
-- `build-attempted`: 69
-- `built`: 5
+- `build-attempted`: 68
+- `built`: 6
 - `tested`: 12
 - `completed`: 42
 - `total`: 170
@@ -93,7 +93,7 @@ Status totals:
 | `gigaconnectome` | `build-attempted` | Local build log `local/local_logs/build_gigaconnectome.log` exists, but it does not record a finalized image |
 | `gimp` | `completed` | Successful local build log `local/local_logs/build_gimp.log` and passing full-test artifact(s) `local/test-results/gimp-fulltest.json` |
 | `gingerale` | `completed` | Arm64 image built and full test passed |
-| `glmsingle` | `build-attempted` | Local build log `local/local_logs/build_glmsingle.log` exists, but it does not record a finalized image |
+| `glmsingle` | `built` | Successful local build log `local/local_logs/build_glmsingle.log`; ARM64 image `glmsingle:1.2` built and `python3.8 -c "import glmsingle, h5py"` plus `jupyter-lab --version` smoke checks passed |
 | `gouhfi` | `build-attempted` | Local build log `local/local_logs/build_gouhfi.log` exists, but it does not record a finalized image |
 | `halfpipe` | `build-attempted` | Local build log `local/local_logs/build_halfpipe.log` exists, but it does not record a finalized image |
 | `hcpasl` | `build-attempted` | Local build log `local/local_logs/build_hcpasl.log` exists, but it does not record a finalized image |

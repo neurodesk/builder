@@ -12,9 +12,9 @@ Status rules used here:
 
 Status totals:
 
-- `not-started`: 37
+- `not-started`: 36
 - `build-attempted`: 67
-- `built`: 3
+- `built`: 4
 - `tested`: 12
 - `completed`: 51
 - `total`: 170
@@ -56,7 +56,7 @@ Status totals:
 | `clearswi` | `completed` | Successful local build log `local/local_logs/build_clearswi.log` and passing full-test artifact(s) `local/test-results/clearswi-fulltest.json` |
 | `clinica` | `build-attempted` | Local build log `local/local_logs/build_clinica.log` exists, but it does not record a finalized image |
 | `clinicadl` | `build-attempted` | Local build log `local/local_logs/build_clinicadl.log` exists, but it does not record a finalized image |
-| `code` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
+| `code` | `built` | Successful local build log `local/local_logs/build_code.log`; ARM64 image `code:240320` built and smoke checks passed for `code --help` and `julia --version` |
 | `condaenvs` | `build-attempted` | Build progressed to upstream source acquisition, but no finalized image was recorded |
 | `conn` | `build-attempted` | Local build log `local/local_logs/build_conn.log` exists, but it does not record a finalized image |
 | `connectomemapper3` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |

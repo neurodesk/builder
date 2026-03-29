@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 36
 - `build-attempted`: 67
-- `built`: 4
+- `built`: 3
 - `tested`: 12
-- `completed`: 51
+- `completed`: 52
 - `total`: 170
 
 | Container | Status | Notes |
@@ -56,7 +56,7 @@ Status totals:
 | `clearswi` | `completed` | Successful local build log `local/local_logs/build_clearswi.log` and passing full-test artifact(s) `local/test-results/clearswi-fulltest.json` |
 | `clinica` | `build-attempted` | Local build log `local/local_logs/build_clinica.log` exists, but it does not record a finalized image |
 | `clinicadl` | `build-attempted` | Local build log `local/local_logs/build_clinicadl.log` exists, but it does not record a finalized image |
-| `code` | `built` | Successful local build log `local/local_logs/build_code.log`; ARM64 image `code:240320` built and smoke checks passed for `code --help` and `julia --version` |
+| `code` | `completed` | Successful local build log `local/local_logs/build_code.log`; ARM64 image `code:240320` built and passing full-test artifact(s) `local/test-results/code-fulltest.json` recorded from the local arm64 Docker rerun |
 | `condaenvs` | `build-attempted` | Build progressed to upstream source acquisition, but no finalized image was recorded |
 | `conn` | `build-attempted` | Local build log `local/local_logs/build_conn.log` exists, but it does not record a finalized image |
 | `connectomemapper3` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |

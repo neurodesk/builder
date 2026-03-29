@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 39
 - `build-attempted`: 68
-- `built`: 5
+- `built`: 4
 - `tested`: 12
-- `completed`: 46
+- `completed`: 47
 - `total`: 170
 
 | Container | Status | Notes |
@@ -137,7 +137,7 @@ Status totals:
 | `niftyreg` | `completed` | Arm64 image built and full test passed |
 | `nighres` | `build-attempted` | Local build log `local/local_logs/build_nighres.log` exists, but it does not record a finalized image |
 | `niimath` | `completed` | Successful local build log `local/local_logs/build_niimath.log` and passing full-test artifact(s) `local/test-results/niimath-fulltest.json` |
-| `niistat` | `built` | Successful local build log `local/local_logs/build_niistat.log`; ARM64 image `niistat:1.0.20191216` built and Octave resolved `/opt/niistat-1.0.20191216/NiiStat.m` with arm64 `tfceMex.mexa64` present |
+| `niistat` | `completed` | Successful local build log `local/local_logs/build_niistat.log`; ARM64 image `niistat:1.0.20191216` built and passing full-test artifact(s) `local/test-results/niistat-fulltest.json` recorded from the local arm64 Apptainer rerun against `neurocontainers/sifs/niistat_1.0.20191216_20220111.simg` |
 | `nipype` | `build-attempted` | Local build log `local/local_logs/build_nipype.log` exists, but it does not record a finalized image |
 | `noddi` | `build-attempted` | Local build log `local/local_logs/build_noddi.log` exists, but it does not record a finalized image |
 | `openads` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |

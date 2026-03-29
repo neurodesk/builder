@@ -1,0 +1,29 @@
+name: test-arm64-miniconda
+version: "1.0.0"
+architectures:
+  - aarch64
+  - x86_64
+
+variables:
+  miniconda_version: "py39_4.12.0"
+  miniconda_install_path: /opt/miniconda-{{ context.miniconda_version }}
+  miniconda_installer_url:
+    try:
+      - value: "https://repo.anaconda.com/miniconda/Miniconda3-{{ context.miniconda_version }}-Linux-x86_64.sh"
+        condition: arch=="x86_64"
+      - value: "https://repo.anaconda.com/miniconda/Miniconda3-{{ context.miniconda_version }}-Linux-aarch64.sh"
+        condition: arch=="aarch64"
+
+build:
+  kind: neurodocker
+  base-image: ubuntu:22.04
+  pkg-manager: apt
+  directives:
+    - include: modern/miniconda.yaml
+    - run:
+        - conda --version
+        - python --version
+    - deploy:
+        bins:
+          - conda
+          - python

@@ -1239,7 +1239,7 @@ var buildCmd = cobra.Command{
 
 			// Assemble docker build command
 			// docker build -t name:version -f Dockerfile [--build-context key=dir ...] buildDir
-			dockerArgs := []string{"build", "-t", res.Name + ":" + res.Version, "-f", dockerfilePath}
+			dockerArgs := []string{"build", "-m", "12g", "-t", res.Name + ":" + res.Version, "-f", dockerfilePath}
 			// Provide cache= build context automatically
 			dockerArgs = append(dockerArgs, "--build-context", "cache="+cacheDir)
 			// Append user-provided build contexts for named mounts

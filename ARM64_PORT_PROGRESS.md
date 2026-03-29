@@ -13,8 +13,8 @@ Status rules used here:
 Status totals:
 
 - `not-started`: 39
-- `build-attempted`: 68
-- `built`: 4
+- `build-attempted`: 67
+- `built`: 5
 - `tested`: 12
 - `completed`: 47
 - `total`: 170
@@ -105,7 +105,7 @@ Status totals:
 | `irkernel` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `itksnap` | `tested` | Existing image full test completed and failed immediately on arm64 launcher exec-format issue |
 | `jamovi` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
-| `julia` | `build-attempted` | Local build log `local/local_logs/build_julia.log` exists, but it does not record a finalized image |
+| `julia` | `built` | Successful local build log `local/local_logs/build_julia.log`; ARM64 image `julia:1.9.4` built and `julia -e 'using Pkg; println(VERSION)'` plus `/usr/bin/code --version` smoke checks passed |
 | `laynii` | `tested` | Existing image full test completed and failed immediately on arm64 launcher exec-format issue |
 | `lesionquantificationtoolkit` | `build-attempted` | Local build log `local/local_logs/build_lesionquantificationtoolkit.log` exists, but it does not record a finalized image |
 | `lesymap` | `build-attempted` | Local build log `local/local_logs/build_lesymap.log` exists, but it does not record a finalized image |

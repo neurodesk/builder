@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 39
 - `build-attempted`: 67
-- `built`: 5
+- `built`: 4
 - `tested`: 12
-- `completed`: 47
+- `completed`: 48
 - `total`: 170
 
 | Container | Status | Notes |
@@ -170,7 +170,7 @@ Status totals:
 | `slicer` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `slicersalt` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `soopct` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
-| `spant` | `built` | Successful local build log `local/local_logs/build_spant.log`; ARM64 image `spant:3.7.0` built and `R --slave -e "library(spant); cat(as.character(packageVersion('spant')), '\\n')"` smoke check passed |
+| `spant` | `completed` | Successful local build log `local/local_logs/build_spant.log`; ARM64 image `spant:3.7.0` built and passing full-test artifact(s) `local/test-results/spant-fulltest.json` recorded from the local arm64 Docker rerun |
 | `spinalcordtoolbox` | `build-attempted` | Local build log `local/local_logs/build_spinalcordtoolbox.log` exists, but it does not record a finalized image |
 | `spm12` | `build-attempted` | Local build log `local/local_logs/build_spm12.log` exists, but it does not record a finalized image |
 | `spm25` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |

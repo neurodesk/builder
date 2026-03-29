@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 38
 - `build-attempted`: 67
-- `built`: 4
+- `built`: 3
 - `tested`: 12
-- `completed`: 49
+- `completed`: 50
 - `total`: 170
 
 | Container | Status | Notes |
@@ -162,7 +162,7 @@ Status totals:
 | `radtract` | `completed` | Successful local build log `local/local_logs/build_radtract.log` and passing full-test artifact(s) `local/test-results/radtract-fulltest.json` |
 | `romeo` | `tested` | Existing image full test completed and failed immediately on arm64 launcher exec-format issue |
 | `root` | `build-attempted` | Local build log `local/local_logs/build_root.log` exists, but it does not record a finalized image |
-| `rshrf` | `built` | Successful local build log `local/local_logs/build_rshrf.log`; ARM64 image `rshrf:1.5.8` built and `rsHRF --help` smoke check passed |
+| `rshrf` | `completed` | Successful local build log `local/local_logs/build_rshrf.log`; ARM64 image `rshrf:1.5.8` built and passing full-test artifact(s) `local/test-results/rshrf-fulltest.json` recorded from the local arm64 Docker rerun |
 | `rstudio` | `build-attempted` | Local build log `local/local_logs/build_rstudio.log` exists, but it does not record a finalized image |
 | `samsrfx` | `build-attempted` | Local build log `local/local_logs/build_samsrfx.log` exists, but it does not record a finalized image |
 | `segmentator` | `completed` | Arm64 image built and full test passed |

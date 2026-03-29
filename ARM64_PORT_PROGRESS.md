@@ -12,9 +12,9 @@ Status rules used here:
 
 Status totals:
 
-- `not-started`: 42
+- `not-started`: 41
 - `build-attempted`: 68
-- `built`: 5
+- `built`: 6
 - `tested`: 12
 - `completed`: 43
 - `total`: 170
@@ -170,7 +170,7 @@ Status totals:
 | `slicer` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `slicersalt` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `soopct` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
-| `spant` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
+| `spant` | `built` | Successful local build log `local/local_logs/build_spant.log`; ARM64 image `spant:3.7.0` built and `R --slave -e "library(spant); cat(as.character(packageVersion('spant')), '\\n')"` smoke check passed |
 | `spinalcordtoolbox` | `build-attempted` | Local build log `local/local_logs/build_spinalcordtoolbox.log` exists, but it does not record a finalized image |
 | `spm12` | `build-attempted` | Local build log `local/local_logs/build_spm12.log` exists, but it does not record a finalized image |
 | `spm25` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |

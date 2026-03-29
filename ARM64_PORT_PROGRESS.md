@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 41
 - `build-attempted`: 68
-- `built`: 5
+- `built`: 4
 - `tested`: 12
-- `completed`: 44
+- `completed`: 45
 - `total`: 170
 
 | Container | Status | Notes |
@@ -181,7 +181,7 @@ Status totals:
 | `terastitcher` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `tinyrange` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `topaz` | `completed` | Successful local build log `local/local_logs/build_topaz.log` and passing full-test artifact(s) `local/test-results/topaz-fulltest.json` |
-| `totalsegmentator` | `built` | Successful local build log `local/local_logs/build_totalsegmentator.log`; ARM64 image `totalsegmentator:2.5.0` built and `TotalSegmentator --help` plus `python -c "import torch, totalsegmentator"` smoke checks passed |
+| `totalsegmentator` | `completed` | Successful local build log `local/local_logs/build_totalsegmentator.log`; ARM64 image `totalsegmentator:2.5.0` built and passing full-test artifact(s) `local/test-results/totalsegmentator-fulltest.json` recorded from the local arm64 Docker rerun |
 | `trackvis` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `tractseg` | `build-attempted` | Local build log `local/local_logs/build_tractseg.log` exists, but it does not record a finalized image |
 | `vesselboost` | `build-attempted` | Local build log `local/local_logs/build_vesselboost.log` exists, but it does not record a finalized image |

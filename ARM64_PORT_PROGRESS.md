@@ -14,14 +14,14 @@ Status totals:
 
 - `not-started`: 41
 - `build-attempted`: 68
-- `built`: 6
+- `built`: 5
 - `tested`: 12
-- `completed`: 43
+- `completed`: 44
 - `total`: 170
 
 | Container | Status | Notes |
 |---|---|---|
-| `afib1` | `built` | Successful local build log `local/local_logs/build_afib1.log`; ARM64 image `afib1:1.6.0` built and `bet2` plus `/opt/code/python-ismrmrd-server/afib1.py` smoke checks passed |
+| `afib1` | `completed` | Successful local build log `local/local_logs/build_afib1.log`; ARM64 image `afib1:1.6.0` built and passing full-test artifact(s) `local/test-results/afib1-fulltest.json` recorded from the local arm64 SIF rerun |
 | `afni` | `build-attempted` | Local build log `local/local_logs/build_afni.log` exists, but it does not record a finalized image |
 | `amico` | `completed` | Arm64 image built and full test passed |
 | `ants` | `tested` | Full test completed and failed immediately on arm64 launcher exec-format issue |

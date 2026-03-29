@@ -12,9 +12,9 @@ Status rules used here:
 
 Status totals:
 
-- `not-started`: 38
+- `not-started`: 37
 - `build-attempted`: 67
-- `built`: 3
+- `built`: 4
 - `tested`: 12
 - `completed`: 50
 - `total`: 170
@@ -102,7 +102,7 @@ Status totals:
 | `hmri` | `build-attempted` | Local build log `local/local_logs/build_hmri.log` exists, but it does not record a finalized image |
 | `hnncore` | `completed` | Successful local build log `local/local_logs/build_hnncore.log` and passing full-test artifact(s) `local/test-results/hnncore-fulltest.json` |
 | `ilastik` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
-| `irkernel` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
+| `irkernel` | `built` | Successful local build log `local/local_logs/build_irkernel.log`; ARM64 image `irkernel:4.4.3` built and `R --version` plus `jupyter kernelspec list` smoke checks passed |
 | `itksnap` | `tested` | Existing image full test completed and failed immediately on arm64 launcher exec-format issue |
 | `jamovi` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `julia` | `completed` | Successful local build log `local/local_logs/build_julia.log`; ARM64 image `julia:1.9.4` built and passing full-test artifact(s) `local/test-results/julia-fulltest.json` recorded from the local arm64 Docker rerun |

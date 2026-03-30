@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 34
 - `build-attempted`: 56
-- `built`: 3
+- `built`: 2
 - `tested`: 11
-- `completed`: 66
+- `completed`: 67
 - `total`: 170
 
 | Container | Status | Notes |
@@ -151,7 +151,7 @@ Status totals:
 | `petprep` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `physio` | `build-attempted` | Local build log `local/local_logs/build_physio.log` exists, but it does not record a finalized image |
 | `prostatefiducialseg` | `build-attempted` | Local build log `local/local_logs/build_prostatefiducialseg.log` exists, but it does not record a finalized image |
-| `pydeface` | `built` | Successful local build log `local/local_logs/build_pydeface.log`; ARM64 image `pydeface:2.0.2` built locally (`arm64/linux`, created `2026-03-31T02:35:38.91514208+10:00`), but no completed full-test artifact is recorded under `local/test-results` |
+| `pydeface` | `completed` | ARM64 image `pydeface:2.0.2` rebuilt locally (`arm64/linux`, created `2026-03-31T03:01:15.495717811+10:00`) after replacing the dead `amd64` FSL base with an Ubuntu + micromamba FSL path, and passing full-test artifact(s) `local/test-results/pydeface-fulltest.json` were recorded from the local arm64 SIF rerun, covering native `aarch64`, the shipped venv metadata/resources, `flirt`, and a real T1 deface run |
 | `qsiprep` | `build-attempted` | Local build log `local/local_logs/build_qsiprep.log` exists, but it does not record a finalized image |
 | `qsirecon` | `build-attempted` | Local build log `local/local_logs/build_qsirecon.log` exists, but it does not record a finalized image |
 | `qsmbly` | `completed` | Successful local build log `local/local_logs/build_qsmbly.log` and passing full-test artifact(s) `local/test-results/qsmbly-fulltest.json` |

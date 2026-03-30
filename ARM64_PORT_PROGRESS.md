@@ -13,8 +13,8 @@ Status rules used here:
 Status totals:
 
 - `not-started`: 34
-- `build-attempted`: 60
-- `built`: 2
+- `build-attempted`: 59
+- `built`: 3
 - `tested`: 11
 - `completed`: 63
 - `total`: 170
@@ -125,7 +125,7 @@ Status totals:
 | `mricron` | `build-attempted` | Local build log `local/local_logs/build_mricron.log` exists, but it does not record a finalized image |
 | `mriqc` | `build-attempted` | Local build log `local/local_logs/build_mriqc.log` exists, but it does not record a finalized image |
 | `mritools` | `tested` | Existing image full test completed and failed immediately on arm64 launcher incompatibility |
-| `mrsimetabolicconnectome` | `build-attempted` | Local build log `local/local_logs/build_mrsimetabolicconnectome.log` exists, but it does not record a finalized image |
+| `mrsimetabolicconnectome` | `built` | Successful local build log `local/local_logs/build_mrsimetabolicconnectome.log`; ARM64 image `mrsimetabolicconnectome:1.0.0` built locally (`arm64/linux`, created `2026-03-31T01:21:23.291549924+10:00`); no completed full-test artifact recorded under `local/test-results` |
 | `mrtrix3` | `build-attempted` | Local build log `local/local_logs/build_mrtrix3.log` exists, but it does not record a finalized image |
 | `mrtrix3tissue` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `musclemap` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |

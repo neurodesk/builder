@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 35
 - `build-attempted`: 63
-- `built`: 3
+- `built`: 2
 - `tested`: 12
-- `completed`: 57
+- `completed`: 58
 - `total`: 170
 
 | Container | Status | Notes |
@@ -107,7 +107,7 @@ Status totals:
 | `jamovi` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `julia` | `completed` | Successful local build log `local/local_logs/build_julia.log`; ARM64 image `julia:1.9.4` built and passing full-test artifact(s) `local/test-results/julia-fulltest.json` recorded from the local arm64 Docker rerun |
 | `laynii` | `tested` | Existing image full test completed and failed immediately on arm64 launcher exec-format issue |
-| `lesionquantificationtoolkit` | `built` | Successful local build log `local/local_logs/build_lesionquantificationtoolkit.log`; ARM64 image `lesionquantificationtoolkit:0.1.0` built, but the in-image `LQT` GitHub install reported a missing R dependency (`aws`), so no completed full-test result is recorded yet |
+| `lesionquantificationtoolkit` | `completed` | Successful local build log `local/local_logs/build_lesionquantificationtoolkit.log`; ARM64 image `lesionquantificationtoolkit:0.1.0` rebuilt after installing the missing R dependency path (`gsl` 2.1-8 and `aws`) so `LQT` installs cleanly, and passing full-test artifact(s) `local/test-results/lesionquantificationtoolkit-fulltest.json` were recorded from the local arm64 Docker rerun against the rebuilt image |
 | `lesymap` | `build-attempted` | Local build log `local/local_logs/build_lesymap.log` exists, but it does not record a finalized image |
 | `linda` | `build-attempted` | Local build log `local/local_logs/build_linda.log` exists, but it does not record a finalized image |
 | `lipsia` | `completed` | Successful local build log `local/local_logs/build_lipsia.log` and passing full-test artifact(s) `local/test-results/lipsia-fulltest.json` |

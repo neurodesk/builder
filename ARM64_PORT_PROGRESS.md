@@ -13,8 +13,8 @@ Status rules used here:
 Status totals:
 
 - `not-started`: 34
-- `build-attempted`: 62
-- `built`: 2
+- `build-attempted`: 61
+- `built`: 3
 - `tested`: 11
 - `completed`: 61
 - `total`: 170
@@ -156,7 +156,7 @@ Status totals:
 | `qsirecon` | `build-attempted` | Local build log `local/local_logs/build_qsirecon.log` exists, but it does not record a finalized image |
 | `qsmbly` | `completed` | Successful local build log `local/local_logs/build_qsmbly.log` and passing full-test artifact(s) `local/test-results/qsmbly-fulltest.json` |
 | `qsmxt` | `build-attempted` | Local build log `local/local_logs/build_qsmxt.log` exists, but it does not record a finalized image |
-| `quickshear` | `build-attempted` | Local build log `local/local_logs/build_quickshear.log` exists, but it does not record a finalized image |
+| `quickshear` | `built` | Successful local build log `local/local_logs/build_quickshear.log`; ARM64 image `quickshear:1.1.0` is present (`docker image inspect` reports `arm64/linux`, created `2026-03-31T00:28:43.157660172+10:00`), but no completed full-test artifact is recorded under `local/test-results` |
 | `qupath` | `tested` | Existing image full test completed and failed immediately on arm64 launcher issue |
 | `rabies` | `build-attempted` | Local build log `local/local_logs/build_rabies.log` exists, but it does not record a finalized image |
 | `radtract` | `completed` | Successful local build log `local/local_logs/build_radtract.log` and passing full-test artifact(s) `local/test-results/radtract-fulltest.json` |

@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 34
 - `build-attempted`: 54
-- `built`: 3
+- `built`: 2
 - `tested`: 11
-- `completed`: 68
+- `completed`: 69
 - `total`: 170
 
 | Container | Status | Notes |
@@ -126,7 +126,7 @@ Status totals:
 | `mriqc` | `build-attempted` | Local build log `local/local_logs/build_mriqc.log` exists, but it does not record a finalized image |
 | `mritools` | `tested` | Existing image full test completed and failed immediately on arm64 launcher incompatibility |
 | `mrsimetabolicconnectome` | `completed` | Successful local build log `local/local_logs/build_mrsimetabolicconnectome.log`; ARM64 image `mrsimetabolicconnectome:1.0.0` (`docker image inspect` reports `arm64/linux`, created `2026-03-31T01:21:23.291549924+10:00`) now has a passing completed full-test artifact `local/test-results/mrsimetabolicconnectome-fulltest.json` recorded via `./test.sh mrsimetabolicconnectome`, covering native `aarch64` execution, Python 3.10.20, installed `mrsitoolbox` metadata, the shipped preprocessing repository path, `registration_mrsi_to_t1.py --help`, and the core script import path (`Registration`, `DataUtils`, `BiHarmonic`) |
-| `mrtrix3` | `built` | ARM64 image `mrtrix3:3.0.8` was rebuilt locally after replacing the broken upstream template stack with a direct Ubuntu 24.04 source build; `docker image inspect` reports `linux/arm64`, created `2026-03-31T05:20:34.232931543+10:00`, `mrinfo -version` exits successfully, and no completed full-test artifact is yet recorded under `local/test-results` |
+| `mrtrix3` | `completed` | ARM64 image `mrtrix3:3.0.8` was rebuilt locally (`linux/arm64`, created `2026-03-31T05:20:34.232931543+10:00`) after replacing the broken upstream template stack with a direct Ubuntu 24.04 source build, and passing full-test artifact(s) `local/test-results/mrtrix3-fulltest.json` were recorded from the local arm64 SIF rerun, covering native `aarch64`, `mrinfo`, `mrconvert`, and a real NIfTI-to-MIF conversion on the sample dataset |
 | `mrtrix3tissue` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `musclemap` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `networkcorrespondancetoolkit` | `completed` | Successful local build log `local/local_logs/build_networkcorrespondancetoolkit.log`; ARM64 image `networkcorrespondancetoolkit:0.3.3` built after enabling `aarch64`, switching the conda bootstrap to the ARM64 installer, replacing the unsatisfiable upstream env solve with a minimal Python 3.11 env, and relaxing the unavailable `vtk==9.3.0` pin to an ARM64-available wheel path; passing full-test artifact(s) `local/test-results/networkcorrespondancetoolkit-fulltest.json` recorded from the local arm64 Docker rerun against the existing image, covering native `aarch64` execution, Python 3.11, installed package metadata, module discovery, and the ARM64-sensitive dependency set including `vtk` |

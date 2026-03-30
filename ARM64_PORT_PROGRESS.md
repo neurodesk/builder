@@ -13,8 +13,8 @@ Status rules used here:
 Status totals:
 
 - `not-started`: 35
-- `build-attempted`: 67
-- `built`: 3
+- `build-attempted`: 66
+- `built`: 4
 - `tested`: 12
 - `completed`: 53
 - `total`: 170
@@ -129,7 +129,7 @@ Status totals:
 | `mrtrix3` | `build-attempted` | Local build log `local/local_logs/build_mrtrix3.log` exists, but it does not record a finalized image |
 | `mrtrix3tissue` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `musclemap` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
-| `networkcorrespondancetoolkit` | `build-attempted` | Local build log `local/local_logs/build_networkcorrespondancetoolkit.log` exists, but it does not record a finalized image |
+| `networkcorrespondancetoolkit` | `built` | Successful local build log `local/local_logs/build_networkcorrespondancetoolkit.log`; ARM64 image `networkcorrespondancetoolkit:0.3.3` built after enabling `aarch64`, switching the conda bootstrap to the ARM64 installer, replacing the unsatisfiable upstream env solve with a minimal Python 3.11 env, and relaxing the unavailable `vtk==9.3.0` pin to an ARM64-available wheel path; in-container metadata smoke check confirmed `cbig_network_correspondence` version `0.3.3` is installed |
 | `neurocommand` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `neurodock` | `build-attempted` | Local build log `local/local_logs/build_neurodock.log` exists, but it does not record a finalized image |
 | `nftsim` | `build-attempted` | Local build log `local/local_logs/build_nftsim.log` exists, but it does not record a finalized image |

@@ -13,8 +13,8 @@ Status rules used here:
 Status totals:
 
 - `not-started`: 35
-- `build-attempted`: 65
-- `built`: 3
+- `build-attempted`: 64
+- `built`: 4
 - `tested`: 12
 - `completed`: 55
 - `total`: 170
@@ -146,7 +146,7 @@ Status totals:
 | `osprey` | `build-attempted` | Local build log `local/local_logs/build_osprey.log` exists, but it does not record a finalized image |
 | `ospreybids` | `build-attempted` | Local build log `local/local_logs/build_ospreybids.log` exists, but it does not record a finalized image |
 | `palm` | `completed` | Successful local build log `local/local_logs/build_palm.log` and passing full-test artifact(s) `local/test-results/palm-fulltest.json` |
-| `palmettobug` | `build-attempted` | Local build log `local/local_logs/build_palmettobug.log` exists, but it does not record a finalized image |
+| `palmettobug` | `built` | Successful local build log `local/local_logs/build_palmettobug.log`; ARM64 image `palmettobug:0.0.3` built after replacing the x86-only Miniconda path with a multi-arch Python 3.10 base, relaxing the unavailable ARM64 `PySide6<6.5` pin to `PySide6>=6.5.3,<6.6`, adding the native toolchain plus OpenBLAS for source-built `numcodecs`/`fdasrsf`, and restoring the Tk runtime required for the GUI import path; in-container smoke check confirmed `import palmettobug` on arm64 |
 | `pcntoolkit` | `completed` | Successful local build log `local/local_logs/build_pcntoolkit.log`; ARM64 image `pcntoolkit:0.35` built and passing full-test artifact `local/test-results/pcntoolkit-fulltest.json` recorded via the shared docker workflow on arm64 |
 | `petprep` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `physio` | `build-attempted` | Local build log `local/local_logs/build_physio.log` exists, but it does not record a finalized image |

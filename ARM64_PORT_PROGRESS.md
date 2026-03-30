@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 34
 - `build-attempted`: 59
-- `built`: 3
+- `built`: 2
 - `tested`: 11
-- `completed`: 63
+- `completed`: 64
 - `total`: 170
 
 | Container | Status | Notes |
@@ -125,7 +125,7 @@ Status totals:
 | `mricron` | `build-attempted` | Local build log `local/local_logs/build_mricron.log` exists, but it does not record a finalized image |
 | `mriqc` | `build-attempted` | Local build log `local/local_logs/build_mriqc.log` exists, but it does not record a finalized image |
 | `mritools` | `tested` | Existing image full test completed and failed immediately on arm64 launcher incompatibility |
-| `mrsimetabolicconnectome` | `built` | Successful local build log `local/local_logs/build_mrsimetabolicconnectome.log`; ARM64 image `mrsimetabolicconnectome:1.0.0` built locally (`arm64/linux`, created `2026-03-31T01:21:23.291549924+10:00`); no completed full-test artifact recorded under `local/test-results` |
+| `mrsimetabolicconnectome` | `completed` | Successful local build log `local/local_logs/build_mrsimetabolicconnectome.log`; ARM64 image `mrsimetabolicconnectome:1.0.0` (`docker image inspect` reports `arm64/linux`, created `2026-03-31T01:21:23.291549924+10:00`) now has a passing completed full-test artifact `local/test-results/mrsimetabolicconnectome-fulltest.json` recorded via `./test.sh mrsimetabolicconnectome`, covering native `aarch64` execution, Python 3.10.20, installed `mrsitoolbox` metadata, the shipped preprocessing repository path, `registration_mrsi_to_t1.py --help`, and the core script import path (`Registration`, `DataUtils`, `BiHarmonic`) |
 | `mrtrix3` | `build-attempted` | Local build log `local/local_logs/build_mrtrix3.log` exists, but it does not record a finalized image |
 | `mrtrix3tissue` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `musclemap` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |

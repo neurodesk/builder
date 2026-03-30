@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 35
 - `build-attempted`: 66
-- `built`: 4
+- `built`: 3
 - `tested`: 12
-- `completed`: 53
+- `completed`: 54
 - `total`: 170
 
 | Container | Status | Notes |
@@ -26,7 +26,7 @@ Status totals:
 | `amico` | `completed` | Arm64 image built and full test passed |
 | `ants` | `tested` | Full test completed and failed immediately on arm64 launcher exec-format issue |
 | `apptainer` | `completed` | Successful local build log `local/local_logs/build_apptainer.log` and passing full-test artifact(s) `local/test-results/apptainer-fulltest.json` |
-| `arfiproc` | `built` | Successful local build log `local/local_logs/build_arfiproc.log`; ARM64 image `arfiproc:1.0.0` built and `/opt/code/python-ismrmrd-server/arfiproc.py` smoke check passed |
+| `arfiproc` | `completed` | Successful local build log `local/local_logs/build_arfiproc.log`; ARM64 image `arfiproc:1.0.0` built and passing full-test artifact(s) `local/test-results/arfiproc-fulltest.json` recorded from the local arm64 Docker rerun against the existing image, covering native `aarch64` execution, OpenRecon helpers, and the shipped `arfiproc` module import path |
 | `ashs` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `aslprep` | `build-attempted` | Local build log `local/local_logs/build_aslprep.log` exists, but it does not record a finalized image |
 | `b0map` | `completed` | Successful local build log `local/local_logs/build_b0map.log`; ARM64 image `b0map:1.0.0` built and passing full-test artifact(s) `local/test-results/b0map-fulltest.json` recorded from the local arm64 Docker rerun against the existing image, covering native `aarch64` execution, `bet2`, OpenRecon helpers, and the shipped `b0map` module import path |

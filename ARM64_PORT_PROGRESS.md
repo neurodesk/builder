@@ -13,8 +13,8 @@ Status rules used here:
 Status totals:
 
 - `not-started`: 34
-- `build-attempted`: 57
-- `built`: 2
+- `build-attempted`: 56
+- `built`: 3
 - `tested`: 11
 - `completed`: 66
 - `total`: 170
@@ -151,7 +151,7 @@ Status totals:
 | `petprep` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `physio` | `build-attempted` | Local build log `local/local_logs/build_physio.log` exists, but it does not record a finalized image |
 | `prostatefiducialseg` | `build-attempted` | Local build log `local/local_logs/build_prostatefiducialseg.log` exists, but it does not record a finalized image |
-| `pydeface` | `build-attempted` | Local build log `local/local_logs/build_pydeface.log` exists, but it does not record a finalized image |
+| `pydeface` | `built` | Successful local build log `local/local_logs/build_pydeface.log`; ARM64 image `pydeface:2.0.2` built locally (`arm64/linux`, created `2026-03-31T02:35:38.91514208+10:00`), but no completed full-test artifact is recorded under `local/test-results` |
 | `qsiprep` | `build-attempted` | Local build log `local/local_logs/build_qsiprep.log` exists, but it does not record a finalized image |
 | `qsirecon` | `build-attempted` | Local build log `local/local_logs/build_qsirecon.log` exists, but it does not record a finalized image |
 | `qsmbly` | `completed` | Successful local build log `local/local_logs/build_qsmbly.log` and passing full-test artifact(s) `local/test-results/qsmbly-fulltest.json` |

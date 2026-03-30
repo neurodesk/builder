@@ -13,10 +13,10 @@ Status rules used here:
 Status totals:
 
 - `not-started`: 35
-- `build-attempted`: 64
+- `build-attempted`: 63
 - `built`: 3
 - `tested`: 12
-- `completed`: 56
+- `completed`: 57
 - `total`: 170
 
 | Container | Status | Notes |
@@ -107,7 +107,7 @@ Status totals:
 | `jamovi` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `julia` | `completed` | Successful local build log `local/local_logs/build_julia.log`; ARM64 image `julia:1.9.4` built and passing full-test artifact(s) `local/test-results/julia-fulltest.json` recorded from the local arm64 Docker rerun |
 | `laynii` | `tested` | Existing image full test completed and failed immediately on arm64 launcher exec-format issue |
-| `lesionquantificationtoolkit` | `build-attempted` | Local build log `local/local_logs/build_lesionquantificationtoolkit.log` exists, but it does not record a finalized image |
+| `lesionquantificationtoolkit` | `built` | Successful local build log `local/local_logs/build_lesionquantificationtoolkit.log`; ARM64 image `lesionquantificationtoolkit:0.1.0` built, but the in-image `LQT` GitHub install reported a missing R dependency (`aws`), so no completed full-test result is recorded yet |
 | `lesymap` | `build-attempted` | Local build log `local/local_logs/build_lesymap.log` exists, but it does not record a finalized image |
 | `linda` | `build-attempted` | Local build log `local/local_logs/build_linda.log` exists, but it does not record a finalized image |
 | `lipsia` | `completed` | Successful local build log `local/local_logs/build_lipsia.log` and passing full-test artifact(s) `local/test-results/lipsia-fulltest.json` |
@@ -169,7 +169,7 @@ Status totals:
 | `sigviewer` | `completed` | Successful local build log `local/local_logs/build_sigviewer.log` and passing full-test artifact(s) `local/test-results/sigviewer-fulltest.json` |
 | `slicer` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `slicersalt` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
-| `soopct` | `built` | Successful local build log `local/local_logs/build_soopct.log`; ARM64 image `soopct:0.0.0` built after enabling `aarch64`, adding the native build toolchain needed for the `antspyx` fallback path, and pinning the available ARM64 wheel route (`python=3.12`, `antspyx==0.4.2`); in-container smoke check confirmed `python`, `conda`, `ants`, `brainchop`, `nibabel`, `numpy`, and `scipy` |
+| `soopct` | `completed` | Successful local build log `local/local_logs/build_soopct.log`; ARM64 image `soopct:0.0.0` built after enabling `aarch64`, adding the native build toolchain needed for the `antspyx` fallback path, pinning the available ARM64 wheel route (`python=3.12`, `antspyx==0.4.2`), and compiling a native `dcm2niix` for the core DICOM conversion path; passing full-test artifact(s) `local/test-results/soopct-fulltest.json` recorded from the local arm64 rerun against the rebuilt image, covering native `aarch64` execution, Python 3.12, bundled sample DICOM conversion, best-volume selection, BIDS structuring, and mean-image generation |
 | `spant` | `completed` | Successful local build log `local/local_logs/build_spant.log`; ARM64 image `spant:3.7.0` built and passing full-test artifact(s) `local/test-results/spant-fulltest.json` recorded from the local arm64 Docker rerun |
 | `spinalcordtoolbox` | `build-attempted` | Local build log `local/local_logs/build_spinalcordtoolbox.log` exists, but it does not record a finalized image |
 | `spm12` | `build-attempted` | Local build log `local/local_logs/build_spm12.log` exists, but it does not record a finalized image |

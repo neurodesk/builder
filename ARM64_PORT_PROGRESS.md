@@ -12,9 +12,9 @@ Status rules used here:
 
 Status totals:
 
-- `not-started`: 35
+- `not-started`: 34
 - `build-attempted`: 62
-- `built`: 1
+- `built`: 2
 - `tested`: 12
 - `completed`: 60
 - `total`: 170
@@ -187,7 +187,7 @@ Status totals:
 | `vesselboost` | `build-attempted` | Local build log `local/local_logs/build_vesselboost.log` exists, but it does not record a finalized image |
 | `vesselvio` | `build-attempted` | Build progressed into the later PyQt build path, but no finalized image was recorded |
 | `vina` | `build-attempted` | Local build log `local/local_logs/build_vina.log` exists, but it does not record a finalized image |
-| `voreen` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
+| `voreen` | `built` | Local ARM64 Docker image `voreen:5.3.0` is present (`docker image inspect` reports `arm64/linux`, created `2026-03-29T22:43:56.182579304+10:00`), but no completed full-test artifact is recorded under `local/test-results` |
 | `workshopdemo` | `completed` | Successful local build log `local/local_logs/build_workshopdemo.log` and passing full-test artifact(s) `local/test-results/workshopdemo-fulltest.json` |
 | `xcpd` | `build-attempted` | Local build log `local/local_logs/build_xcpd.log` exists, but it does not record a finalized image |
 | `xnat` | `completed` | Successful local build log `local/local_logs/build_xnat.log` and passing full-test artifact(s) `local/test-results/xnat-fulltest.json` |

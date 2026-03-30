@@ -13,8 +13,8 @@ Status rules used here:
 Status totals:
 
 - `not-started`: 34
-- `build-attempted`: 58
-- `built`: 2
+- `build-attempted`: 57
+- `built`: 3
 - `tested`: 11
 - `completed`: 65
 - `total`: 170
@@ -186,7 +186,7 @@ Status totals:
 | `tractseg` | `build-attempted` | Local build log `local/local_logs/build_tractseg.log` exists, but it does not record a finalized image |
 | `vesselboost` | `build-attempted` | Local build log `local/local_logs/build_vesselboost.log` exists, but it does not record a finalized image |
 | `vesselvio` | `build-attempted` | Build progressed into the later PyQt build path, but no finalized image was recorded |
-| `vina` | `build-attempted` | Local build log `local/local_logs/build_vina.log` exists, but it does not record a finalized image |
+| `vina` | `built` | Successful local build log `local/local_logs/build_vina.log`; `docker image inspect vina:1.2.3` reports `arm64/linux` with created timestamp `2026-03-31T02:12:49.095138233+10:00` |
 | `voreen` | `built` | Local ARM64 Docker image `voreen:5.3.0` is present (`docker image inspect` reports `arm64/linux`, created `2026-03-29T22:43:56.182579304+10:00`), but no completed full-test artifact is recorded under `local/test-results` |
 | `workshopdemo` | `completed` | Successful local build log `local/local_logs/build_workshopdemo.log` and passing full-test artifact(s) `local/test-results/workshopdemo-fulltest.json` |
 | `xcpd` | `build-attempted` | Local build log `local/local_logs/build_xcpd.log` exists, but it does not record a finalized image |

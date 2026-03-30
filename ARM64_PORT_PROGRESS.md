@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 34
 - `build-attempted`: 57
-- `built`: 3
+- `built`: 2
 - `tested`: 11
-- `completed`: 65
+- `completed`: 66
 - `total`: 170
 
 | Container | Status | Notes |
@@ -186,7 +186,7 @@ Status totals:
 | `tractseg` | `build-attempted` | Local build log `local/local_logs/build_tractseg.log` exists, but it does not record a finalized image |
 | `vesselboost` | `build-attempted` | Local build log `local/local_logs/build_vesselboost.log` exists, but it does not record a finalized image |
 | `vesselvio` | `build-attempted` | Build progressed into the later PyQt build path, but no finalized image was recorded |
-| `vina` | `built` | Successful local build log `local/local_logs/build_vina.log`; `docker image inspect vina:1.2.3` reports `arm64/linux` with created timestamp `2026-03-31T02:12:49.095138233+10:00` |
+| `vina` | `completed` | Successful local build log `local/local_logs/build_vina.log`; ARM64 image `vina:1.2.3` (`docker image inspect` reports `arm64/linux`, created `2026-03-31T02:12:49.095138233+10:00`) now has a passing completed full-test artifact `local/test-results/vina-fulltest.json` recorded via `./test.sh vina`, covering native `aarch64` execution, Ubuntu package metadata for `autodock`/`autodock-vina`, the packaged `vina`/`vina_split`/`autodock4` binaries, and a basic `vina_split` PDBQT split run |
 | `voreen` | `built` | Local ARM64 Docker image `voreen:5.3.0` is present (`docker image inspect` reports `arm64/linux`, created `2026-03-29T22:43:56.182579304+10:00`), but no completed full-test artifact is recorded under `local/test-results` |
 | `workshopdemo` | `completed` | Successful local build log `local/local_logs/build_workshopdemo.log` and passing full-test artifact(s) `local/test-results/workshopdemo-fulltest.json` |
 | `xcpd` | `build-attempted` | Local build log `local/local_logs/build_xcpd.log` exists, but it does not record a finalized image |

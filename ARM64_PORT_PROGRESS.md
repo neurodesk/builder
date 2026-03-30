@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 35
 - `build-attempted`: 67
-- `built`: 4
+- `built`: 3
 - `tested`: 12
-- `completed`: 52
+- `completed`: 53
 - `total`: 170
 
 | Container | Status | Notes |
@@ -29,7 +29,7 @@ Status totals:
 | `arfiproc` | `built` | Successful local build log `local/local_logs/build_arfiproc.log`; ARM64 image `arfiproc:1.0.0` built and `/opt/code/python-ismrmrd-server/arfiproc.py` smoke check passed |
 | `ashs` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `aslprep` | `build-attempted` | Local build log `local/local_logs/build_aslprep.log` exists, but it does not record a finalized image |
-| `b0map` | `built` | Successful local build log `local/local_logs/build_b0map.log`; ARM64 image `b0map:1.0.0` built and `bet2` plus `/opt/code/python-ismrmrd-server/b0map.py` smoke checks passed |
+| `b0map` | `completed` | Successful local build log `local/local_logs/build_b0map.log`; ARM64 image `b0map:1.0.0` built and passing full-test artifact(s) `local/test-results/b0map-fulltest.json` recorded from the local arm64 Docker rerun against the existing image, covering native `aarch64` execution, `bet2`, OpenRecon helpers, and the shipped `b0map` module import path |
 | `bart` | `completed` | Successful local build log `local/local_logs/build_bart.log` and passing full-test artifact(s) `local/test-results/bart-fulltest.json` |
 | `batchheudiconv` | `completed` | Successful local build log `local/local_logs/build_batchheudiconv.log` and passing full-test artifact(s) `local/test-results/batchheudiconv-fulltest.json` |
 | `bidsappaa` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |

@@ -13,8 +13,8 @@ Status rules used here:
 Status totals:
 
 - `not-started`: 35
-- `build-attempted`: 63
-- `built`: 2
+- `build-attempted`: 62
+- `built`: 3
 - `tested`: 12
 - `completed`: 58
 - `total`: 170
@@ -46,7 +46,7 @@ Status totals:
 | `blender` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `braid` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `brainager` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
-| `brainlesion` | `build-attempted` | Build progressed into dependency installation, but no finalized image was recorded |
+| `brainlesion` | `built` | Successful local build log `local/local_logs/build_brainlesion.log`; ARM64 image `brainlesion:1.0.0` built after replacing the broken ARM64 miniconda template path with an explicit `aarch64` Miniconda bootstrap and pip environment install. Direct Docker reruns on the built image confirmed `python --version` and representative package imports, while the builder's bundled post-build tester still failed separately with an ARM64 helper `exec format error` |
 | `brainlifecli` | `completed` | Successful local build log `local/local_logs/build_brainlifecli.log` and passing full-test artifact(s) `local/test-results/brainlifecli-fulltest.json` |
 | `brainstorm` | `build-attempted` | Local build log `local/local_logs/build_brainstorm.log` exists, but it does not record a finalized image |
 | `builder` | `completed` | Successful local build log `local/local_logs/build_builder.log` and passing full-test artifact(s) `local/test-results/builder-fulltest.json` |

@@ -13,8 +13,8 @@ Status rules used here:
 Status totals:
 
 - `not-started`: 35
-- `build-attempted`: 66
-- `built`: 3
+- `build-attempted`: 65
+- `built`: 4
 - `tested`: 12
 - `completed`: 54
 - `total`: 170

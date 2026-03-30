@@ -15,8 +15,8 @@ Status totals:
 - `not-started`: 34
 - `build-attempted`: 62
 - `built`: 2
-- `tested`: 12
-- `completed`: 60
+- `tested`: 11
+- `completed`: 61
 - `total`: 170
 
 | Container | Status | Notes |
@@ -97,7 +97,7 @@ Status totals:
 | `gouhfi` | `build-attempted` | Local build log `local/local_logs/build_gouhfi.log` exists, but it does not record a finalized image |
 | `halfpipe` | `build-attempted` | Local build log `local/local_logs/build_halfpipe.log` exists, but it does not record a finalized image |
 | `hcpasl` | `build-attempted` | Local build log `local/local_logs/build_hcpasl.log` exists, but it does not record a finalized image |
-| `hdbet` | `tested` | Local full-test artifact `local/test-results/hdbet-fulltest.json` recorded failures after the arm64 image was built |
+| `hdbet` | `completed` | Existing ARM64 Docker image `hdbet:1.0.0` (`docker image inspect` reports `arm64/linux`, created `2026-03-28T08:41:06.542938062+10:00`) now has a passing completed full-test artifact `local/test-results/hdbet-fulltest.json`; the prior failure was a stale full-test mismatch that exercised the system Python instead of the shipped `hdbet` conda environment |
 | `heudiconv` | `completed` | Successful local build log `local/local_logs/build_heudiconv.log` and passing full-test artifact(s) `local/test-results/heudiconv-fulltest.json` |
 | `hmri` | `build-attempted` | Local build log `local/local_logs/build_hmri.log` exists, but it does not record a finalized image |
 | `hnncore` | `completed` | Successful local build log `local/local_logs/build_hnncore.log` and passing full-test artifact(s) `local/test-results/hnncore-fulltest.json` |

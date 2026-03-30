@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 34
 - `build-attempted`: 60
-- `built`: 3
+- `built`: 2
 - `tested`: 11
-- `completed`: 62
+- `completed`: 63
 - `total`: 170
 
 | Container | Status | Notes |
@@ -135,7 +135,7 @@ Status totals:
 | `nftsim` | `build-attempted` | Local build log `local/local_logs/build_nftsim.log` exists, but it does not record a finalized image |
 | `nibabies` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `niftyreg` | `completed` | Arm64 image built and full test passed |
-| `nighres` | `built` | Successful local build log `local/local_logs/build_nighres.log`; ARM64 image `nighres:1.5.2` built (`docker image inspect` reports `arm64/linux`, created `2026-03-31T00:58:24.521886596+10:00`), but no completed full-test artifact is recorded under `local/test-results` |
+| `nighres` | `completed` | Successful local build log `local/local_logs/build_nighres.log`; ARM64 image `nighres:1.5.2` (`docker image inspect` reports `arm64/linux`, created `2026-03-31T00:58:24.521886596+10:00`) now has a passing completed full-test artifact `local/test-results/nighres-fulltest.json` recorded via `./test.sh nighres`, covering native `aarch64` execution, Python 3.12.3, installed `nighres` metadata, `jcc`/`nighresjava` imports, visible top-level modules, and a synthetic `nighres.io` NIfTI roundtrip |
 | `niimath` | `completed` | Successful local build log `local/local_logs/build_niimath.log` and passing full-test artifact(s) `local/test-results/niimath-fulltest.json` |
 | `niistat` | `completed` | Successful local build log `local/local_logs/build_niistat.log`; ARM64 image `niistat:1.0.20191216` built and passing full-test artifact(s) `local/test-results/niistat-fulltest.json` recorded from the local arm64 Apptainer rerun against `neurocontainers/sifs/niistat_1.0.20191216_20220111.simg` |
 | `nipype` | `build-attempted` | Local build log `local/local_logs/build_nipype.log` exists, but it does not record a finalized image |

@@ -14,9 +14,9 @@ Status totals:
 
 - `not-started`: 35
 - `build-attempted`: 62
-- `built`: 2
+- `built`: 1
 - `tested`: 12
-- `completed`: 59
+- `completed`: 60
 - `total`: 170
 
 | Container | Status | Notes |
@@ -41,7 +41,7 @@ Status totals:
 | `bidsappspm` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `bidscoin` | `completed` | Successful local build log `local/local_logs/build_bidscoin.log` and passing full-test artifact(s) `local/test-results/bidscoin-fulltest.json` |
 | `bidsme` | `completed` | Successful local build log `local/local_logs/build_bidsme.log` and passing full-test artifact(s) `local/test-results/bidsme-fulltest.json` |
-| `bidstools` | `built` | Arm64 image built; full-test rerun was started but no completed result was recorded |
+| `bidstools` | `completed` | Successful local build log `local/local_logs/build_bidstools.log`; ARM64 image `bidstools:1.0.4` rebuilt after replacing the broken ARM64 miniconda template with an explicit `aarch64` bootstrap and compiling a native `Bru2` from source, and passing full-test artifact(s) `local/test-results/bidstools-fulltest.json` were recorded from the local arm64 Docker rerun against the rebuilt image, covering native `aarch64` execution, packaged tool paths, `Bru2`, `dcm2niix`, `dcmdump`, and the shipped `heudiconv` environment path. The builder's bundled post-build tester still fails separately with an ARM64 helper `exec format error` |
 | `blastct` | `completed` | Arm64 image built and full test passed |
 | `blender` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `braid` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |

@@ -13,8 +13,8 @@ Status rules used here:
 Status totals:
 
 - `not-started`: 34
-- `build-attempted`: 59
-- `built`: 2
+- `build-attempted`: 58
+- `built`: 3
 - `tested`: 11
 - `completed`: 64
 - `total`: 170
@@ -132,7 +132,7 @@ Status totals:
 | `networkcorrespondancetoolkit` | `completed` | Successful local build log `local/local_logs/build_networkcorrespondancetoolkit.log`; ARM64 image `networkcorrespondancetoolkit:0.3.3` built after enabling `aarch64`, switching the conda bootstrap to the ARM64 installer, replacing the unsatisfiable upstream env solve with a minimal Python 3.11 env, and relaxing the unavailable `vtk==9.3.0` pin to an ARM64-available wheel path; passing full-test artifact(s) `local/test-results/networkcorrespondancetoolkit-fulltest.json` recorded from the local arm64 Docker rerun against the existing image, covering native `aarch64` execution, Python 3.11, installed package metadata, module discovery, and the ARM64-sensitive dependency set including `vtk` |
 | `neurocommand` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `neurodock` | `build-attempted` | Local build log `local/local_logs/build_neurodock.log` exists, but it does not record a finalized image |
-| `nftsim` | `build-attempted` | Local build log `local/local_logs/build_nftsim.log` exists, but it does not record a finalized image |
+| `nftsim` | `built` | Successful local build log `local/local_logs/build_nftsim.log`; `docker image inspect nftsim:1.0.2` reports `arm64/linux` with created timestamp `2026-03-31T02:01:40.04722515+10:00` |
 | `nibabies` | `not-started` | No recorded arm64 build or full-test activity in ARM64_TEMPLATE_AUDIT.md |
 | `niftyreg` | `completed` | Arm64 image built and full test passed |
 | `nighres` | `completed` | Successful local build log `local/local_logs/build_nighres.log`; ARM64 image `nighres:1.5.2` (`docker image inspect` reports `arm64/linux`, created `2026-03-31T00:58:24.521886596+10:00`) now has a passing completed full-test artifact `local/test-results/nighres-fulltest.json` recorded via `./test.sh nighres`, covering native `aarch64` execution, Python 3.12.3, installed `nighres` metadata, `jcc`/`nighresjava` imports, visible top-level modules, and a synthetic `nighres.io` NIfTI roundtrip |

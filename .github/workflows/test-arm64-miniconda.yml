@@ -1,0 +1,55 @@
+name: Test ARM64 miniconda
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/test-arm64-miniconda.yml'
+      - 'examples/recipes/test-arm64-miniconda/**'
+      - 'examples/includes/modern/miniconda.yaml'
+      - 'cmd/**'
+      - 'pkg/**'
+      - 'go.mod'
+      - 'go.sum'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arm64-miniconda-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Build repository CLI
+        run: go build -o builder ./cmd/builder
+      - name: Configure example recipes
+        run: |
+          cat > builder.config.yaml <<'CONFIG'
+          recipe_roots:
+            - ./examples/recipes
+          include_dirs:
+            - ./examples/includes
+          CONFIG
+      - name: Build ARM64 testbed
+        run: |
+          test "$(uname -m)" = aarch64
+          ./builder build test-arm64-miniconda --config builder.config.yaml
+      - name: Run deployment tests
+        run: ./builder test test-arm64-miniconda --config builder.config.yaml --capture-output
+      - name: Verify installed conda and Python
+        run: |
+          docker run --rm --platform linux/arm64 --entrypoint /bin/sh test-arm64-miniconda:1.0.0 -ec '
+            conda --version
+            python --version
+            python -c "import platform; assert platform.machine() == '\''aarch64'\''"
+          '

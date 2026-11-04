@@ -1,0 +1,27 @@
+builder: neurodocker
+
+directives:
+  - install:
+      - bzip2
+      - ca-certificates
+      - curl
+
+  - environment:
+      CONDA_DIR: "{{ context.miniconda_install_path }}"
+      PATH: "{{ context.miniconda_install_path }}/bin:$PATH"
+
+  - run:
+      - export PATH="{{ context.miniconda_install_path }}/bin:$PATH"
+      - echo "Downloading Miniconda installer ..."
+      - conda_installer="/tmp/miniconda.sh"
+      - curl -fsSL -o "$conda_installer" {{ context.miniconda_installer_url }}
+      - bash "$conda_installer" -b -p {{ context.miniconda_install_path }}
+      - rm -f "$conda_installer"
+      - conda tos accept || true
+      - conda config --system --prepend channels conda-forge
+      - conda config --set channel_priority strict
+      - conda config --system --set auto_update_conda false
+      - conda config --system --set show_channel_urls true
+      - conda init bash
+      - sync && conda clean --all --yes && sync
+      - rm -rf ~/.cache/pip/*

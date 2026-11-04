@@ -9,20 +9,18 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout builder
+      # Validate the neurocontainers commit this builder pins; the recipe
+      # schema on neurocontainers main moves ahead of the Go types.
+      - name: Checkout builder and pinned neurocontainers
         uses: actions/checkout@v5
+        with:
+          submodules: true
 
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
-
-      - name: Checkout neurocontainers recipes
-        uses: actions/checkout@v5
-        with:
-          repository: neuroDesk/neurocontainers
-          path: neurocontainers
 
       - name: Go mod download
         run: go mod download
